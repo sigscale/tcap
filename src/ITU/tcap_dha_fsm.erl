@@ -817,9 +817,12 @@ extract_uni_dialogue_portion(_DialoguePortion) ->
 %% Dialogue portion included? (yes)
 extract_begin_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'),
 		UserData#'TR-user-data'.dialoguePortion /= undefined ->
-	%% Dialogue portion correct?
-	case 'DialoguePDUs':decode('DialoguePDU', UserData#'TR-user-data'.dialoguePortion) of
-		{ok, {dialoguePDU, AARQ}} when is_record(AARQ, 'AARQ-apdu') ->
+	%% Extract dialogue portion
+	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
+	% some implementations seem to be broken and not send the 'symtax' part?!?
+	{'EXTERNAL', _, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
+	case 'DialoguePDUs':decode('DialoguePDU', DlgPDU) of
+		{ok, {dialogueRequest, AARQ}} when is_record(AARQ, 'AARQ-apdu') ->
 			%% Is version 1 supported?
 			case lists:member(version1, AARQ#'AARQ-apdu'.'protocol-version') of
 				true ->
