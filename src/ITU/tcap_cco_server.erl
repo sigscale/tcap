@@ -207,16 +207,6 @@ code_change(_, _, _) -> ok.
 %%% internal functions
 %%%
 
-asn_val(Foo) ->
-	case Foo of
-		undefined ->
-			asn1_NOVALIE;
-		[] ->
-			asn1_NOVALUE;
-		Foo ->
-			Foo
-	end.
-
 % convert invoke ID from user-input format to what ASN1RT expects
 inv_id_to_asn_rec(undefined) ->
 	asn1_NOVALUE;
@@ -291,23 +281,23 @@ terminate_ISMs([{_Id, ISM}|Tail]) ->
 uprim_to_asn_rec(Uprim) when is_record(Uprim, 'TC-INVOKE') ->
 	{invoke, #'Invoke'{invokeId = inv_id_to_asn_rec(Uprim#'TC-INVOKE'.invokeID),
 		  linkedId = inv_id_to_asn_rec(Uprim#'TC-INVOKE'.linkedID),
-		  opcode = asn_val(Uprim#'TC-INVOKE'.operation),
-		  argument = asn_val(Uprim#'TC-INVOKE'.parameters)}};
+		  opcode = osmo_util:asn_val(Uprim#'TC-INVOKE'.operation),
+		  argument = osmo_util:asn_val(Uprim#'TC-INVOKE'.parameters)}};
 uprim_to_asn_rec(#'TC-RESULT-NL'{invokeID = InvId, operation = Op,
 				 parameters = Params}) ->
-	ResRes = #'ReturnResult_result'{opcode = asn_val(Op),
-					result = asn_val(Params)},
+	ResRes = #'ReturnResult_result'{opcode = osmo_util:asn_val(Op),
+					result = osmo_util:asn_val(Params)},
 	{returnResultNotLast, #'ReturnResult'{invokeId = inv_id_to_asn_rec(InvId), result = ResRes}};
 uprim_to_asn_rec(#'TC-RESULT-L'{invokeID = InvId, operation = Op,
 				parameters = Params}) ->
-	ResRes = #'ReturnResult_result'{opcode = asn_val(Op),
-					result = asn_val(Params)},
+	ResRes = #'ReturnResult_result'{opcode = osmo_util:asn_val(Op),
+					result = osmo_util:asn_val(Params)},
 	{returnResult, #'ReturnResult'{invokeId = inv_id_to_asn_rec(InvId), result = ResRes}};
 uprim_to_asn_rec(#'TC-U-ERROR'{invokeID = InvId, error = Error,
 			       parameters = Params}) ->
 	{returnError, #'ReturnError'{invokeId = inv_id_to_asn_rec(InvId),
-			errcode = asn_val(Error),
-			parameter = asn_val(Params)}};
+			errcode = osmo_util:asn_val(Error),
+			parameter = osmo_util:asn_val(Params)}};
 uprim_to_asn_rec(#'TC-R-REJECT'{invokeID = InvId, problemCode = Pcode}) ->
 	{reject, #'Reject'{invokeId = InvId, problem = Pcode}};
 uprim_to_asn_rec(#'TC-U-REJECT'{invokeID = InvId, problemCode = Pcode}) ->
