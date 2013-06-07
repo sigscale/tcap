@@ -94,7 +94,7 @@ idle({'BEGIN', received, SccpParms}, State)
 	%% Store remote address and remote TID
 	NewState = State#state{remote_address = SccpParms#'N-UNITDATA'.callingAddress,
 			remoteTID = (SccpParms#'N-UNITDATA'.userData)#'Begin'.otid},
-	{ok, Begin} = 'TR':decode('TCMessage', SccpParms#'N-UNITDATA'.userData),
+	Begin = SccpParms#'N-UNITDATA'.userData,
 	QOS = {SccpParms#'N-UNITDATA'.sequenceControl, SccpParms#'N-UNITDATA'.returnOption},
 	UserData = #'TR-user-data'{dialoguePortion = Begin#'Begin'.dialoguePortion,
 			componentPortion = Begin#'Begin'.components},
