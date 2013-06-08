@@ -183,7 +183,7 @@ behaviour_info(Other) ->
 -include("tcap.hrl").
 -include("sccp.hrl").
 
--record(state, {supervisor, module, ext_state}).
+-record(state, {supervisor, module, ext_state, usap}).
 
 %%----------------------------------------------------------------------
 %%  The gen_server call backs
@@ -210,10 +210,12 @@ init([Sup, Module, Args]) when is_list(Args) ->
 %% @hidden
 %%
 % assign a new dialogue ID
-handle_call(dialogueID, From, State) ->
+handle_call(dialogueID, _FromRef, State) ->
 	{reply, new_tid(), State};
+handle_call(set_usap, {From, Ref}, State) ->
+	{reply, ok, State#state{usap = From}};
 % shutdown the server
-handle_call(stop, _From, State) ->
+handle_call(stop, _FromRef, State) ->
 	{stop, shutdown, ok, State};
 handle_call({local_new_trans, OTID}, {Usap, Ref}, State) ->
 	% Create a Transaction State Machine (TSM)
@@ -649,14 +651,16 @@ get_start(dialogue, DialogueID, State) ->
 	end;
 get_start(in_transaction, TransactionID, State) ->
 	Module = State#state.module,
+	Usap = State#state.usap,
 	case erlang:function_exported(Module, start_transaction, 1) of
 		true ->
 			Module:start_transaction(TransactionID, State#state.ext_state);
 		false ->
 			SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
 			StartDHA = get_start(dialogue, TransactionID, State),
-			StartArgs = [TransactionID, SendFun, StartDHA],
-			{gen_fsm, start_link, [tcap_tsm_fsm, StartArgs, []]}
+			% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
+			StartArgs = [SendFun, Usap, TransactionID, self()],
+			{supervisor, start_link, [tcap_transaction_sup, StartArgs]}
 	end;
 get_start(out_transaction, [TransactionID, Usap], State) when is_record(State, state) ->
 	#state{module = Module, supervisor = Sup} = State,
