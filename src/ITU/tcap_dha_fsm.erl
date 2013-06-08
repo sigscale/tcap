@@ -211,7 +211,7 @@ idle({'TR', 'BEGIN', indication, BeginParms}, State) when is_record(BeginParms, 
 			DialoguePortion = (BeginParms#'TR-BEGIN'.userData)#'TR-user-data'.dialoguePortion,
 			%% Build AARE apdu
 			AARE = 'DialoguePDUs':encode('AARE-apdu', #'AARE-apdu'{
-					'protocol-version' = version1,
+					'protocol-version' = [version1],
 					'application-context-name' = DialoguePortion#'AARQ-apdu'.'application-context-name',
 					result = reject-permanent,
 					'result-source-diagnostic' = {'dialogue-service-provider', 'no-common-dialogue-portion'}}),
@@ -266,7 +266,7 @@ initiation_received({'TC', 'CONTINUE', request, ContParms}, State) when is_recor
 	%% Dialogue info included?
 	case ContParms#'TC-CONTINUE'.userInfo of
 		UserInfo when is_binary(UserInfo) ->
-			AARE = #'AARE-apdu'{'protocol-version' = version1,
+			AARE = #'AARE-apdu'{'protocol-version' = [version1],
 					'application-context-name' = ContParms#'TC-CONTINUE'.appContextName,
 					result = accepted,
 					'result-source-diagnostic' = {'dialogue-service-user', null},
@@ -301,8 +301,8 @@ initiation_received({'TC', 'END', request, EndParms}, State) when is_record(EndP
 		basic ->
 			%% Dialogue info included?
 			case EndParms#'TC-END'.userInfo of
-				UserInfo when is_binary(UserInfo) ->
-					AARE = #'AARE-apdu'{'protocol-version' = version1,
+				UserInfo when is_list(UserInfo) ->
+					AARE = #'AARE-apdu'{'protocol-version' = [version1],
 							'application-context-name' = EndParms#'TC-END'.appContextName,
 							result = accepted,
 							'result-source-diagnostic' = {'dialogue-service-user', null},
@@ -338,7 +338,7 @@ initiation_received({'TC', 'U-ABORT', request, AbortParms}, State) when is_recor
 			%% Set protocol version = 1
 			%% Build AARE-pdu (rejected)
 			AARE = 'DialoguePDUs':encode('AARE-apdu',
-					#'AARE-apdu'{'protocol-version' = version1,
+					#'AARE-apdu'{'protocol-version' = [version1],
 					'application-context-name' = AbortParms#'TC-U-ABORT'.appContextName,
 					result = 'reject-permanent',
 					'result-source-diagnostic' = {'dialogue-service-user', 'application-context-name-not-supported'}}),
@@ -347,7 +347,7 @@ initiation_received({'TC', 'U-ABORT', request, AbortParms}, State) when is_recor
 			%% Set protocol version = 1
 			%% Build AARE-pdu (rejected)
 			AARE = 'DialoguePDUs':encode('AARE-apdu',
-					#'AARE-apdu'{'protocol-version' = version1,
+					#'AARE-apdu'{'protocol-version' = [version1],
 					'application-context-name' = AbortParms#'TC-U-ABORT'.appContextName,
 					result = 'reject-permanent',
 					'result-source-diagnostic' = {'dialogue-service-user', null}}),
