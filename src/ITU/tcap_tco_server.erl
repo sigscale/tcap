@@ -307,26 +307,35 @@ handle_cast({'N', 'UNITDATA', indication, UdataParams}, State)
 			%        or that there are enough resources available.  The real
 			%        test is in whether the start succeeds.
 			case supervisor:start_child(State#state.supervisor, ChildSpec) of
-			% FIXME: the entire mobile-termianted
-			% transaction handling needs to reflect tcap_transaction_sup
-				{ok, TSM} ->
+				{ok, _TransSupPid} ->
 					% Created a Transaction State Machine (TSM)
-					TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
-					% BEGIN received TSM <- TCO
-					gen_fsm:send_event(TSM, {'BEGIN', received, TsmParams});
-				_Other ->
+					case ets:lookup_element(tcap_transaction, TransactionID, 2) of
+					TSM ->
+						TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
+						% BEGIN received TSM <- TCO
+						gen_fsm:send_event(TSM, {'BEGIN', received, TsmParams});
+					{error, _Reason} ->
+						error_logger:error_report(["Unable to find TSM that was just started"])
+					end;
+				Other ->
+					error_logger:error_report(["Unable to start TSM", {childspec, ChildSpec}, {error, Other}]),
 					% TID = no TID
 					% Build ABORT message (P-Abort Cause = Resource Limitation)
-					Abort = {abort, #'Abort'{dtid = TPDU#'Begin'.otid,
+					Abort = {abort, #'Abort'{dtid = encode_tid(TPDU#'Begin'.otid),
 							reason = {'p-abortCause', resourceLimitation}}},
-					NewTPDU = list_to_binary('TR':encode('TCMessage', Abort)),
-					SccpParams = #'N-UNITDATA'{calledAddress = UdataParams#'N-UNITDATA'.callingAddress,
-							callingAddress = UdataParams#'N-UNITDATA'.calledAddress,
-							sequenceControl = false, returnOption = false, importance = none,
-							userData = NewTPDU},
-					% TR-UNI request TSL -> SCCP
-					Module = State#state.module,
-					Module:send_primitive({'N', 'UNITDATA', request, SccpParams}, State#state.ext_state),
+					case 'TR':encode('TCMessage', Abort) of
+					{ok, EncAbort} ->
+						SccpParams = #'N-UNITDATA'{calledAddress = UdataParams#'N-UNITDATA'.callingAddress,
+								callingAddress = UdataParams#'N-UNITDATA'.calledAddress,
+								sequenceControl = false,
+								returnOption = false, importance = none,
+								userData = list_to_binary(EncAbort)},
+						% TR-UNI request TSL -> SCCP
+						Module = State#state.module,
+						Module:send_primitive({'N', 'UNITDATA', request, SccpParams}, State#state.ext_state);
+					{error, Err} ->
+						error_logger:error_report(["Error generating ASN1", {abort, Abort}, {error, Err}])
+					end,
 					error_logger:error_report(["Unable to create TSM for received N-BEGIN",
 							{caller, UdataParams#'N-UNITDATA'.callingAddress},
 							{called, UdataParams#'N-UNITDATA'.calledAddress}])
@@ -734,6 +743,13 @@ decode_tid(Bin) when is_binary(Bin) ->
 	binary:decode_unsigned(Bin);
 decode_tid(List) when is_list(List) ->
 	decode_tid(list_to_binary(List)).
+
+encode_tid(In) when is_integer(In) ->
+	<<In:32/big>>;
+encode_tid(In) when is_list(In) ->
+	list_to_binary(In);
+encode_tid(In) when is_binary(In) ->
+	In.
 
 postproc_tcmessage(C=#'Continue'{otid = Otid, dtid = Dtid}) ->
 	C#'Continue'{otid = decode_tid(Otid), dtid = decode_tid(Dtid)};
