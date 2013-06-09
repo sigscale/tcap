@@ -271,10 +271,12 @@ initiation_received({'TC', 'CONTINUE', request, ContParms}, State) when is_recor
 			'user-information' = osmo_util:asn_val(ContParms#'TC-CONTINUE'.userInfo)},
 	{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
 	TrParms = #'TR-CONTINUE'{qos = ContParms#'TC-CONTINUE'.qos,
-				origAddress = ContParms#'TR-CONTINUE'.origAddress,
+				origAddress = ContParms#'TC-CONTINUE'.origAddress,
 				transactionID = State#state.otid,
 				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DlgPor)}},
 	NewState = State#state{parms = TrParms},
+	%% Request components to CHA
+	gen_server:cast(NewState#state.cco, 'request-components'),
 	{next_state, wait_cont_components_ir, NewState};
 
 %% reference: Figure A.5/Q.774 (sheet 5 of 11)
