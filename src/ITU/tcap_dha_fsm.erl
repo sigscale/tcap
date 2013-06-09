@@ -840,16 +840,22 @@ extract_begin_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'
 extract_begin_dialogue_portion(_DialoguePortion) ->
 	#'TC-BEGIN'{}.
 
-extract_dialogue_portion(UserData, undefined) when is_record(UserData, 'TR-user-data'),
-		UserData#'TR-user-data'.dialoguePortion /= undefined ->
+% if AC is undefined and dialogue portion present -> abort
+extract_dialogue_portion(UserData, undefined) when is_record(UserData, 'TR-user-data') and
+		(UserData#'TR-user-data'.dialoguePortion /= undefined) and
+		(UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE) ->
 		%% Dialogue portion included? (yes)  AC mode set? (no)
 	abort;
-extract_dialogue_portion(UserData, _AppContextName) when not is_record(UserData, 'TR-user-data'),
-		UserData#'TR-user-data'.dialoguePortion == undefined ->
+% if dialogue portion is not present but App context name is set -> abort
+extract_dialogue_portion(UserData, _AppContextName) when not is_record(UserData, 'TR-user-data') or
+		(UserData#'TR-user-data'.dialoguePortion == undefined) or
+		(UserData#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
 		%% Dialogue portion included? (no)  AC mode set? (yes)
 	abort;
-extract_dialogue_portion(UserData, _AppContextName) when is_record(UserData, 'TR-user-data'),
-		UserData#'TR-user-data'.dialoguePortion /= undefined ->
+% if dialogue portion is present and AppContext name is set -> decode dialogue and proceed
+extract_dialogue_portion(UserData, _AppContextName) when is_record(UserData, 'TR-user-data') and
+		(UserData#'TR-user-data'.dialoguePortion /= undefined) and
+		(UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE) ->
 	%% Extract dialogue portion
 	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
 	% some implementations seem to be broken and not send the 'symtax' part?!?
