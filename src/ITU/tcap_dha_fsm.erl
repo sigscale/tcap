@@ -213,7 +213,7 @@ idle({'TR', 'BEGIN', indication, BeginParms}, State) when is_record(BeginParms, 
 			AARE = 'DialoguePDUs':encode('AARE-apdu', #'AARE-apdu'{
 					'protocol-version' = [version1],
 					'application-context-name' = DialoguePortion#'AARQ-apdu'.'application-context-name',
-					result = reject-permanent,
+					result = 'reject-permanent',
 					'result-source-diagnostic' = {'dialogue-service-provider', 'no-common-dialogue-portion'}}),
 			%% Discard components
 			%% TR-P-ABORT request to TSL
