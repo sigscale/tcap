@@ -271,15 +271,16 @@ initiation_received({'TC', 'CONTINUE', request, ContParms}, State) when is_recor
 					result = accepted,
 					'result-source-diagnostic' = {'dialogue-service-user', null},
 					'user-information' = UserInfo},
-			DialoguePortion = 'DialoguePDUs':encode('AARE-apdu', AARE),
-			TrParms = #'TR-CONTINUE'{qos = ContParms#'TC-CONTINUE'.qos,
-					origAddress = ContParms#'TR-CONTINUE'.origAddress,
-					transactionID = State#state.otid,
-					userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)}},
-			NewState = State#state{parms = TrParms};
+			{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
+			DialoguePortion = dialogue_ext(DlgPor);
 		undefined ->
-			NewState = State
+			DialoguePortion = asn1_NOVALUE
 	end,
+	TrParms = #'TR-CONTINUE'{qos = ContParms#'TC-CONTINUE'.qos,
+				origAddress = ContParms#'TR-CONTINUE'.origAddress,
+				transactionID = State#state.otid,
+				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)}},
+	NewState = State#state{parms = TrParms},
 	{next_state, wait_cont_components_ir, NewState};
 
 %% reference: Figure A.5/Q.774 (sheet 5 of 11)
@@ -307,16 +308,16 @@ initiation_received({'TC', 'END', request, EndParms}, State) when is_record(EndP
 							result = accepted,
 							'result-source-diagnostic' = {'dialogue-service-user', null},
 							'user-information' = UserInfo},
-					DialoguePortion = 'DialoguePDUs':encode('AARE-apdu', AARE),
-					TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
-							transactionID = State#state.otid,
-							termination = EndParms#'TC-END'.termination,
-							userData = #'TR-user-data'{dialoguePortion =
-											dialogue_ext(DialoguePortion)}},
-					NewState = State#state{parms = TrParms};
+					{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
+					DialoguePortion = dialogue_ext(DlgPor);
 				undefined ->
-					NewState = State
+					DialoguePortion = asn1_NOVALUE
 			end,
+			TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
+					transactionID = State#state.otid,
+					termination = EndParms#'TC-END'.termination,
+					userData = #'TR-user-data'{dialoguePortion = DialoguePortion}},
+			NewState = State#state{parms = TrParms},
 			%% Request components to CHA
 			gen_server:cast(NewState#state.cco, 'request-components'),
 			%% Process components
