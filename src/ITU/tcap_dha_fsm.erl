@@ -742,7 +742,7 @@ wait_cont_components_ir({'requested-components', Components}, State) ->
 wait_cont_components_ir1(State) ->
 	%% TR-CONTINUE request to TSL
 	gen_server:cast(State#state.tco, {'TR', 'CONTINUE', request, State#state.parms}),
-	{next_state, initiation_sent, State}.
+	{next_state, active, State}.
 	
 %% reference: Figure A.5 bis/Q.774
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
