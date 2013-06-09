@@ -264,22 +264,16 @@ idle({'TR', 'BEGIN', indication, BeginParms}, State) when is_record(BeginParms, 
 %%% TC-CONTINUE request from TCU
 initiation_received({'TC', 'CONTINUE', request, ContParms}, State) when is_record(ContParms, 'TC-CONTINUE') ->
 	%% Dialogue info included?
-	case ContParms#'TC-CONTINUE'.userInfo of
-		UserInfo when is_binary(UserInfo) ->
-			AARE = #'AARE-apdu'{'protocol-version' = [version1],
-					'application-context-name' = ContParms#'TC-CONTINUE'.appContextName,
-					result = accepted,
-					'result-source-diagnostic' = {'dialogue-service-user', null},
-					'user-information' = UserInfo},
-			{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
-			DialoguePortion = dialogue_ext(DlgPor);
-		undefined ->
-			DialoguePortion = asn1_NOVALUE
-	end,
+	AARE = #'AARE-apdu'{'protocol-version' = [version1],
+			'application-context-name' = ContParms#'TC-CONTINUE'.appContextName,
+			result = accepted,
+			'result-source-diagnostic' = {'dialogue-service-user', null},
+			'user-information' = osmo_util:asn_val(ContParms#'TC-CONTINUE'.userInfo)},
+	{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
 	TrParms = #'TR-CONTINUE'{qos = ContParms#'TC-CONTINUE'.qos,
 				origAddress = ContParms#'TR-CONTINUE'.origAddress,
 				transactionID = State#state.otid,
-				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)}},
+				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DlgPor)}},
 	NewState = State#state{parms = TrParms},
 	{next_state, wait_cont_components_ir, NewState};
 
@@ -300,23 +294,16 @@ initiation_received({'TC', 'END', request, EndParms}, State) when is_record(EndP
 			%% Free dialogue ID
 			{stop, normal, NewState};
 		basic ->
-			%% Dialogue info included?
-			case EndParms#'TC-END'.userInfo of
-				UserInfo when is_list(UserInfo) ->
-					AARE = #'AARE-apdu'{'protocol-version' = [version1],
-							'application-context-name' = EndParms#'TC-END'.appContextName,
-							result = accepted,
-							'result-source-diagnostic' = {'dialogue-service-user', null},
-							'user-information' = UserInfo},
-					{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
-					DialoguePortion = dialogue_ext(DlgPor);
-				undefined ->
-					DialoguePortion = asn1_NOVALUE
-			end,
+			AARE = #'AARE-apdu'{'protocol-version' = [version1],
+					'application-context-name' = EndParms#'TC-END'.appContextName,
+					result = accepted,
+					'result-source-diagnostic' = {'dialogue-service-user', null},
+					'user-information' = osmo_util:asn_val(EndParms#'TC-END'.userInfo)},
+			{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
 			TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
 					transactionID = State#state.otid,
 					termination = EndParms#'TC-END'.termination,
-					userData = #'TR-user-data'{dialoguePortion = DialoguePortion}},
+					userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DlgPor)}},
 			NewState = State#state{parms = TrParms},
 			%% Request components to CHA
 			gen_server:cast(NewState#state.cco, 'request-components'),
