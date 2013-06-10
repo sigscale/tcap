@@ -57,7 +57,7 @@ start_ism(USAP, DlgId, InvokeID, CcoPid, OpClass, Timeout) ->
 	Name = list_to_atom("tcap_ism_" ++ integer_to_list(DlgId) ++ "_" ++ integer_to_list(InvokeID)),
 	StartArgs = [USAP, DlgId, InvokeID, CcoPid, OpClass, Timeout],
 	StartFunc = {gen_fsm, start_link, [{local, Name}, tcap_ism_fsm, StartArgs, [{debug,[trace]}]]},
-	ChildSpec = {ism, StartFunc, temporary, 4000, worker,
+	ChildSpec = {Name, StartFunc, temporary, 4000, worker,
 			[tcap_ism_sup]},
 	supervisor:start_child(SupRef, ChildSpec).
 
