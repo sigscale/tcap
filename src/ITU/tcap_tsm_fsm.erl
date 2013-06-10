@@ -357,7 +357,9 @@ active({'END', transaction, EndParms}, State)
 	TrUserData = process_undefined(EndParms#'TR-END'.userData),
 	DialoguePortion = TrUserData#'TR-user-data'.dialoguePortion,
 	ComponentPortion = TrUserData#'TR-user-data'.componentPortion,
-	End = #'End'{dialoguePortion = DialoguePortion, components = ComponentPortion},
+	Dtid = State#state.remoteTID,
+	End = #'End'{dtid = <<Dtid:32/big>>, dialoguePortion = DialoguePortion,
+		     components = ComponentPortion},
 	%% Assemble TR-portion of END message
 	{ok, TPDU} = 'TR':encode('TCMessage', {'end', End}),
 	{SequenceControl, ReturnOption} = qos_from_tr_prim(EndParms),
