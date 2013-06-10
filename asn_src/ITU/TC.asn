@@ -32,7 +32,7 @@ Invoke ::= SEQUENCE {
 		absent	[1] IMPLICIT NULL
 	} OPTIONAL,
 	opcode Code,
-	argument Param
+	argument Param OPTIONAL
 }
 
 ReturnResult ::= SEQUENCE {
