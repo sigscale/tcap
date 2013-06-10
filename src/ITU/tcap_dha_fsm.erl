@@ -623,14 +623,14 @@ active({'TC', 'CONTINUE', request, ContParms}, State) when is_record(ContParms, 
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
 %% TC-END request from TCU
 active({'TC', 'END', request, EndParms}, State) when is_record(EndParms, 'TC-END') ->
+	TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
+			transactionID = State#state.otid,
+			termination = EndParms#'TC-END'.termination},
+	NewState = State#state{parms = TrParms},
 	%% Prearranged end?
 	case EndParms#'TC-END'.termination of
 		prearranged ->
 			%% TR-END request to TSL
-			TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
-					transactionID = State#state.otid,
-					termination = EndParms#'TC-END'.termination},
-			NewState = State#state{parms = TrParms},
 			gen_server:cast(NewState#state.tco, {'TR', 'END', request, TrParms}),
 			%% Dialogue terminated to CHA
 			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
@@ -640,7 +640,7 @@ active({'TC', 'END', request, EndParms}, State) when is_record(EndParms, 'TC-END
 			%% Request component to CHA
 			gen_server:cast(State#state.cco, 'request-components'),
 			%% Process components
-			{next_state, wait_for_end_components, State}
+			{next_state, wait_for_end_components, NewState}
 	end;
 
 %% reference: Figuer A.5/Q774 (sheet 10 of 11)
