@@ -434,8 +434,9 @@ handle_info(Info, StateName, State) ->
 	{next_state, StateName, State}.
 
 %% handle a shutdown request
-terminate(_Reason, _StateName, State) ->
-	io:format("Deleting {~p, ~p} from tcap_transactions~n", [ State#state.localTID, self()]),
+terminate(Reason, StateName, State) ->
+	io:format("Deleting {~p, ~p} from tcap_transactions (state ~p, reason ~p)~n",
+		  [ State#state.localTID, self(), StateName, Reason]),
 	ets:delete(tcap_transaction, State#state.localTID),
 	%% signal TCO that we are stopping
 	gen_server:cast(State#state.tco, {'tsm-stopped', State#state.supref}).
