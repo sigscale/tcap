@@ -486,7 +486,7 @@ initiation_sent({'TR', 'CONTINUE', indication, ContParms}, State) when is_record
 					#'ABRT-apdu'{'abort-source' = 'dialogue-service-provider'}),
 			UserData = #'TR-user-data'{dialoguePortion = dialogue_ext(ABRT)},
 			%% TR-U-ABORT request to TSL
-			TrParms = #'TR-U-ABORT'{qos = ContParms#'TC-U-ABORT'.qos,
+			TrParms = #'TR-U-ABORT'{qos = ContParms#'TR-CONTINUE'.qos,
 					transactionID = NewState#state.otid, userData = UserData},
 			LastState = State#state{parms = ContParms},
 			gen_server:cast(LastState#state.tco, {'TR', 'U-ABORT', request, TrParms}),
@@ -625,6 +625,7 @@ active({'TC', 'CONTINUE', request, ContParms}, State) when is_record(ContParms, 
 active({'TC', 'END', request, EndParms}, State) when is_record(EndParms, 'TC-END') ->
 	TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
 			transactionID = State#state.otid,
+			userData = #'TR-user-data'{dialoguePortion = EndParms#'TC-END'.userInfo},
 			termination = EndParms#'TC-END'.termination},
 	NewState = State#state{parms = TrParms},
 	%% Prearranged end?
