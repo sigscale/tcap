@@ -80,7 +80,7 @@ ComponentPortion{OPERATION:Invokable, OPERATION:Returnable} ::=
 -- TCAP adds returnResultNotLast to allow for the segmentation of a result.
 Component{OPERATION:Invokable, OPERATION:Returnable} ::= CHOICE {
   basicROS             ROS{{TCInvokeIdSet}, {Invokable}, {Returnable}},
-  returnResultNotLast  [7]  returnResult < ROS{{}, {}, {Returnable}}
+  returnResultNotLast  [7]  returnResult < ROS{{TCInvokeIdSet}, {Invokable}, {Returnable}}
 }
 
 TCInvokeIdSet ::= InvokeId(WITH COMPONENTS { present  (-128..127) })
