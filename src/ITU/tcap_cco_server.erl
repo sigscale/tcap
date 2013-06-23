@@ -311,42 +311,48 @@ uprim_to_asn_rec(#'TC-U-REJECT'{invokeID = InvId, problemCode = Pcode}) ->
 	{reject, #'Reject'{invokeId = InvId, problem = Pcode}}.
 
 % Convert from asn1ct-generated record to the primitive records
-asn_rec_to_uprim({invoke, AsnRec}, DlgId) when is_record(AsnRec, 'Invoke') ->
+asn_rec_to_uprim({invoke, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Invoke') ->
 	#'TC-INVOKE'{dialogueID = DlgId,
 		     invokeID = inv_id_to_uprim(AsnRec#'Invoke'.invokeId),
 		     linkedID = inv_id_to_uprim(AsnRec#'Invoke'.linkedId),
 		     operation = AsnRec#'Invoke'.opcode,
-		     parameters = AsnRec#'Invoke'.argument};
-asn_rec_to_uprim({returnResultNotLast, AsnRec}, DlgId) when is_record(AsnRec, 'ReturnResult') ->
+		     parameters = AsnRec#'Invoke'.argument,
+		     lastComponent = Last};
+asn_rec_to_uprim({returnResultNotLast, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnResult') ->
 	#'ReturnResult_result'{opcode = Op, result = Result} = AsnRec#'ReturnResult'.result,
 	#'TC-RESULT-NL'{dialogueID = DlgId,
 			invokeID = inv_id_to_uprim(AsnRec#'ReturnResult'.invokeId),
 			operation = Op,
-			parameters = Result};
-asn_rec_to_uprim({returnResult, AsnRec}, DlgId) when is_record(AsnRec, 'ReturnResult') ->
+			parameters = Result,
+			lastComponent = Last};
+asn_rec_to_uprim({returnResult, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnResult') ->
 	#'ReturnResult_result'{opcode = Op, result = Result} = AsnRec#'ReturnResult'.result,
 	#'TC-RESULT-L'{dialogueID = DlgId,
 			invokeID = inv_id_to_uprim(AsnRec#'ReturnResult'.invokeId),
 			operation = Op,
-			parameters = Result};
-asn_rec_to_uprim({returnError, AsnRec}, DlgId) when is_record(AsnRec, 'ReturnError') ->
+			parameters = Result,
+			lastComponent = Last};
+asn_rec_to_uprim({returnError, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnError') ->
 	#'TC-U-ERROR'{dialogueID = DlgId,
 		      invokeID = inv_id_to_uprim(AsnRec#'ReturnError'.invokeId),
 		      error = AsnRec#'ReturnError'.errcode,
-		      parameters = AsnRec#'ReturnError'.parameter};
-asn_rec_to_uprim({reject, AsnRec}, DlgId) when is_record(AsnRec, 'Reject') ->
+		      parameters = AsnRec#'ReturnError'.parameter,
+		      lastComponent = Last};
+asn_rec_to_uprim({reject, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Reject') ->
 	#'TC-U-REJECT'{dialogueID = DlgId,
 			invokeID = inv_id_to_uprim(AsnRec#'Reject'.invokeId),
-			problemCode = AsnRec#'Reject'.problem}.
+			problemCode = AsnRec#'Reject'.problem,
+			lastComponent = Last}.
 
 
-process_rx_components(_ISMs, _Usap, _DlgId, []) ->
+process_rx_components(ISMs, Usap, DlgId, [Head|[]]) ->
+	process_rx_component(ISMs, Usap, DlgId, Head, true),
 	ok;
 process_rx_components(ISMs, Usap, DlgId, [Head|Tail]) ->
-	process_rx_component(ISMs, Usap, DlgId, Head),
+	process_rx_component(ISMs, Usap, DlgId, Head, false),
 	process_rx_components(ISMs, Usap, DlgId, Tail).
 
-process_rx_component(ISMs, Usap, DlgId, C={invoke, #'Invoke'{}}) ->
+process_rx_component(ISMs, Usap, DlgId, C={invoke, #'Invoke'{}}, Last) ->
 	InvId = get_invoke_id_from_comp(C),
 	{invoke, I} = C,
 	case I#'Invoke'.linkedId of
@@ -357,9 +363,9 @@ process_rx_component(ISMs, Usap, DlgId, C={invoke, #'Invoke'{}}) ->
 		% FIXME
 		ok
 	end,
-	Prim = asn_rec_to_uprim(C, DlgId),
+	Prim = asn_rec_to_uprim(C, DlgId, Last),
 	gen_fsm:send_event(Usap, {'TC','INVOKE',indication,Prim});
-process_rx_component(ISMs, _Usap, DlgId, C={reject, #'Reject'{problem=Problem}}) ->
+process_rx_component(ISMs, _Usap, DlgId, C={reject, #'Reject'{problem=Problem}}, Last) ->
 	InvId = get_invoke_id_from_comp(C),
 	ISM = lists:keyfind(InvId, 1, ISMs),
 	case Problem of
@@ -370,15 +376,15 @@ process_rx_component(ISMs, _Usap, DlgId, C={reject, #'Reject'{problem=Problem}})
 		ok
 	end,
 	% FIXME: decide on TC-U-REJECT or TC-R-REJECT
-	Prim = asn_rec_to_uprim(C, DlgId),
+	Prim = asn_rec_to_uprim(C, DlgId, Last),
 	{InvId, ISM} = lists:keyfind(InvId, 1, ISMs),
 	gen_fsm:send_event(ISM, Prim);
-process_rx_component(ISMs, _Usap, DlgId, Comp) ->
+process_rx_component(ISMs, _Usap, DlgId, Comp, Last) ->
 	% syntax error?
 	InvId = get_invoke_id_from_comp(Comp),
 	{InvId, ISM} = lists:keyfind(InvId, 1, ISMs),
 	% FIXME: ISM active (No -> 6)
-	Prim = asn_rec_to_uprim(Comp, DlgId),
+	Prim = asn_rec_to_uprim(Comp, DlgId, Last),
 	gen_fsm:send_event(ISM, Prim).
 
 add_components_to_state(State = #state{components=CompOld}, CompNew) when is_list(CompNew) ->
