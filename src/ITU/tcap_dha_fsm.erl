@@ -137,7 +137,7 @@ idle({'TC', 'BEGIN', request, BeginParms}, State)
 			origAddress = BeginParms#'TC-BEGIN'.origAddress,
 			transactionID = BeginParms#'TC-BEGIN'.dialogueID,
 			userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)}},
-	NewState = State#state{parms = TrParms,
+	NewState = State#state{parms = TrParms, otid = BeginParms#'TC-BEGIN'.dialogueID,
 			%% Set application context mode
 			appContextMode = BeginParms#'TC-BEGIN'.appContextName},
 	%% Request components to CHA
