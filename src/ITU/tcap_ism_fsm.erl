@@ -89,6 +89,9 @@ start_link(Usap, DialogueId, InvokeId, OpClass, InvTimeout) ->
 
 % DHA needs to tell us: USAP, DialogueID, InvokeID, CCO-PID, OpClass, InvTimer
 init([Usap, DialogueId, InvokeId, CcoPid, OpClass, InvTimeout]) ->
+	% we need to trap EXIT signals, as otherwise we might be terminated by
+	% the dialogue END before we have delivered the components to the TC-User.
+	process_flag(trap_exit, true),
 	State = #state{usap = Usap, dialogueId = DialogueId,
 			invokeId = InvokeId, cco = CcoPid,
 			op_class = OpClass, inv_timeout = InvTimeout},
@@ -230,7 +233,11 @@ handle_info(Info, StateName, State) ->
 	{next_state, StateName, State}.
 
 %% handle a shutdown request
-terminate(_Reason, _StateName, _State) -> ok.
+terminate(Reason, StateName, State) ->
+	timer:cancel(State#state.inv_timer),
+	timer:cancel(State#state.rej_timer),
+	error_logger:format("~w (~w) terminating Reason: ~w in state ~w~n",
+			    [?MODULE, self(), Reason, StateName]).
 
 %% handle updating state data due to a code replacement
 code_change(_OldVsn, StateName, State, _Extra) ->
