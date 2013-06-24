@@ -317,7 +317,6 @@ active({'CONTINUE', transaction, ContParms}, State)
 	ComponentPortion = TrUserData#'TR-user-data'.componentPortion,
 	Otid = State#state.localTID,
 	Dtid = State#state.remoteTID,
-	io:format("OTID ~p, DTID ~p~n", [Otid, Dtid]),
 	Continue = #'Continue'{otid = <<Otid:32/big>>, dtid = <<Dtid:32/big>>,
 				dialoguePortion = DialoguePortion, components = ComponentPortion},
 	%% Assemble TR-portion of CONTINUE message
