@@ -1,10 +1,10 @@
 %%% $Id: tcap_ism_fsm.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
 %%%---------------------------------------------------------------------
-%%% @copyright 2010-2011 Harald Welte
+%%% @copyright 2010-2013 Harald Welte
 %%% @author Harald Welte <laforge@gnumonks.org>
 %%% @end
 %%%
-%%% Copyright (c) 2010-2011, Harald Welte <laforge@gnumonks.org>
+%%% Copyright (c) 2010-2013, Harald Welte <laforge@gnumonks.org>
 %%% 
 %%% All rights reserved.
 %%% 
@@ -46,7 +46,7 @@
 %%%
 
 -module(tcap_ism_fsm).
--copyright('Copyright (c) 2010-2011 Harald Welte').
+-copyright('Copyright (c) 2010-2013 Harald Welte').
 -author('laforge@gnumonks.org').
 -vsn('$Revision: 1.3 $').
 
@@ -122,7 +122,7 @@ idle('operation-sent', State) ->
 op_sent_cl1(P=#'TC-RESULT-L'{}, State) ->
 	% Figure A.7/Q.774 (2 of 6)
 	% TC-RESULT-L.ind to user
-	gen_fsm:send_event(State#state.usap, P),
+	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-L', indication, P}),
 	% stop invocation timer
 	timer:cancel(State#state.inv_timer),
 	% start reject timer
@@ -131,7 +131,7 @@ op_sent_cl1(P=#'TC-RESULT-L'{}, State) ->
 op_sent_cl1(P=#'TC-U-REJECT'{}, State) ->
 	% Figure A.7/Q.774 (2 of 6)
 	% TC-U-ERROR.ind to user
-	gen_fsm:send_event(State#state.usap, P),
+	gen_fsm:send_event(State#state.usap, {'TC', 'U-ERROR', indication, P}),
 	% stop invocation timer
 	timer:cancel(State#state.inv_timer),
 	% start reject timer
@@ -140,7 +140,7 @@ op_sent_cl1(P=#'TC-U-REJECT'{}, State) ->
 op_sent_cl1(P=#'TC-RESULT-NL'{}, State) ->
 	% Figure A.7/Q.774 (2 of 6)
 	% TC-RESULT-NL.ind to user
-	gen_fsm:send_event(State#state.usap, P),
+	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-NL', indication, P}),
 	{next_state, op_sent_cl1, State};
 op_sent_cl1('terminate', State) ->
 	% stop invocation timer
@@ -158,7 +158,7 @@ wait_for_reject({timer_expired, reject}, State) ->
 
 op_sent_cl2(P=#'TC-U-REJECT'{}, State) ->
 	% TC-U-ERROR.ind to user
-	gen_fsm:send_event(State#state.usap, P),
+	gen_fsm:send_event(State#state.usap, {'TC', 'U-REJECT', indication, P}),
 	% stop invocation timer
 	timer:cancel(State#state.inv_timer),
 	% start reject timer
@@ -184,7 +184,7 @@ op_sent_cl2('terminate', State) ->
 op_sent_cl3(P=#'TC-RESULT-L'{}, State) ->
 	% Figure A.7/Q.774 (5 of 6)
 	% TC-RESULT-L.ind to user
-	gen_fsm:send_event(State#state.usap, P),
+	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-L', indication, P}),
 	% stop invocation timer
 	timer:cancel(State#state.inv_timer),
 	% start reject timer
@@ -192,7 +192,7 @@ op_sent_cl3(P=#'TC-RESULT-L'{}, State) ->
 	{next_state, wait_for_reject, State#state{rej_timer = Trej}};
 op_sent_cl3(P=#'TC-RESULT-NL'{}, State) ->
 	% TC-RESULT-NL.ind to user
-	gen_fsm:send_event(State#state.usap, P),
+	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-NL', indication, P}),
 	{next_state, op_sent_cl3, State};
 op_sent_cl3('terminate', State) ->
 	% stop invocation timter
@@ -221,7 +221,7 @@ handle_event({timer_expired, invoke}, _StateName, State) ->
 	#state{dialogueId = DlgId, invokeId = InvId} = State,
 	% TC-L-CANCEL.ind to user
 	P = #'TC-L-CANCEL'{dialogueID = DlgId, invokeID = InvId},
-	gen_fsm:send_event(State#state.usap, P),
+	gen_fsm:send_event(State#state.usap, {'TC', 'L-CANCEL', indication, P}),
 	{stop, normal, State}.
 
 %% handle any other message
