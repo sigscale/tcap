@@ -40,7 +40,7 @@ ReturnResult ::= SEQUENCE {
 	result SEQUENCE {
 		opcode Code,
 		result Param OPTIONAL
-	}
+	} OPTIONAL
 }
 
 ReturnError ::= SEQUENCE {
