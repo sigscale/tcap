@@ -1,10 +1,10 @@
 %%%
 %%%---------------------------------------------------------------------
-%%% @copyright 2011 Harald Welte
+%%% @copyright 2011-2013 Harald Welte
 %%% @author Harald Welte <laforge@gnumonks.org>
 %%% @end
 %%%
-%%% Copyright (c) 2011 Harald Welte
+%%% Copyright (c) 2011-2013 Harald Welte
 %%% 
 %%% All rights reserved.
 %%% 
@@ -46,7 +46,7 @@
 -copyright('Copyright (c) 2011 Harald Welte').
 -author('Harald Welte <laforge@gnumonks.org>').
 
--export([get_dialg_id/1, send_prim/2, start_sap/3]).
+-export([alloc_dialg_id/1, get_dialg_id/1, send_prim/2, start_sap/3]).
 
 -include("tcap.hrl").
 
@@ -149,3 +149,6 @@ start_new_dha(TCO, LocalTID) ->
 	{ok, Pid} = supervisor:start_link(tcap_dialogue_sup, Args),
 	list_to_atom("tcap_dha_" ++ integer_to_list(LocalTID)).
 
+
+alloc_dialg_id(TCO) ->
+	gen_server:call(TCO, dialogueID).
