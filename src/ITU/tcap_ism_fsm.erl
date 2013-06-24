@@ -154,7 +154,7 @@ wait_for_reject('terminate', State) ->
 wait_for_reject({timer_expired, reject}, State) ->
 	% reject timer expiry
 	% terminate
-	{stop, rej_timer_exp, State}.
+	{stop, normal, State}.
 
 op_sent_cl2(P=#'TC-U-REJECT'{}, State) ->
 	% TC-U-ERROR.ind to user
@@ -176,7 +176,7 @@ op_sent_cl2(Op, State) when
 	% stop invocation timer
 	timer:cancel(State#state.inv_timer),
 	% terminate
-	{stop, class2_result, State};
+	{stop, normal, State};
 op_sent_cl2('terminate', State) ->
 	% terminate
 	{stop, normal, State}.
@@ -214,7 +214,7 @@ op_sent_cl4(Op, State) ->
 	% stop invocation timer
 	timer:cancel(State#state.inv_timer),
 	% terminate
-	{stop, cl4_op_received, State}.
+	{stop, normal, State}.
 
 handle_event({timer_expired, invoke}, _StateName, State) ->
 	% invocation timer expiry
@@ -222,7 +222,7 @@ handle_event({timer_expired, invoke}, _StateName, State) ->
 	% TC-L-CANCEL.ind to user
 	P = #'TC-L-CANCEL'{dialogueID = DlgId, invokeID = InvId},
 	gen_fsm:send_event(State#state.usap, P),
-	{stop, inv_timer_expired, State}.
+	{stop, normal, State}.
 
 %% handle any other message
 handle_info(Info, StateName, State) ->
