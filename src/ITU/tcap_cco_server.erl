@@ -319,14 +319,26 @@ asn_rec_to_uprim({invoke, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Invoke')
 		     parameters = AsnRec#'Invoke'.argument,
 		     lastComponent = Last};
 asn_rec_to_uprim({returnResultNotLast, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnResult') ->
-	#'ReturnResult_result'{opcode = Op, result = Result} = AsnRec#'ReturnResult'.result,
+	case AsnRec#'ReturnResult'.result of
+		#'ReturnResult_result'{opcode = Op, result = Result} ->
+			ok;
+		asn1_NOVALUE ->
+			Op = undefined,
+			Result = undefined
+	end,
 	#'TC-RESULT-NL'{dialogueID = DlgId,
 			invokeID = inv_id_to_uprim(AsnRec#'ReturnResult'.invokeId),
 			operation = Op,
 			parameters = Result,
 			lastComponent = Last};
 asn_rec_to_uprim({returnResult, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnResult') ->
-	#'ReturnResult_result'{opcode = Op, result = Result} = AsnRec#'ReturnResult'.result,
+	case AsnRec#'ReturnResult'.result of
+		#'ReturnResult_result'{opcode = Op, result = Result} ->
+			ok;
+		asn1_NOVALUE ->
+			Op = undefined,
+			Result = undefined
+	end,
 	#'TC-RESULT-L'{dialogueID = DlgId,
 			invokeID = inv_id_to_uprim(AsnRec#'ReturnResult'.invokeId),
 			operation = Op,
