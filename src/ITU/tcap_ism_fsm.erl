@@ -131,7 +131,7 @@ op_sent_cl1(P=#'TC-RESULT-L'{}, State) ->
 	% start reject timer
 	Trej = start_reject_timer(),
 	{next_state, wait_for_reject, State#state{rej_timer = Trej}};
-op_sent_cl1(P=#'TC-U-REJECT'{}, State) ->
+op_sent_cl1(P=#'TC-U-ERROR'{}, State) ->
 	% Figure A.7/Q.774 (2 of 6)
 	% TC-U-ERROR.ind to user
 	gen_fsm:send_event(State#state.usap, {'TC', 'U-ERROR', indication, P}),
@@ -159,9 +159,9 @@ wait_for_reject({timer_expired, reject}, State) ->
 	% terminate
 	{stop, normal, State}.
 
-op_sent_cl2(P=#'TC-U-REJECT'{}, State) ->
+op_sent_cl2(P=#'TC-U-ERROR'{}, State) ->
 	% TC-U-ERROR.ind to user
-	gen_fsm:send_event(State#state.usap, {'TC', 'U-REJECT', indication, P}),
+	gen_fsm:send_event(State#state.usap, {'TC', 'U-ERROR', indication, P}),
 	% stop invocation timer
 	timer:cancel(State#state.inv_timer),
 	% start reject timer
