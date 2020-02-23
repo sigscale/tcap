@@ -7,7 +7,7 @@ ERLC			= erlc
 ERLCFLAGS	= -b beam -W -v -o $(EBIN)
 
 ASNC			= $(ERLC) 
-ASNCFLAGS	= -W -b ber_bin +optimize +driver +noobj  $(ROSEINCLUDES)
+ASNCFLAGS	= -W -b ber +noobj $(ROSEINCLUDES)
 
 $(EBIN)/%.beam:%.erl
 	$(ERLC) $(ERLCFLAGS) $<
