@@ -1,0 +1,9 @@
+asn_src/ITU/Makefile
+asn_src/ANSI/Makefile
+asn_src/ITU/*.asn1db
+asn_src/ANSI/*.asn1db
+asn_src/ITU/*.beam
+asn_src/ANSI/*.beam
+ebin/itu/*.beam
+ebin/ansi/*.beam
+ebin/*.beam
