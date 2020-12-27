@@ -22,6 +22,8 @@ all:		q773 q755 q775
 .PHONY:	q773
 q773:		$(EBIN)/TR.beam $(EBIN)/TC.beam $(EBIN)/TCAPMessages.beam \
 			$(EBIN)/DialoguePDUs.beam $(EBIN)/UnidialoguePDUs.beam
+	sed -ie "/^-record('EXTERNAL'/,+6d" TCAPMessages.hrl
+	sed -ie "/^-record('EXTERNAL'/,+6d" UnidialoguePDUs.hrl
 
 TR.erl:	TCAPMessages.erl
 TCAPMessages.erl:	Remote-Operations-Useful-Definitions.erl
