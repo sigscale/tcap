@@ -6,17 +6,16 @@ EBIN			= ../../ebin/itu
 
 ERL			= erl
 ERLC			= erlc
-EMULATOR		= beam
-ERLCFLAGS	= -b ${EMULATOR} -o ${EBIN} -W -v +warn_unused_vars -I ../../asn_src/itu -I ../../include -I ${SCCPINCDIR}
+ERLCFLAGS	= -o ${EBIN} -W -v +warn_unused_vars -I ../../asn_src/ITU -I ../../include -I ${SCCPINCDIR}
 
-${EBIN}/%.${EMULATOR}:%.erl
+${EBIN}/%.beam:%.erl
 	${ERLC} ${ERLCFLAGS} $<
 
-BEAMS		=	${EBIN}/tcap_tco_server.${EMULATOR} \
-						${EBIN}/tcap_tsm_fsm.${EMULATOR} \
-						${EBIN}/tcap_dha_fsm.${EMULATOR} \
-						${EBIN}/tcap_cco_server.${EMULATOR} \
-						${EBIN}/tcap_ism_fsm.${EMULATOR} 
+BEAMS		=	${EBIN}/tcap_tco_server.beam \
+						${EBIN}/tcap_tsm_fsm.beam \
+						${EBIN}/tcap_dha_fsm.beam \
+						${EBIN}/tcap_cco_server.beam \
+						${EBIN}/tcap_ism_fsm.beam
 
 .PHONY:	default
 default:	all
@@ -30,10 +29,10 @@ all:	${BEAMS}
 clean:
 	- rm -f ${BEAMS}
 
-tcap_tco_server.${EMULATOR}:	tcap_tco_server.erl \
+tcap_tco_server.beam:	tcap_tco_server.erl \
 				../../asn_src/TCAPMessages.hrl ../../include/tcap.hrl \
 				${SCCPINCDIR}/sccp.hrl
-tcap_tsm_fsm.${EMULATOR}:	tcap_tsm_fsm.erl \
+tcap_tsm_fsm.beam:	tcap_tsm_fsm.erl \
 				../../asn_src/TCAPMessages.hrl ../../include/tcap.hrl \
 				${SCCPINCDIR}/sccp.hrl
 

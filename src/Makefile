@@ -4,20 +4,19 @@ EBIN			= ../ebin
 
 ERL			= erl
 ERLC			= erlc
-EMULATOR		= beam
-ERLCFLAGS	= -b $(EMULATOR) -o $(EBIN) -W -v +warn_unused_vars -I../include
+ERLCFLAGS	= -o $(EBIN) -W -v +warn_unused_vars -I../include
 
-$(EBIN)/%.$(EMULATOR):%.erl
+$(EBIN)/%.beam:%.erl
 	$(ERLC) $(ERLCFLAGS) $<
 
-BEAMS		=	$(EBIN)/tcap.$(EMULATOR) $(EBIN)/tcap_app.$(EMULATOR) \
-						$(EBIN)/tcap_sup.$(EMULATOR) \
-						$(EBIN)/tcap_sap_sup.$(EMULATOR) \
-						$(EBIN)/tcap_transaction_sup.$(EMULATOR) \
-						$(EBIN)/tcap_dialogue_sup.$(EMULATOR) \
-						$(EBIN)/tcap_components_sup.$(EMULATOR) \
-						$(EBIN)/tcap_invocation_sup.$(EMULATOR) \
-						$(EBIN)/tcap_user.$(EMULATOR)
+BEAMS		=	$(EBIN)/tcap.beam $(EBIN)/tcap_app.beam \
+						$(EBIN)/tcap_sup.beam \
+						$(EBIN)/tcap_sap_sup.beam \
+						$(EBIN)/tcap_transaction_sup.beam \
+						$(EBIN)/tcap_dialogue_sup.beam \
+						$(EBIN)/tcap_components_sup.beam \
+						$(EBIN)/tcap_invocation_sup.beam \
+						$(EBIN)/tcap_user.beam
 
 .PHONY:	default
 default:	all
