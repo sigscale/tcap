@@ -1,10 +1,10 @@
 EBIN			= ../../ebin/itu
 
 ERLC			= erlc
-ERLCFLAGS	= -b beam -W -v +warn_unused_vars +debug_info -o $(EBIN)
+ERLCFLAGS	= -W -v +warn_unused_vars +debug_info -o $(EBIN)
 
 ASNC			= $(ERLC) 
-ASNCFLAGS	= -W -b ber_bin +optimize +debug_info
+ASNCFLAGS	= -W +ber +noobj +debug_info
 
 $(EBIN)/%.beam:%.erl
 	$(ERLC) $(ERLCFLAGS) $<
