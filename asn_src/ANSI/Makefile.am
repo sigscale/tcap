@@ -4,10 +4,10 @@ ROSEINCLUDES	= -I ../itu
 EBIN			= ../../ebin/ansi
 
 ERLC			= erlc
-ERLCFLAGS	= -b beam -W -v -o $(EBIN)
+ERLCFLAGS	= -W -v +warn_unused_vars +debug_info -o $(EBIN)
 
 ASNC			= $(ERLC) 
-ASNCFLAGS	= -W -b ber +noobj $(ROSEINCLUDES)
+ASNCFLAGS	= -W +ber +noobj +debug_info $(ROSEINCLUDES)
 
 $(EBIN)/%.beam:%.erl
 	$(ERLC) $(ERLCFLAGS) $<
