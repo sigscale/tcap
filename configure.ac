@@ -83,5 +83,5 @@ AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
 
 AC_OUTPUT([Makefile include/Makefile doc/Makefile
 		src/Makefile src/ITU/Makefile src/ANSI/Makefile
-		ebin/Makefile ebin/ITU/Makefile ebin/ANSI/Makefile])
+		ebin/Makefile ebin/itu/Makefile ebin/ansi/Makefile])
 

@@ -2,7 +2,7 @@
 ##
 ## Process this file with automake to produce Makefile.in
 
-SUBDIRS = ITU ANSI
+SUBDIRS = itu ansi
 
 appdir = $(beamdir)
 app_DATA = tcap.app
