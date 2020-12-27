@@ -1,9 +1,20 @@
-asn_src/ITU/Makefile
-asn_src/ANSI/Makefile
-asn_src/ITU/*.asn1db
-asn_src/ANSI/*.asn1db
-asn_src/ITU/*.beam
-asn_src/ANSI/*.beam
-ebin/itu/*.beam
-ebin/ansi/*.beam
-ebin/*.beam
+# http://www.gnu.org/software/automake
+INSTALL
+Makefile.in
+src/Makefile.in
+src/ITU/Makefile.in
+src/ANSI/Makefile.in
+ebin/Makefile.in
+ebin/ITU/Makefile.in
+ebin/ANSI/Makefile.in
+include/Makefile.in
+doc/Makefile.in
+
+# http://www.gnu.org/software/autoconf
+aclocal.m4
+config.h.in
+configure
+autom4te.cache/
+install-sh
+missing
+
