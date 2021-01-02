@@ -35,13 +35,7 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
-%%%
-%%% @doc TCAP application top level supervisor.
-%%%
-%%% @reference <a href="index.html">TCAP User's Guide</a>
-%%%
-%%% @private
-         
+%%% @docfile "{@docsrc supervision.edoc}"
          
 -module(tcap_sup).
 -copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
@@ -58,7 +52,6 @@
 %% 	MaxR = MaxT = int()>=0
 %% 	ChildSpec = child_spec()
 %%
-%% @equiv //stdlib/supervisor:init/1
 %%
 init(_Args) ->
 	StartFunc = {tcap_sap_sup, start_link, []},

@@ -58,7 +58,6 @@
 %% 	State = term()
 %% 	Reason = term()
 %%
-%% @equiv //kernel/application:start/3
 %%
 start(normal, StartArgs) ->
 	ets:new(tcap_transaction, [named_table, public]),
@@ -72,7 +71,6 @@ start(normal, StartArgs) ->
 %% 	Node = node()
 %% 	Reason = term()
 %%
-%% @equiv //kernel/application:start_phase/3
 %%
 start_phase(_Phase, _StartType, _PhaseArgs) ->
 	ok.
@@ -80,14 +78,12 @@ start_phase(_Phase, _StartType, _PhaseArgs) ->
 %% @spec(State::term()) -> NewState
 %% 	NewState = term()
 %%
-%% @equiv //kernel/application:prep_stop/1
 %%
 prep_stop(State) ->
 	State.
 
 %% @spec(State) -> ok
 %%
-%% @equiv //kernel/application:stop/1
 %%
 stop(_State) ->
 	ok.
@@ -99,7 +95,6 @@ stop(_State) ->
 %% 	Par = atom()
 %% 	Val = term()
 %%
-%% @equiv //kernel/application:config_change/3
 %%
 config_change(_Changed, _New, _Removed) ->
 	ok.

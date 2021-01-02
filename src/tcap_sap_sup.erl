@@ -35,12 +35,7 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
-%%%
-%%% @doc TCAP service access point supervisor.
-%%%
-%%% @reference <a href="index.html">TCAP User's Guide</a>
-%%%
-%%% @private
+%%% @docfile "{@docsrc supervision.edoc}"
          
 -module(tcap_sap_sup).
 -copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').

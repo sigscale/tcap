@@ -125,7 +125,6 @@ close(TSL) when is_pid(TSL) ->
 dialogueID(TSL) when is_pid(TSL) ->
 	gen_server:call(TSL, dialogueID).
 	
-%% @equiv dialogueID/0
 %%
 transactionID(TSL) when is_pid(TSL) ->
 	dialogueID(TSL).

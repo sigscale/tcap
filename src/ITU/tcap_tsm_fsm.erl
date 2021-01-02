@@ -1,7 +1,8 @@
 %%% $Id: tcap_tsm_fsm.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom, 2010-2011 Harald Welte
-%%% @author Vance Shipley <vances@motivity.ca>, Harald Welte <laforge@gnumonks.org>
+%%% @author Vance Shipley <vances@motivity.ca>
+%%% @author Harald Welte <laforge@gnumonks.org>
 %%% @end
 %%%
 %%% Copyright (c) 2004-2005, Motivity Telecom

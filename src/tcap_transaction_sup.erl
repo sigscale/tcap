@@ -1,7 +1,8 @@
 %%% $Id: tcap_transaction_sup.erl,v 1.2 2005/08/04 09:33:17 vances Exp $
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom, 2010-2011 Harald Welte
-%%% @author Vance Shipley <vances@motivity.ca>, Harald Welte <laforge@gnumonks.org>
+%%% @author Vance Shipley <vances@motivity.ca>
+%%% @author Harald Welte <laforge@gnumonks.org>
 %%% @end
 %%%
 %%% Copyright (c) 2004-2005, Motivity Telecom
@@ -36,6 +37,7 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
+%%% @docfile "{@docsrc supervision.edoc}"
          
 -module(tcap_transaction_sup).
 -copyright('Copyright (c) 2003-2005 Motivity Telecom Inc., 2010-2011 Harald Welte').

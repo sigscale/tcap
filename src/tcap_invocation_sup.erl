@@ -35,6 +35,7 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
+%%% @docfile "{@docsrc supervision.edoc}"
          
 -module(tcap_invocation_sup).
 -copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
