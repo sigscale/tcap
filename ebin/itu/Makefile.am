@@ -10,7 +10,7 @@ beam_DATA = tcap_cco_server.beam \
 		tcap_tsm_fsm.beam
 
 %.beam:$(top_srcdir)/src/ITU/%.erl	$(top_srcdir)/include/tcap.hrl
-	$(ERLC) $(ERLCFLAGS) -I $(top_srcdir)/include -I $(top_builddir)/asn_src/ITU -I $(top_builddir)/include $<
+	$(ERLC) $(ERLCFLAGS) -I $(top_srcdir)/include -I $(top_builddir)/src/ITU -I $(top_builddir)/include $<
 
 CLEANFILES = $(beam_DATA)
 
