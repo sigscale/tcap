@@ -11,7 +11,6 @@ modhtml = tcap.html \
 		tcap_dialogue_sup.html \
 		tcap_components_sup.html \
 		tcap_invocation_sup.html \
-		tcap_user.html \
 		tcap_cco_server.html \
 		tcap_dha_fsm.html \
 		tcap_ism_fsm.html \
