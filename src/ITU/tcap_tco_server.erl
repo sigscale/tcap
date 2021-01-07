@@ -37,113 +37,117 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
-%%%
 %%% @doc Transaction Coordinator (TCO) functional block within the
-%%% 		transaction sub-layer of ITU TCAP.
+%%% 		transaction sub-layer (TSL) of ITU TCAP.
 %%%
-%%% 	<p>This module implements the transaction coordinator (TCO)
+%%% 	This module implements the transaction coordinator (TCO)
 %%% 	functional block.  Adaptations to specific SCCP layer 
 %%% 	and TC-User implementations may be implemented as callback
 %%% 	modules behaving to this behaviour module.  This module behaves
-%%% 	to <tt>gen_server</tt>.</p>
+%%% 	to {@link //stdlib/gen_server. gen_server}.
 %%%
-%%% 	<h2>Usage</h2>
-%%% 	<p>The callback module should be implemented as a gen_server
-%%% 	behaviour but with a <tt>tcap_tco_server</tt> behaviour
-%%% 	module attribute:
-%%% 	<pre>
-%%% 	-behaviour(tcap_tco_server).</pre></p>
-%%%
-%%% 	<p>The call back module handles the SCCP -&gt; TCAP primitives
+%%% 	==Usage==
+%%% 	The callback module should be implemented as a gen_server
+%%% 	behaviour but with a `{@module}' behaviour module attribute:
+%%% 	```
+%%% 	-behaviour({@module}).
+%%% 	'''
+%%% 	The call back module handles the SCCP &#8594; TCAP primitives
 %%% 	directly, performs any reformatting required, and returns the
-%%% 	standard primitives to the <tt>tcap_tco_server</tt> handler.  A
-%%% 	very simple example is the 
-%%% 	<a href="http://www.motivity.ca/sccp"><tt>sccp</tt></a>
+%%% 	standard primitives to the `{@module}' handler.  A very
+%%% 	simple example is the {@link //sccp. sccp}
 %%% 	application which implements the SCCP SAP as a pid() which sends
 %%%   and receives messages in the primitive format.  In our callback
-%%% 	module we create a <tt>handle_info/2</tt> clause which matches
-%%% 	the primitives:</p>
-%%%
-%%% 	<p><pre>handle_info({'N', _, indication, _} = Primitive, State) -&gt;
-%%% 	      {primitive, Primitive, State}.</pre>
-%%% 	As the example above illustrates the <tt>tcap_tco_server</tt>
+%%% 	module we create a `handle_info/2' clause which matches
+%%% 	the primitives:
+%%% 	```
+%%% 	handle_info({'N', _, indication, _} = Primitive, State) -&gt;
+%%% 	      {primitive, Primitive, State}.
+%%% 	'''
+%%% 	As the example above illustrates the `{@module}'
 %%% 	behaviour extends the allowed return values to accept the direct
-%%% 	return of a received service primitive.</p>
+%%% 	return of a received service primitive.
 %%%
-%%% 	<p>The <tt>handle_cast/2</tt> function may be used in the same
-%%% 	way.</p>
+%%% 	The `handle_cast/2' function may be used in the same way.
 %%%
-%%% 	<h2><a name="calbacks">Callback Functions</a></h2>
-%%%
-%%% 	<p>In addition to the <tt>gen_server</tt> callbacks the following
-%%% 	callback functions are used.</p>
+%%% 	<h2><a name="callbacks">Callback Functions</a></h2>
+%%% 	In addition to the {@link //stdlib/gen_server. gen_server}
+%%% 	behaviour callbacks the following callback functions are used.
 %%% 	
 %%% 	<h3><a name="send_primitive-2">send_primitive/2</a></h3>
-%%%
-%%% 	<p><tt>send_primitive(Primitive, State) -&gt; void()</tt>
-%%% 	<ul><li><tt>Primitive = {'N', 'UNITDATA', request, UdataParams}</tt></li>
+%%% 	`send_primitive(Primitive, State) -&gt; void()'
+%%% 	<ul>
+%%% 		<li><tt>Primitive = {'N', 'UNITDATA', request, UdataParams}</tt></li>
 %%% 		<li><tt>UdataParams = #'N-UNITDATA'{}</tt></li>
 %%% 	</ul>
-%%% 	The TCO will call this function when it has a service primitive
-%%% 	to deliver to the SCCP layer.</p>
+%%% 	The `TCO' will call this function when it has a service primitive
+%%% 	to deliver to the SCCP layer.
 %%%
 %%% 	<h3><a name="start_user-2">start_user/2</a></h3>
-%%%
-%%% 	<p><tt>start_user(CSL, DialogueID, State) -&gt; pid()</tt>
-%%%   <ul><li><tt>CSL = {DHA, CCO}</tt></li>
-%%% 	<li><tt>DHA = pid()</tt></li>
-%%% 	<li><tt>CCO = pid()</tt></li>
-%%% 	<li><tt>DialogueID = tid()</tt></li>
+%%% 	`start_user(CSL, DialogueID, State) -&gt; pid()'
+%%%   <ul>
+%%% 		<li><tt>CSL = {DHA, CCO}</tt></li>
+%%% 		<li><tt>DHA = pid()</tt></li>
+%%% 		<li><tt>CCO = pid()</tt></li>
+%%% 		<li><tt>DialogueID = tid()</tt></li>
 %%% 	</ul>
 %%% 	This function is called by a dialogue handler (DHA) to initialize
-%%% 	a local TC-User for a dialogue begun by a remote TC-User.</p>
-%%% 	<p><tt>CSL</tt> is the component sublayer identifier which 
-%%% 	contains the pids of the dialogue handler and component coordinator.</p>
-%%% 	<p>Returns the pid of the TC-User process whcih will handle the
-%%% 	new dialogue.</p>
+%%% 	a local TC-User for a dialogue begun by a remote TC-User.
+%%%
+%%% 	`CSL' is the component sublayer identifier which contains the
+%%% 	pids of the dialogue handler and component coordinator.
+%%%
+%%% 	Returns the pid of the TC-User process whcih will handle the
+%%% 	new dialogue.
 %%%
 %%% 	<h3><a name="start_transaction-1">start_transaction/2</a></h3>
-%%%
-%%% 	<p><tt>start_transaction(TransactionID, State) -&gt; StartFunc</tt>
-%%%   <ul><li><tt>TransactionID = tid()</tt></li>
-%%% 	<li><tt>State = term()</tt></li>
-%%% 	<li><tt>StartFunc = {M,F,A}</tt></li>
-%%% 	<li><tt>M = F = atom()</tt></li>
-%%% 	<li><tt>A = [term()]</tt></li>
+%%% 	`start_transaction(TransactionID, State) -&gt; StartFunc'
+%%%   <ul>
+%%% 		<li><tt>TransactionID = tid()</tt></li>
+%%% 		<li><tt>State = term()</tt></li>
+%%% 		<li><tt>StartFunc = {M,F,A}</tt></li>
+%%% 		<li><tt>M = F = atom()</tt></li>
+%%% 		<li><tt>A = [term()]</tt></li>
 %%% 	</ul>
 %%% 	The callback module may optionally export this function
 %%%	to overide the default method used to start a transaction
-%%% 	state machine (TSM).</p>
-%%% 	<p>StartFunc defines the function call used to start the TSM
-%%% 	process.  It should be a module-function-arguments tuple
-%%% 	<tt>{M,F,A}</tt> used as <tt>apply(M,F,A)</tt>.</p>
-%%% 	<p>The start function must create and link to the child process,
-%%% 	and should return <tt>{ok, Child}</tt> where <tt>Child</tt> is
-%%% 	the pid of the child process.</p>
-%%% 	<p>See the description of StartFunc in the supervisor module.</p>
+%%% 	state machine (TSM).
+%%%
+%%% 	`StartFunc' defines the function call used to start the `TSM'
+%%% 	process.  It should be a module-function-arguments (MFA) tuple
+%%% 	`{M,F,A}' used as `apply(M,F,A)'.
+%%%
+%%% 	The start function must create and link to the child process,
+%%% 	and should return `{ok, Child}' where `Child' is the pid of
+%%% 	the child process.
+%%%
+%%% 	See the description of `StartFunc' in the
+%%% 	{@link //stdlib/supervisor. supervisor} module.
 %%%
 %%% 	<h3><a name="start_dialogue-1">start_dialogue/1</a></h3>
-%%%
-%%% 	<p><tt>start_dialogue(DialogueID, State) -&gt; StartFunc</tt>
-%%%   <ul><li><tt>DialogueID = tid()</tt></li>
-%%% 	<li><tt>State = term()</tt></li>
-%%% 	<li><tt>StartFunc = {M,F,A}</tt></li>
-%%% 	<li><tt>M = F = atom()</tt></li>
-%%% 	<li><tt>A = [term()]</tt></li>
+%%% 	`start_dialogue(DialogueID, State) -&gt; StartFunc'
+%%%   <ul>
+%%% 		<li><tt>DialogueID = tid()</tt></li>
+%%% 		<li><tt>State = term()</tt></li>
+%%% 		<li><tt>StartFunc = {M,F,A}</tt></li>
+%%% 		<li><tt>M = F = atom()</tt></li>
+%%% 		<li><tt>A = [term()]</tt></li>
 %%% 	</ul>
 %%% 	The callback module may optionally export this function
 %%%	to overide the default method used to start a dialogue
-%%% 	handler (DHA).</p>
-%%% 	<p>StartFunc defines the function call used to start the DHA
-%%% 	process.  It should be a module-function-arguments tuple
-%%% 	<tt>{M,F,A}</tt> used as <tt>apply(M,F,A)</tt>.</p>
-%%% 	<p>The start function must create and link to the child process,
-%%% 	and should return <tt>{ok, Child}</tt> where <tt>Child</tt> is
-%%% 	the pid of the child process.</p>
-%%% 	<p>See the description of StartFunc in the supervisor module.</p>
+%%% 	handler (DHA).
 %%%
+%%% 	`StartFunc' defines the function call used to start the DHA
+%%% 	process.  It should be a module-function-arguments (MFA) tuple
+%%% 	`{M,F,A}' used as `apply(M,F,A)'.
+%%%
+%%% 	The start function must create and link to the child process,
+%%% 	and should return `{ok, Child}' where `Child' is the pid of
+%%% 	the child process.
+%%%
+%%% 	See the description of `StartFunc' in the
+%%% 	{@link //stdlib/supervisor. supervisor} module.
 %%% @end
-%%%
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
 -module(tcap_tco_server).
@@ -154,41 +158,216 @@
 
 % export the gen_server interface
 -export([start/4, start/5, start_link/3, start_link/4,
-		call/2, call/3, multi_call/2, multi_call/3, multi_call/4,
-		cast/2, abcast/2, abcast/3, reply/2, enter_loop/4, enter_loop/5]).
+		call/2, call/3, cast/2, abcast/2, abcast/3, reply/2,
+		multi_call/2, multi_call/3, multi_call/4,
+		enter_loop/3, enter_loop/4, enter_loop/5]).
 
 % export the gen_server call backs
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-		terminate/2]).
+		terminate/2, handle_continue/2, code_change/3]).
+-optional_callbacks([handle_info/2, handle_continue/2, terminate/2,
+		code_change/3, format_status/2]).
 
-% behaviour modules must export this function
--export([behaviour_info/1]).
-
-% api for other modules
+% export the private api
 -export([new_tid/0]).
-
-%% define what callbacks users must export
-%%
-%% @hidden
-behaviour_info(callbacks) ->
-	gen_server:behaviour_info(callbacks)
-	% add the tcap_tco_server required callbacks
-	++ [{send_primitive, 2}, {start_transaction, 2}, {start_dialogue, 2}];
-behaviour_info(Other) -> 
-	gen_server:behaviour_info(Other).
+-export_type([tid/0]).
 
 -include("TCAPMessages.hrl").
 %-include("TR.hrl").
 -include("tcap.hrl").
 -include("sccp.hrl").
 
--record(state, {supervisor, module, ext_state, usap}).
+-record(state,
+		{supervisor :: pid(),
+		module :: atom(),
+		ext_state :: any(),
+		usap :: pid()}).
+-type state() :: #state{}.
+
+-type tid() :: 0..4294967295.
 
 %%----------------------------------------------------------------------
-%%  The gen_server call backs
+%%  The callback type specification
 %%----------------------------------------------------------------------
 
-%% @hidden
+-callback send_primitive(Primitive, State) -> any()
+	when
+		State :: state(),
+		Primitive :: {'N', 'UNITDATA', request, UdataParams},
+		UdataParams :: #'N-UNITDATA'{}.
+%% @@doc Send primitive to SCCP.
+%%
+%% 	The TCO will call this function when it has a service
+%% 	primitive to deliver to the SCCP layer.
+
+-callback start_user(CSL, DialogueID, State) -> pid()
+	when
+		CSL :: {DHA, CCO},
+		DHA :: pid(),
+		CCO :: pid(),
+		DialogueID :: tid(),
+		State :: state().
+%% @@doc Start a local TC-User.
+%%
+%% 	This function is called by a dialogue handler (DHA) to
+%% 	initialize a local TC-User for a dialogue begun by a
+%% 	remote TC-User.
+%%
+%% 	`CSL' is the component sublayer identifier which contains
+%% 	the pids of the dialogue handler and component coordinator.
+%%
+%% 	Returns the pid of the TC-User process which will handle
+%% 	the new dialogue.
+
+-callback start_transaction(TransactionID, State) -> StartFunc
+	when
+		TransactionID :: tid(),
+		State :: term(),
+		StartFunc :: {Module, Function, Arguments},
+		Module :: atom(),
+		Function :: atom(),
+		Arguments :: [term()].
+%% @@doc Start a transaction state machine (TSM).
+%%
+%% 	The callback module may optionally export this function
+%% 	to overide the default method used to start a transaction
+%% 	state machine (TSM).
+%%
+%% 	`StartFunc' defines the function call used to start the
+%% 	TSM process. It should be a module-function-arguments tuple
+%% 	`{M,F,A}' used as `apply(M,F,A)'.
+%%
+%% 	The start function must create and link to the child process,
+%% 	and should return `{ok, Child}' where `Child' is the pid of
+%% 	the child process.
+%%
+%% 	See the description of `StartFunc' in the supervisor module.
+
+-callback start_dialogue(DialogueID, State) -> StartFunc
+	when
+		DialogueID :: tid(),
+		State :: term(),
+		StartFunc :: {Module, Function, Arguments},
+		Module :: atom(),
+		Function :: atom(),
+		Arguments :: [term()].
+%% @@doc Start a dialogue handler (DHA).
+%%
+%% 	The callback module may optionally export this function
+%% 	to overide the default method used to start a dialogue
+%% 	handler (DHA).
+%%
+%% 	`StartFunc' defines the function call used to start the
+%% 	DHA process. It should be a module-function-arguments tuple
+%% 	`{M,F,A}' used as `apply(M,F,A)'.
+%%
+%% 	The start function must create and link to the child process,
+%% 	and should return `{ok, Child}' where `Child' is the pid of
+%% 	the child process.
+%%
+%% 	See the description of `StartFunc' in the supervisor module.
+
+-callback init(Args) -> Result
+	when
+		Args :: [term()],
+		Result :: {ok, State :: state()}
+				| {ok, State :: state(), Timeout :: timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term()} | ignore.
+%% @@see //stdlib/gen_server:init/1
+
+-callback handle_call(Request, From, State) -> Result
+	when
+		Request :: term(),
+		From :: {pid(), Tag :: any()},
+		State :: state(),
+		Result :: {reply, Reply :: term(), NewState :: state()}
+				| {reply, Reply :: term(), NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), Reply :: term(), NewState :: state()}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @@see //stdlib/gen_server:handle_call/3
+
+-callback handle_cast(Request, State) -> Result
+	when
+		Request :: term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}
+				| {primitive, Primitive, NewState :: state()},
+		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
+				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
+%% @@doc Handle a request sent using {@link //stdlib/gen_server:cast/2.
+%% 	gen_server:cast/2} or {@link //stdlib/gen_server:abcast/2.
+%% 	gen_server:abcast/2,3}.
+%%
+%% 	A user callback module may return an SCCP service primitive
+%% 	to TCO for processing with the return value 
+%% 	`{primitive, Primitive, NewState}'.
+%% @@see //stdlib/gen_server:handle_cast/2
+
+-callback handle_continue(Info, State) -> Result
+	when
+		Info :: term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @@see //stdlib/handle_continue/2
+
+-callback handle_info(Info, State) -> Result
+	when
+		Info :: timeout | term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}
+				| {primitive, Primitive, NewState :: state()},
+		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
+				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
+%% @@doc Handle a received message.
+%%
+%% 	A user callback module may return an SCCP service primitive
+%% 	to TCO for processing with the return value 
+%% 	`{primitive, Primitive, NewState}'.
+%%
+%% @@see //stdlib/gen_server:handle_info/2
+
+-callback terminate(Reason, State) -> any()
+	when
+		Reason :: normal | shutdown | {shutdown, term()} | term(),
+      State :: state().
+%% @@see //stdlib/gen_server:terminate/3
+
+-callback code_change(OldVersion, State, Extra) -> Result
+	when
+		OldVersion :: term() | {down, term()},
+		State :: state(),
+		Extra :: term(),
+		Result :: {ok, NewState :: state()} | {error, Reason :: term()}.
+%% @@see //stdlib/gen_server:code_change/3
+
+-callback format_status(Opt, StatusData) -> Status when
+      Opt :: 'normal' | 'terminate',
+      StatusData :: [PDict | State],
+      PDict :: [{Key :: term(), Value :: term()}],
+      State :: term(),
+      Status :: term().
+%% @@see //stdlib/gen_server:format_status/2
+
+%%----------------------------------------------------------------------
+%%  The gen_server callbacks
+%%----------------------------------------------------------------------
+
+-spec init(Args) -> Result
+	when
+		Args :: [term()],
+		Result :: {ok, State :: state()}
+				| {ok, State :: state(), Timeout :: timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term()} | ignore.
+%% @see //stdlib/gen_server:init/1
+%% @private
 init([Sup, Module, Args]) when is_list(Args) ->
 	process_flag(trap_exit, true),
 	case Module:init(Args) of
@@ -206,24 +385,31 @@ init([Sup, Module, Args]) when is_list(Args) ->
 			Other
 	end.
 
-%% @hidden
-%%
-% assign a new dialogue ID
-handle_call(dialogueID, _FromRef, State) ->
+-spec handle_call(Request, From, State) -> Result
+	when
+		Request :: term(),
+		From :: {pid(), Tag :: any()},
+		State :: state(),
+		Result :: {reply, Reply :: term(), NewState :: state()}
+				| {reply, Reply :: term(), NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), Reply :: term(), NewState :: state()}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @see //stdlib/gen_server:handle_call/3
+%% @private
+handle_call(dialogueID = _Request, _From, State) ->
 	{reply, new_tid(), State};
-handle_call(set_usap, {From, Ref}, State) ->
+handle_call(set_usap, {From, _Tag}, State) ->
 	{reply, ok, State#state{usap = From}};
-% shutdown the server
-handle_call(stop, _FromRef, State) ->
+handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
-handle_call({local_new_trans, OTID}, {Usap, Ref}, State) ->
-	% Create a Transaction State Machine (TSM)
+handle_call({local_new_trans, OTID}, {Usap, _Tag}, State) ->
 	ChildName = list_to_atom("tcap_trans_sup_" ++ integer_to_list(OTID)),
 	StartFunc = get_start(out_transaction, [OTID, Usap] , State),
 	ChildSpec = {ChildName, StartFunc, temporary, 1000, worker, [tcap_tsm_fsm]},
-	Ret = supervisor:start_child(State#state.supervisor, ChildSpec),
-	{reply, Ret, State};
-% unknown request
+	Reply = supervisor:start_child(State#state.supervisor, ChildSpec),
+	{reply, Reply, State};
 handle_call(Request, From, State) ->
 	Module = State#state.module,
 	case Module:handle_call(Request, From, State#state.ext_state) of
@@ -243,28 +429,26 @@ handle_call(Request, From, State) ->
 			Other
 	end.
 
-%% @spec (Request, State) -> Result
-%% 	Info = term()
-%% 	State = term()
-%% 	Result = {noreply, NewState} | {noreply, NewState, Timeout}
-%% 	         | {stop, Reason, NewState} 
-%% 	         | {primitive, Primitive, NewState}
-%% 	NewState = term()
-%% 	Timeout = int() | infinity
-%% 	Reason = term()
-%% 	Primitive = {'N', 'UNITDATA', indication, SccpParams} |
-%% 	            {'N', 'NOTICE', indication, SccpParams}
+-spec handle_cast(Request, State) -> Result
+	when
+		Request :: term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}
+				| {primitive, Primitive, NewState :: state()},
+		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
+				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
+%% @doc Handle a request sent using {@link //stdlib/gen_server:cast/2.
+%% 	gen_server:cast/2} or {@link //stdlib/gen_server:abcast/2.
+%% 	gen_server:abcast/2,3}.
 %%
-%% @doc Receive a message sent with <tt>gen_server:cast/2</tt>.
-%%
-%% 	<p>A user callback module may return an SCCP service primitive
+%% 	A user callback module may return an SCCP service primitive
 %% 	to TCO for processing with the return value 
-%% 	<tt>{primitive, Primitive, NewState}</tt>.</p>
-%%
-%% @see //stdlib/gen_server:handle_cast/2
-%%
+%% 	`{primitive, Primitive, NewState}'.
+%% @@see //stdlib/gen_server:handle_cast/2
+%% @private
 %% @end
-%%
 % service primitive indications from the network layer
 %
 % reference: Figure A.3/Q.774 (sheet 1 of 4)
@@ -458,7 +642,6 @@ handle_cast({'N', 'UNITDATA', indication, UdataParams}, State)
 							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
 			{noreply, State}
 	end;
-
 handle_cast({'N', 'NOTICE', indication, NoticeParams}, State) ->
 	% Extract the originating transactionID
 	case 'TR':decode('TCMessage', NoticeParams#'N-NOTICE'.userData) of
@@ -492,8 +675,6 @@ handle_cast({'N', 'NOTICE', indication, NoticeParams}, State) ->
 			reportCause = NoticeParams#'N-NOTICE'.reason},
 	% TODO:  fixme!!! gen_fsm:send_event(State#state.usap, {'TC', 'NOTICE', indication, TcParams}),
 	{noreply, State};
-
-
 %%
 %% service primitive requests from the TR-User
 %% reference: Figure A.3/Q.774 (sheets 2&3 of 4)
@@ -545,7 +726,6 @@ handle_cast({'TR', 'U-ABORT', request, AbortParams}, State)
 	TSM  = ets:lookup_element(tcap_transaction, TransactionID, 2),
 	gen_fsm:send_event(TSM, {'ABORT', transaction, AbortParams}),
 	{noreply, State};
-
 %
 % The TSM sends us a message as it's last action so
 % we can remove the supervisor child specification
@@ -554,7 +734,6 @@ handle_cast({'tsm-stopped', SupRef}, State) ->
 	supervisor:delete_child(State#state.supervisor, SupRef),
 	% reference: Figure A.3/Q/774 (sheet 2 of 4)
 	{noreply, State};
-
 % unrecognized request
 handle_cast(Request, State) ->
 	Module = State#state.module,
@@ -571,26 +750,45 @@ handle_cast(Request, State) ->
 			Other
 	end.
 
-%% @spec (Info, State) -> Result
-%% 	Info = timeout | term()
-%% 	State = term()
-%% 	Result = {noreply, NewState} | {noreply, NewState, Timeout}
-%% 	         | {stop, Reason, NewState} 
-%% 	         | {primitive, Primitive, NewState}
-%% 	NewState = term()
-%% 	Timeout = int() | infinity
-%% 	Reason = term()
-%% 	Primitive = {'N', 'UNITDATA', indication, SccpParams} |
-%% 	            {'N', 'NOTICE', indication, SccpParams}
+-spec handle_continue(Info, State) -> Result
+	when
+		Info :: term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @doc Handle continued execution.
+handle_continue(Info, State) ->
+	Module = State#state.module,
+	case Module:handle_continue(Info, State#state.ext_state) of
+		{noreply, ExtState} ->
+			{noreply, State#state{ext_state = ExtState}};
+		{noreply, ExtState, Timeout} ->
+			{noreply, State#state{ext_state = ExtState}, Timeout};
+		{stop, Reason, ExtState} ->
+			{stop, Reason, State#state{ext_state = ExtState}};
+		Other ->
+			Other
+	end.
+
+-spec handle_info(Info, State) -> Result
+	when
+		Info :: timeout | term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}
+				| {primitive, Primitive, NewState :: state()},
+		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
+				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
+%% @doc Handle a received message.
 %%
-%% @doc Receive a message sent with '!'.
-%%
-%% 	<p>A user callback module may return an SCCP service primitive
+%% 	A user callback module may return an SCCP service primitive
 %% 	to TCO for processing with the return value 
-%% 	<tt>{primitive, Primitive, NewState}</tt>.</p>
+%% 	`{primitive, Primitive, NewState}'.
 %%
-%% @see //stdlib/gen_server:handle_info/2
-%%
+%% @@see //stdlib/gen_server:handle_info/2
+%% @private
 handle_info({'EXIT', _Pid, Reason}, State) ->
 	{stop, Reason, State};
 handle_info(Info, State) ->
@@ -608,36 +806,49 @@ handle_info(Info, State) ->
 			Other
 	end.
 
-%% @hidden
+-spec terminate(Reason, State) -> any()
+	when
+		Reason :: normal | shutdown | {shutdown, term()} | term(),
+      State :: state().
+%% @see //stdlib/gen_server:terminate/3
+%% @private
 terminate(Reason, State) ->
 	Module = State#state.module,
 	Module:terminate(Reason, State#state.ext_state).
 
-%% @hidden
-code_change(OldVersion, statename, State, Extra) ->
+-spec code_change(OldVersion, State, Extra) -> Result
+	when
+		OldVersion :: term() | {down, term()},
+		State :: state(),
+		Extra :: term(),
+		Result :: {ok, NewState :: state()} | {error, Reason :: term()}.
+%% @see //stdlib/gen_server:code_change/3
+%% @private
+code_change(OldVersion, State, Extra) ->
 	Module = State#state.module,
 	case Module:code_change(OldVersion, State#state.ext_state, Extra) of
 		{ok, ExtState} ->
 			{ok, State#state{ext_state = ExtState}};
-		Other ->
-			Other
+		{error, Reason} ->
+			{error, Reason}
 	end.
 
 %%----------------------------------------------------------------------
 %% internal functions
 %%----------------------------------------------------------------------
 
-%% @hidden
-%%
-%% get the next originating transaction id from the global counter
+-spec new_tid() -> tid().
+%% @doc Get the next originating transaction id from the global counter
 %%
 %% NOTE:  we are simply assuming that when the counter rolls over the last 
 %%        transaction to have this ID is long gone (4.2 billion IDs)
-%%
+%% @private
+%% @end
 %% reference: Figure A.3 bis/Q.774
 new_tid() ->
 	ets:update_counter(tcap_transaction, transactionID, {2, 1, 16#ffffffff, 0}).
 
+%% @hidden
 get_start(dialogue, DialogueID, State) ->
 	Module = State#state.module,
 	case erlang:function_exported(Module, start_dialogue, 1) of
@@ -731,6 +942,10 @@ reply(Client, Reply) ->
 	gen_server:reply(Client, Reply).
 
 %% @hidden
+enter_loop(Module, Options, State) ->
+	gen_server:enter_loop(Module, Options, State).
+
+%% @hidden
 enter_loop(Module, Options, State, ServerName, Timeout) ->
 	gen_server:enter_loop(Module, Options, State, ServerName, Timeout).
 
@@ -742,11 +957,13 @@ enter_loop(Module, Options, State, Timeout) ->
 
 
 % convert a TID from the four-octet binary/list form (OCTET STRING) to unsigned int
+%% @hidden
 decode_tid(Bin) when is_binary(Bin) ->
 	binary:decode_unsigned(Bin);
 decode_tid(List) when is_list(List) ->
 	decode_tid(list_to_binary(List)).
 
+%% @hidden
 encode_tid(In) when is_integer(In) ->
 	<<In:32/big>>;
 encode_tid(In) when is_list(In) ->
@@ -754,6 +971,7 @@ encode_tid(In) when is_list(In) ->
 encode_tid(In) when is_binary(In) ->
 	In.
 
+%% @hidden
 postproc_tcmessage(C=#'Continue'{otid = Otid, dtid = Dtid}) ->
 	C#'Continue'{otid = decode_tid(Otid), dtid = decode_tid(Dtid)};
 postproc_tcmessage(E=#'End'{dtid = Dtid}) ->
