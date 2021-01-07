@@ -179,7 +179,7 @@ shows the configuration of an AEI for INAP using the
 <img alt="diagram of INAP AEI" name="figure3-2" src="inap_aei.png" /></p>
 
 ==Addressing==
-When used with SS7 network services the addressesing of the Signaling
+When used with SS7 network services the addressing of the Signaling
 Connection Control Part (SCCP) is used.  The SCCP CalledParty and
 CallingParty address formats are used in the TCAP address parameters;
 Destination Address and Originating Address.  These parameters identify
