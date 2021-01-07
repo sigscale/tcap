@@ -1,4 +1,4 @@
-%%% $Id: tcap_dha_fsm.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_dha_fsm.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom, 2010-2012 Harald Welte
 %%% @author Vance Shipley <vances@motivity.ca>
@@ -43,13 +43,9 @@
 %%%
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
-%%% @private
-%%%
-
 -module(tcap_dha_fsm).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.3 $').
 
 -behaviour(gen_fsm).
 

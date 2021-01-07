@@ -1,4 +1,4 @@
-%%% $Id: tcap_app.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_app.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -40,12 +40,9 @@
 %%%
 %%% @reference <a href="index.html">TCAP User's Guide</a>
 %%%
-%%% @private
-         
 -module(tcap_app).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.3 $').
 
 %% export application behaviour callbacks
 -export([start/2, start_phase/3, prep_stop/1, stop/1, config_change/3]).

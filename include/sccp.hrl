@@ -1,3 +1,4 @@
+%%% sccp.hrl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004, 2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]

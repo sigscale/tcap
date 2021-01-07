@@ -1,4 +1,4 @@
-%%% $Id: tcap.erl,v 1.10 2011/03/07 17:21:09 vances Exp $
+%%% tcap.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -42,11 +42,9 @@
 %%%
 %%% @reference <a href="index.html">TCAP User's Guide</a>
 %%%
-         
 -module(tcap).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.10 $').
 
 %% our published API functions
 -export([start/0, stop/0]).
