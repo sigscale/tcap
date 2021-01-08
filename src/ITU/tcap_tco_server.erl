@@ -109,7 +109,7 @@
 %%% 	`CSL' is the component sublayer identifier which contains the
 %%% 	pids of the dialogue handler and component coordinator.
 %%%
-%%% 	Returns the pid of the TC-User process whcih will handle the
+%%% 	Returns the pid of the TC-User process which will handle the
 %%% 	new dialogue.
 %%%
 %%% 	<h3  class="function">
