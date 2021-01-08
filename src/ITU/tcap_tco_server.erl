@@ -74,23 +74,35 @@
 %%% 	In addition to the {@link //stdlib/gen_server. gen_server}
 %%% 	behaviour callbacks the following callback functions are used.
 %%% 	
-%%% 	<h3><a name="send_primitive-2">send_primitive/2</a></h3>
-%%% 	`send_primitive(Primitive, State) -&gt; void()'
-%%% 	<ul>
-%%% 		<li><tt>Primitive = {'N', 'UNITDATA', request, UdataParams}</tt></li>
-%%% 		<li><tt>UdataParams = #'N-UNITDATA'{}</tt></li>
-%%% 	</ul>
+%%% 	<h3 class="function">
+%%% 		<a name="send_primitive-2">send_primitive/2</a>
+%%% 	</h3>
+%%% 	<div class="spec">
+%%% 		<p>
+%%% 			<tt>send_primitive(Primitive, State) -&gt; void()</tt>
+%%% 		</p>
+%%% 		<ul class="definitions">
+%%% 			<li><tt>Primitive = {'N', 'UNITDATA', request, UdataParams}</tt></li>
+%%% 			<li><tt>UdataParams = #'N-UNITDATA'{}</tt></li>
+%%% 		</ul>
+%%% 	</div>
 %%% 	The `TCO' will call this function when it has a service primitive
 %%% 	to deliver to the SCCP layer.
 %%%
-%%% 	<h3><a name="start_user-2">start_user/2</a></h3>
-%%% 	`start_user(CSL, DialogueID, State) -&gt; pid()'
-%%%   <ul>
-%%% 		<li><tt>CSL = {DHA, CCO}</tt></li>
-%%% 		<li><tt>DHA = pid()</tt></li>
-%%% 		<li><tt>CCO = pid()</tt></li>
-%%% 		<li><tt>DialogueID = tid()</tt></li>
-%%% 	</ul>
+%%% 	<h3  class="function">
+%%% 		<a name="start_user-2">start_user/2</a>
+%%% 	</h3>
+%%% 	<div class="spec">
+%%% 		<p>
+%%% 			<tt>start_user(CSL, DialogueID, State) -&gt; pid()</tt>
+%%% 		</p>
+%%% 		<ul class="definitions">
+%%% 			<li><tt>CSL = {DHA, CCO}</tt></li>
+%%% 			<li><tt>DHA = pid()</tt></li>
+%%% 			<li><tt>CCO = pid()</tt></li>
+%%% 			<li><tt>DialogueID = tid()</tt></li>
+%%% 		</ul>
+%%% 	</div>
 %%% 	This function is called by a dialogue handler (DHA) to initialize
 %%% 	a local TC-User for a dialogue begun by a remote TC-User.
 %%%
@@ -100,15 +112,21 @@
 %%% 	Returns the pid of the TC-User process whcih will handle the
 %%% 	new dialogue.
 %%%
-%%% 	<h3><a name="start_transaction-1">start_transaction/2</a></h3>
-%%% 	`start_transaction(TransactionID, State) -&gt; StartFunc'
-%%%   <ul>
-%%% 		<li><tt>TransactionID = tid()</tt></li>
-%%% 		<li><tt>State = term()</tt></li>
-%%% 		<li><tt>StartFunc = {M,F,A}</tt></li>
-%%% 		<li><tt>M = F = atom()</tt></li>
-%%% 		<li><tt>A = [term()]</tt></li>
-%%% 	</ul>
+%%% 	<h3  class="function">
+%%% 		<a name="start_transaction-1">start_transaction/2</a>
+%%% 	</h3>
+%%% 	<div class="spec">
+%%% 		<p>
+%%% 			<tt>start_transaction(TransactionID, State) -&gt; StartFunc</tt>
+%%% 		</p>
+%%% 		<ul class="definitions">
+%%% 			<li><tt>TransactionID = tid()</tt></li>
+%%% 			<li><tt>State = term()</tt></li>
+%%% 			<li><tt>StartFunc = {M,F,A}</tt></li>
+%%% 			<li><tt>M = F = atom()</tt></li>
+%%% 			<li><tt>A = [term()]</tt></li>
+%%% 		</ul>
+%%% 	</div>
 %%% 	The callback module may optionally export this function
 %%%	to overide the default method used to start a transaction
 %%% 	state machine (TSM).
@@ -124,15 +142,21 @@
 %%% 	See the description of `StartFunc' in the
 %%% 	{@link //stdlib/supervisor. supervisor} module.
 %%%
-%%% 	<h3><a name="start_dialogue-1">start_dialogue/1</a></h3>
-%%% 	`start_dialogue(DialogueID, State) -&gt; StartFunc'
-%%%   <ul>
-%%% 		<li><tt>DialogueID = tid()</tt></li>
-%%% 		<li><tt>State = term()</tt></li>
-%%% 		<li><tt>StartFunc = {M,F,A}</tt></li>
-%%% 		<li><tt>M = F = atom()</tt></li>
-%%% 		<li><tt>A = [term()]</tt></li>
-%%% 	</ul>
+%%% 	<h3  class="function">
+%%% 		<a name="start_dialogue-1">start_dialogue/1</a>
+%%% 	</h3>
+%%% 	<div class="spec">
+%%% 		<p>
+%%% 			<tt>start_dialogue(DialogueID, State) -&gt; StartFunc</tt>
+%%% 		</p>
+%%% 		<ul class="definitions">
+%%% 			<li><tt>DialogueID = tid()</tt></li>
+%%% 			<li><tt>State = term()</tt></li>
+%%% 			<li><tt>StartFunc = {M,F,A}</tt></li>
+%%% 			<li><tt>M = F = atom()</tt></li>
+%%% 			<li><tt>A = [term()]</tt></li>
+%%% 		</ul>
+%%% 	</div>
 %%% 	The callback module may optionally export this function
 %%%	to overide the default method used to start a dialogue
 %%% 	handler (DHA).
@@ -165,8 +189,6 @@
 % export the gen_server call backs
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 		terminate/2, handle_continue/2, code_change/3]).
--optional_callbacks([handle_info/2, handle_continue/2, terminate/2,
-		code_change/3, format_status/2]).
 
 % export the private api
 -export([new_tid/0]).
@@ -186,20 +208,11 @@
 
 -type tid() :: 0..4294967295.
 
-%%----------------------------------------------------------------------
-%%  The callback type specification
-%%----------------------------------------------------------------------
-
 -callback send_primitive(Primitive, State) -> any()
 	when
 		State :: state(),
 		Primitive :: {'N', 'UNITDATA', request, UdataParams},
 		UdataParams :: #'N-UNITDATA'{}.
-%% @@doc Send primitive to SCCP.
-%%
-%% 	The TCO will call this function when it has a service
-%% 	primitive to deliver to the SCCP layer.
-
 -callback start_user(CSL, DialogueID, State) -> pid()
 	when
 		CSL :: {DHA, CCO},
@@ -207,18 +220,6 @@
 		CCO :: pid(),
 		DialogueID :: tid(),
 		State :: state().
-%% @@doc Start a local TC-User.
-%%
-%% 	This function is called by a dialogue handler (DHA) to
-%% 	initialize a local TC-User for a dialogue begun by a
-%% 	remote TC-User.
-%%
-%% 	`CSL' is the component sublayer identifier which contains
-%% 	the pids of the dialogue handler and component coordinator.
-%%
-%% 	Returns the pid of the TC-User process which will handle
-%% 	the new dialogue.
-
 -callback start_transaction(TransactionID, State) -> StartFunc
 	when
 		TransactionID :: tid(),
@@ -227,22 +228,6 @@
 		Module :: atom(),
 		Function :: atom(),
 		Arguments :: [term()].
-%% @@doc Start a transaction state machine (TSM).
-%%
-%% 	The callback module may optionally export this function
-%% 	to overide the default method used to start a transaction
-%% 	state machine (TSM).
-%%
-%% 	`StartFunc' defines the function call used to start the
-%% 	TSM process. It should be a module-function-arguments tuple
-%% 	`{M,F,A}' used as `apply(M,F,A)'.
-%%
-%% 	The start function must create and link to the child process,
-%% 	and should return `{ok, Child}' where `Child' is the pid of
-%% 	the child process.
-%%
-%% 	See the description of `StartFunc' in the supervisor module.
-
 -callback start_dialogue(DialogueID, State) -> StartFunc
 	when
 		DialogueID :: tid(),
@@ -251,30 +236,12 @@
 		Module :: atom(),
 		Function :: atom(),
 		Arguments :: [term()].
-%% @@doc Start a dialogue handler (DHA).
-%%
-%% 	The callback module may optionally export this function
-%% 	to overide the default method used to start a dialogue
-%% 	handler (DHA).
-%%
-%% 	`StartFunc' defines the function call used to start the
-%% 	DHA process. It should be a module-function-arguments tuple
-%% 	`{M,F,A}' used as `apply(M,F,A)'.
-%%
-%% 	The start function must create and link to the child process,
-%% 	and should return `{ok, Child}' where `Child' is the pid of
-%% 	the child process.
-%%
-%% 	See the description of `StartFunc' in the supervisor module.
-
 -callback init(Args) -> Result
 	when
 		Args :: [term()],
 		Result :: {ok, State :: state()}
 				| {ok, State :: state(), Timeout :: timeout() | hibernate | {continue, term()}}
 				| {stop, Reason :: term()} | ignore.
-%% @@see //stdlib/gen_server:init/1
-
 -callback handle_call(Request, From, State) -> Result
 	when
 		Request :: term(),
@@ -286,8 +253,6 @@
 				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
 				| {stop, Reason :: term(), Reply :: term(), NewState :: state()}
 				| {stop, Reason :: term(), NewState :: state()}.
-%% @@see //stdlib/gen_server:handle_call/3
-
 -callback handle_cast(Request, State) -> Result
 	when
 		Request :: term(),
@@ -298,15 +263,6 @@
 				| {primitive, Primitive, NewState :: state()},
 		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
 				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
-%% @@doc Handle a request sent using {@link //stdlib/gen_server:cast/2.
-%% 	gen_server:cast/2} or {@link //stdlib/gen_server:abcast/2.
-%% 	gen_server:abcast/2,3}.
-%%
-%% 	A user callback module may return an SCCP service primitive
-%% 	to TCO for processing with the return value 
-%% 	`{primitive, Primitive, NewState}'.
-%% @@see //stdlib/gen_server:handle_cast/2
-
 -callback handle_continue(Info, State) -> Result
 	when
 		Info :: term(),
@@ -314,8 +270,6 @@
 		Result :: {noreply, NewState :: state()}
 				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
 				| {stop, Reason :: term(), NewState :: state()}.
-%% @@see //stdlib/handle_continue/2
-
 -callback handle_info(Info, State) -> Result
 	when
 		Info :: timeout | term(),
@@ -326,35 +280,23 @@
 				| {primitive, Primitive, NewState :: state()},
 		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
 				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
-%% @@doc Handle a received message.
-%%
-%% 	A user callback module may return an SCCP service primitive
-%% 	to TCO for processing with the return value 
-%% 	`{primitive, Primitive, NewState}'.
-%%
-%% @@see //stdlib/gen_server:handle_info/2
-
 -callback terminate(Reason, State) -> any()
 	when
 		Reason :: normal | shutdown | {shutdown, term()} | term(),
       State :: state().
-%% @@see //stdlib/gen_server:terminate/3
-
 -callback code_change(OldVersion, State, Extra) -> Result
 	when
 		OldVersion :: term() | {down, term()},
 		State :: state(),
 		Extra :: term(),
 		Result :: {ok, NewState :: state()} | {error, Reason :: term()}.
-%% @@see //stdlib/gen_server:code_change/3
-
 -callback format_status(Opt, StatusData) -> Status when
       Opt :: 'normal' | 'terminate',
       StatusData :: [PDict | State],
       PDict :: [{Key :: term(), Value :: term()}],
       State :: term(),
       Status :: term().
-%% @@see //stdlib/gen_server:format_status/2
+-optional_callbacks([start_transaction/2, start_dialogue/2]).
 
 %%----------------------------------------------------------------------
 %%  The gen_server callbacks
