@@ -125,7 +125,7 @@ stop_tsl(TSL, [{_, SapSup, _, _} | T]) ->
 		_ ->
 			stop_tsl(TSL, T)
 	end;
-stop_tsl(TSL, []) ->
+stop_tsl(_TSL, []) ->
 	{error, not_found}.
 
 -spec open(TSL, TCU, Args) -> CSL
