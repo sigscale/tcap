@@ -46,7 +46,7 @@
 -author('vances@motivity.ca').
 
 %% our published API functions
--export([start/0, stop/0, start_tsl/3]).
+-export([start/0, stop/0, start_tsl/3, stop_tsl/1]).
 -export([open/3, close/1]).
 
 -type tcap_options() :: [Option :: {variant, Variant :: itu | ansi}].
@@ -107,6 +107,26 @@ start_tsl(Module, Args, Opts) ->
 		{error, Reason} ->
 			{error, Reason}
 	end.
+
+-spec stop_tsl(TSL) -> Result
+	when
+		TSL :: pid(),
+		Result :: ok | {error, Reason},
+		Reason :: not_found | term().
+%% @doc Stop a running transaction sublayer (TSL).
+stop_tsl(TSL) when is_pid(TSL) ->
+	stop_tsl(TSL, supervisor:which_children(tcap_sup)).
+%% @hidden
+stop_tsl(TSL, [{_, SapSup, _, _} | T]) ->
+	ChildSpecs = supervisor:which_children(SapSup),
+	case lists:keyfind(tco, 1, ChildSpecs) of
+		{_, TSL, _, _} ->
+			supervisor:terminate_child(tcap_sup, SapSup);
+		_ ->
+			stop_tsl(TSL, T)
+	end;
+stop_tsl(TSL, []) ->
+	{error, not_found}.
 
 -spec open(TSL, TCU, Args) -> CSL
 	when

@@ -46,15 +46,16 @@
 %% call backs needed for supervisor behaviour
 -export([init/1]).
 
-%% @spec(StartArgs::term()) -> Result = {ok,{{RestartStrategy,MaxR,MaxT},[ChildSpec]}} | ignore
-%% 	RestartStrategy = one_for_all | one_for_one | rest_for_one | simple_one_for_one
-%% 	MaxR = MaxT = int()>=0
-%% 	ChildSpec = child_spec()
-%%
-%%
+-spec init(Args) -> Result
+	when
+		Args :: [term()],
+		Result :: {ok, {SupFlags, [ChildSpec]}},
+		SupFlags :: supervisor:sup_flags(),
+		ChildSpec :: supervisor:child_spec() | ignore.
+%% @doc Initialize the {@module} supervisor.
 init(_Args) ->
-	StartFunc = {tcap_sap_sup, start_link, []},
-	%	    {Id, StartFunc, Restart, Shutdown, Tpype, Modules}
-	ChildSpec = {tcap_sap_sup, StartFunc, permanent, infinity, supervisor, [tcap_sap_sup]},
-	% simple_one_for_one will not start any children!
+	Mod = tcap_sap_sup,
+	StartFunc = {Mod, start_link, []},
+	ChildSpec = {Mod, StartFunc, temporary, infinity, supervisor, [Mod]},
 	{ok,{{simple_one_for_one, 10, 60}, [ChildSpec]}}.
+
