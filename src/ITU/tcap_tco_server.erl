@@ -187,8 +187,9 @@
 		enter_loop/3, enter_loop/4, enter_loop/5]).
 
 % export the gen_server call backs
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-		terminate/2, handle_continue/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2,
+		handle_info/2, terminate/2, handle_continue/2,
+		code_change/3, format_status/2]).
 
 % export the private api
 -export([new_tid/0]).
@@ -290,13 +291,16 @@
 		State :: state(),
 		Extra :: term(),
 		Result :: {ok, NewState :: state()} | {error, Reason :: term()}.
--callback format_status(Opt, StatusData) -> Status when
+-callback format_status(Opt, StatusData) -> Status
+	when
       Opt :: 'normal' | 'terminate',
       StatusData :: [PDict | State],
       PDict :: [{Key :: term(), Value :: term()}],
       State :: term(),
       Status :: term().
--optional_callbacks([start_transaction/2, start_dialogue/2]).
+-optional_callbacks([handle_info/2, handle_continue/2,
+		terminate/2, code_change/3, format_status/2,
+		start_transaction/2, start_dialogue/2]).
 
 %%----------------------------------------------------------------------
 %%  The gen_server callbacks
@@ -702,15 +706,18 @@ handle_cast(Request, State) ->
 %% @doc Handle continued execution.
 handle_continue(Info, State) ->
 	Module = State#state.module,
-	case Module:handle_continue(Info, State#state.ext_state) of
-		{noreply, ExtState} ->
-			{noreply, State#state{ext_state = ExtState}};
-		{noreply, ExtState, Timeout} ->
-			{noreply, State#state{ext_state = ExtState}, Timeout};
-		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}};
-		Other ->
-			Other
+	case erlang:function_exported(Module, handle_continue, 2) of
+		true ->
+			case Module:handle_continue(Info, State#state.ext_state) of
+				{noreply, ExtState} ->
+					{noreply, State#state{ext_state = ExtState}};
+				{noreply, ExtState, Timeout} ->
+					{noreply, State#state{ext_state = ExtState}, Timeout};
+				{stop, Reason, ExtState} ->
+					{stop, Reason, State#state{ext_state = ExtState}}
+			end;
+		false ->
+			{noreply, State}
 	end.
 
 -spec handle_info(Info, State) -> Result
@@ -735,17 +742,20 @@ handle_info({'EXIT', _Pid, Reason}, State) ->
 	{stop, Reason, State};
 handle_info(Info, State) ->
 	Module = State#state.module,
-	case Module:handle_info(Info, State#state.ext_state) of
-		{noreply, ExtState} ->
-			{noreply, State#state{ext_state = ExtState}};
-		{noreply, ExtState, Timeout} ->
-			{noreply, State#state{ext_state = ExtState}, Timeout};
-		{primitive, Primitive, ExtState} ->
-			handle_cast(Primitive, State#state{ext_state = ExtState});
-		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}};
-		Other ->
-			Other
+	case erlang:function_exported(Module, handle_info, 2) of
+		true ->
+			case Module:handle_info(Info, State#state.ext_state) of
+				{noreply, ExtState} ->
+					{noreply, State#state{ext_state = ExtState}};
+				{noreply, ExtState, Timeout} ->
+					{noreply, State#state{ext_state = ExtState}, Timeout};
+				{primitive, Primitive, ExtState} ->
+					handle_cast(Primitive, State#state{ext_state = ExtState});
+				{stop, Reason, ExtState} ->
+					{stop, Reason, State#state{ext_state = ExtState}}
+			end;
+		false ->
+			{noreply, State}
 	end.
 
 -spec terminate(Reason, State) -> any()
@@ -756,7 +766,12 @@ handle_info(Info, State) ->
 %% @private
 terminate(Reason, State) ->
 	Module = State#state.module,
-	Module:terminate(Reason, State#state.ext_state).
+	case erlang:function_exported(Module, terminate, 2) of
+		true ->
+			Module:terminate(Reason, State#state.ext_state);
+		false ->
+			ok
+	end.
 
 -spec code_change(OldVersion, State, Extra) -> Result
 	when
@@ -768,11 +783,39 @@ terminate(Reason, State) ->
 %% @private
 code_change(OldVersion, State, Extra) ->
 	Module = State#state.module,
-	case Module:code_change(OldVersion, State#state.ext_state, Extra) of
-		{ok, ExtState} ->
-			{ok, State#state{ext_state = ExtState}};
-		{error, Reason} ->
-			{error, Reason}
+	case erlang:function_exported(Module, code_change, 3) of
+		true ->
+			case Module:code_change(OldVersion, State#state.ext_state, Extra) of
+				{ok, ExtState} ->
+					{ok, State#state{ext_state = ExtState}};
+				{error, Reason} ->
+					{error, Reason}
+			end;
+		false ->
+			{ok, State}
+	end.
+
+-spec format_status(Opt, StatusData) -> Status
+	when
+      Opt :: 'normal' | 'terminate',
+      StatusData :: [PDict | State],
+      PDict :: [{Key :: term(), Value :: term()}],
+      State :: term(),
+      Status :: term().
+%% @see //stdlib/gen_server:format_status/3
+%% @private
+format_status(Opt, [PDict, State] = _StatusData) ->
+	Module = State#state.module,
+	case erlang:function_exported(Module, format_status, 2) of
+		true ->
+			Module:format_status(Opt, [PDict, State#state.ext_state]);
+		false ->
+			case Opt of
+				terminate ->
+					State;
+				_ ->
+					[{data, [{"State", State}]}]
+			end
 	end.
 
 %%----------------------------------------------------------------------
