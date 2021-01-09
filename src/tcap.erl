@@ -46,7 +46,7 @@
 -author('vances@motivity.ca').
 
 %% our published API functions
--export([start/0, stop/0]).
+-export([start/0, stop/0, start_tsl/3]).
 -export([open/3, close/1]).
 
 -type tcap_options() :: [Option :: {variant, Variant :: itu | ansi}].
@@ -73,6 +73,40 @@ start() ->
 %%
 stop() ->
 	application:stop(tcap).
+
+-spec start_tsl(Module, Args, Opts) -> Result
+	when
+		Module :: atom(),
+		Args :: [term()],
+		Opts :: [term()],
+		Result :: {ok, TSL} | {error, Reason},
+		TSL :: pid(),
+		Reason :: term().
+%% @doc Start a new transaction sublayer (TSL).
+%%
+%% 	The transaction sublayer (TSL) is realized as an
+%% 	instance of a {@link tcap_tco_server. tcap_tco_server}
+%% 	behaviour process. Binding to a lower layer (SCCP)
+%% 	service access point (SAP) is accomplished by providing
+%% 	a callback `Module' for the
+%% 	{@link tcap_tco_server. tcap_tco_server} behaviour.
+%%
+%% 	`Module' is the name of the callback module.
+%%
+%% 	`Args' will be the arguments passed to `Module:init/1'.
+%%
+%% 	`Opts' may include any of the options available to
+%% 	{@link //stdlib/gen_server:start_link/3. gen_server:start_link/3}.
+%%
+start_tsl(Module, Args, Opts) ->
+	case supervisor:start_child(tcap_sup, [Module, Args, Opts]) of
+		{ok, Sup} ->
+			[{tco, TSL, _, _}] = supervisor:which_children(Sup),
+			link(TSL),
+			{ok, TSL};
+		{error, Reason} ->
+			{error, Reason}
+	end.
 
 -spec open(TSL, TCU, Args) -> CSL
 	when

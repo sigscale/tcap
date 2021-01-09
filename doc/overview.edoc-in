@@ -219,7 +219,7 @@ transaction.
 The processes which make up an instance of the TCAP service layer
 are all instantiated within a single supervision tree.  When the
 application is started a top level supervisor is created with no
-children.  The user calls <a href="tcap.html#open-3"><tt>tcap:open/3</tt></a>
+children.  The user calls {@link tcap:start_tsl/3. start_tsl/3}
 to create a new service access point (SAP) which dynamically adds
 a <tt>tcap_sap_sup</tt> supervisor with one worker TCO.
 
@@ -251,7 +251,7 @@ shows some examples of how this distribution may be accomplished.
 <p>Figure 6-1<br />
 <img alt="diagram of process distribution" name="figure6-1" src="tcap_distribution.png" /></p>
 
-When a SAP is created with <a href="tcap.html#open-3"><tt>tcap:open/3</tt></a>
+When a SAP is created with {@link tcap:start_tsl/3. start_tsl/3}
 the <a href="tcap_tco_server.html"><tt>tcap_tco_server</tt></a> callback
 module name is provided to start a TCO which can adapt the specific
 implementation of SCCP in use to this TCAP service layer.  Arguments
