@@ -49,9 +49,9 @@
 -spec init(Args) -> Result
 	when
 		Args :: [term()],
-		Result :: {ok, {SupFlags, [ChildSpec]}},
+		Result :: {ok, {SupFlags, [ChildSpec]}} | ignore,
 		SupFlags :: supervisor:sup_flags(),
-		ChildSpec :: supervisor:child_spec() | ignore.
+		ChildSpec :: supervisor:child_spec().
 %% @doc Initialize the {@module} supervisor.
 init(_Args) ->
 	Mod = tcap_sap_sup,
