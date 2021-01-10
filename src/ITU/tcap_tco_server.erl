@@ -459,7 +459,7 @@ handle_cast({'N', 'UNITDATA', indication, UdataParams}, State)
 						SccpParams = #'N-UNITDATA'{calledAddress = UdataParams#'N-UNITDATA'.callingAddress,
 								callingAddress = UdataParams#'N-UNITDATA'.calledAddress,
 								sequenceControl = false,
-								returnOption = false, importance = none,
+								returnOption = false,
 								userData = list_to_binary(EncAbort)},
 						% TR-UNI request TSL -> SCCP
 						Module = State#state.module,
@@ -627,7 +627,7 @@ handle_cast({'N', 'NOTICE', indication, NoticeParams}, State) ->
 handle_cast({'TR', 'UNI', request, UniParams}, State) 
 		when is_record(UniParams, 'TR-UNI') ->
 	% Assemble TR-portion of UNI message
-	{SequenceControl, ReturnOption, Importance} = UniParams#'TR-UNI'.qos,
+	{SequenceControl, ReturnOption} = UniParams#'TR-UNI'.qos,
 	DialoguePortion = (UniParams#'TR-UNI'.userData)#'TR-user-data'.dialoguePortion,
 	ComponentPortion = (UniParams#'TR-UNI'.userData)#'TR-user-data'.componentPortion,
 	case 'TR':encode('TCMessage', {unidirectional, #'Unidirectional'{
@@ -637,7 +637,7 @@ handle_cast({'TR', 'UNI', request, UniParams}, State)
 			SccpParams = #'N-UNITDATA'{calledAddress = UniParams#'TR-UNI'.destAddress,
 					callingAddress =  UniParams#'TR-UNI'.origAddress,
 					sequenceControl = SequenceControl, returnOption = ReturnOption,
-					importance = Importance, userData = TpduBin},
+					userData = TpduBin},
 			Module = State#state.module,
 			Module:send_primitive({'N', 'UNITDATA', request, SccpParams}, State#state.ext_state),
 			{noreply, State};

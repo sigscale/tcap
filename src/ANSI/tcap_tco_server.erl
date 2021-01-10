@@ -144,7 +144,7 @@ handle_cast({'N', 'UNITDATA', indication, UdataParms}, State)
 							NewTPDU = list_to_binary('TCMessage':encode('TCMessage', Abort)),
 							SccpParms = #'N-UNITDATA'{calledAddress = UdataParms#'N-UNITDATA'.callingAddress,
 									callingAddress = UdataParms#'N-UNITDATA'.calledAddress,
-									sequenceControl = false, returnOption = false, importance = none,
+									sequenceControl = false, returnOption = false,
 									userData = NewTPDU},
 							%% TR-UNI request TSL -> SCCP
 							gen_fsm:send_event(State#state.nsap, {'N', 'UNITDATA', request, SccpParms}),
@@ -318,7 +318,7 @@ handle_cast({'N', 'NOTICE', indication, NoticeParms}, State) ->
 handle_cast({'TR', 'UNI', request, UniParms}, State) 
 		when is_record(UniParms, 'TR-UNI') ->
 	%% Assemble TR-portion of UNI message
-	{SequenceControl, ReturnOption, Importance} = UniParms#'TR-UNI'.qos,
+	{SequenceControl, ReturnOption} = UniParms#'TR-UNI'.qos,
 	DialoguePortion = (UniParms#'TR-UNI'.userData)#'TR-user-data'.dialoguePortion,
 	ComponentPortion = (UniParms#'TR-UNI'.userData)#'TR-user-data'.componentPortion,
 	TPDU = 'TR':encode('TCMessage', {unidirectional, #'Unidirectional'{
@@ -326,7 +326,7 @@ handle_cast({'TR', 'UNI', request, UniParms}, State)
 	SccpParms = #'N-UNITDATA'{calledAddress = UniParms#'TR-UNI'.destAddress,
 			callingAddress =  UniParms#'TR-UNI'.origAddress,
 			sequenceControl = SequenceControl, returnOption = ReturnOption,
-			importance = Importance, userData = TPDU},
+			userData = TPDU},
 	gen_fsm:send_event(State#state.nsap, {'N', 'UNITDATA', request, SccpParms}),
 	{noreply, State};
 handle_cast({'TR', 'BEGIN', request, BeginParms}, State) 

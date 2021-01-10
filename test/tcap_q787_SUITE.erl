@@ -134,11 +134,9 @@ group(tcl) ->
 			componentPortion = ComponentPortion},
 	SequenceControl = false,
 	ReturnOption = false,
-	Importance = none,
-	QoS = {SequenceControl, ReturnOption, Importance},
-	TrUniParms = #'TR-UNI'{qos = QoS,
-			destAddress = DestAddress,
-			origAddress = OrigAddress, userData = UserData},
+	TrUniParms = #'TR-UNI'{qos = {SequenceControl, ReturnOption},
+			destAddress = DestAddress, origAddress = OrigAddress,
+			userData = UserData},
 	gen_server:cast(TSL, {'TR', 'UNI', request, TrUniParms}),
 	SccpParams = receive
 		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UnitData} ->
@@ -148,7 +146,6 @@ group(tcl) ->
 			callingAddress = OrigAddress,
 			sequenceControl = SequenceControl,
 			returnOption = ReturnOption,
-			importance = Importance,
 			userData = _} = SccpParams.
 
 %%---------------------------------------------------------------------
