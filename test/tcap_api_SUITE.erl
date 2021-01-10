@@ -24,7 +24,8 @@
 -export([init_per_suite/1, end_per_suite/1]).
 -export([init_per_testcase/2, end_per_testcase/2]).
 
--compile(export_all).
+%% export test cases
+-export([start_tsl/0, start_tsl/1, stop_tsl/0, stop_tsl/1]).
 
 -include("tcap.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -84,7 +85,7 @@ start_tsl() ->
 	[{userdata, [{doc, "Start a transaction sublayer (TSL)"}]}].
 
 start_tsl(_Config) ->
-	{ok, TSL} = tcap:start_tsl(tcap_test_user, [rand:uniform(254)], []),
+	{ok, TSL} = tcap:start_tsl(tcap_test_user, [self()], []),
 	unlink(TSL),
 	true = is_process_alive(TSL).
 
@@ -92,7 +93,7 @@ stop_tsl() ->
 	[{userdata, [{doc, "Stop a transaction sublayer (TSL)"}]}].
 
 stop_tsl(_Config) ->
-	{ok, TSL} = tcap:start_tsl(tcap_test_user, [rand:uniform(254)], []),
+	{ok, TSL} = tcap:start_tsl(tcap_test_user, [self()], []),
 	unlink(TSL),
 	ok = tcap:stop_tsl(TSL),
 	false = is_process_alive(TSL).
