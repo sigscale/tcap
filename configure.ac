@@ -59,6 +59,7 @@ AC_ERLANG_SUBST_ERTS_VER
 AC_ERLANG_CHECK_LIB([kernel], [], [AC_MSG_ERROR([kernel was not found!])])
 AC_ERLANG_CHECK_LIB([stdlib], [], [AC_MSG_ERROR([stdlib was not found!])])
 AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
+AC_ERLANG_CHECK_LIB([sccp], [], [AC_MSG_WARN([asn1 was not found!])])
 
 
 ##
