@@ -71,7 +71,7 @@
 %%----------------------------------------------------------------------
 
 %% initialize the server
-init({NSAP, USAP, TID, Supervisor, SupRef, TCO}) -> 
+init([NSAP, USAP, TID, Supervisor, SupRef, TCO]) ->
 	%% store our process identifier in the global transaction ID table
 	ets:insert(tcap_transaction, {TID, self()}),
 	process_flag(trap_exit, true),

@@ -76,9 +76,9 @@
 
 %% Start the Dialogue Handler (DHA) process
 %% reference: Figure A.5/Q.774 (sheet 1 of 11)
-init({USAP, DialogueID, TCO, Supervisor}) ->
-	init({USAP, DialogueID, TCO, undefined, Supervisor});
-init({USAP, DialogueID, TCO, SupId, Supervisor}) ->
+init([USAP, DialogueID, TCO, Supervisor]) ->
+	init([USAP, DialogueID, TCO, undefined, Supervisor]);
+init([USAP, DialogueID, TCO, SupId, Supervisor]) ->
 	%% Start a Component Coordinator (CCO) process
 	ChildName = list_to_atom("cco_sup_" ++ integer_to_list(DialogueID)),
 	StartFunc = {supervisor, start_link, [component_coordinator_sup, [USAP, DialogueID]]},
