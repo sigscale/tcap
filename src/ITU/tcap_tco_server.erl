@@ -198,7 +198,7 @@
 -include("TCAPMessages.hrl").
 %-include("TR.hrl").
 -include("tcap.hrl").
--include("sccp.hrl").
+-include("sccp_primitive.hrl").
 
 -record(state,
 		{supervisor :: pid(),

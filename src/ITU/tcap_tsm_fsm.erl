@@ -59,7 +59,7 @@
 %% record definitions for TR-User primitives
 -include("tcap.hrl").
 %% record definitions for N-User primitives
--include("sccp.hrl").
+-include("sccp_primitive.hrl").
 %% record definitions for TCAP messages
 -include("TCAPMessages.hrl").
 

@@ -57,7 +57,7 @@
 
 -include("TCAPMessages.hrl").
 -include("tcap.hrl").
--include("sccp.hrl").
+-include("sccp_primitive.hrl").
 
 -record(state, {supervisor, nsap, usap}).
 
