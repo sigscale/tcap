@@ -4,7 +4,8 @@
 ## Process this file with automake to produce Makefile.in
 
 testmods = tcap_test_user \
-		tcap_api_SUITE
+		tcap_api_SUITE \
+		tcap_q787_SUITE
 
 check_DATA = .dialyzer_ok .common_test_ok
 
@@ -18,7 +19,10 @@ check_DATA = .dialyzer_ok .common_test_ok
 	@if [ ! -d log ]; then mkdir log; fi
 	@if [ ! -f ct.cfg ]; then cp $(top_srcdir)/test/ct.cfg .; fi
 	@if [ ! -f test.spec ]; then cp $(top_srcdir)/test/test.spec .; fi
-	ct_run -no_auto_compile -pa $(top_builddir)/ebin -logdir log -config ct.cfg -spec test.spec -dir . -erl_args -noshell -sname $(LOGNAME)-ct -config sys
+	ct_run -no_auto_compile \
+			-pa $(top_builddir)/ebin -pa $(ERLANG_LIB_DIR_sccp)/ebin \
+			-logdir log -config ct.cfg -spec test.spec -dir . \
+			-erl_args -noshell -sname $(LOGNAME)-ct -config sys
 
 sys.config:	$(top_srcdir)/test/sys.config-in
 	sed -e "s#%SSN%#$$((1 + $$RANDOM + 254))#" < $< > $@
