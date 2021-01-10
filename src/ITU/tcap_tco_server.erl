@@ -957,10 +957,12 @@ encode_tid(In) when is_binary(In) ->
 	In.
 
 %% @hidden
-postproc_tcmessage(C=#'Continue'{otid = Otid, dtid = Dtid}) ->
-	C#'Continue'{otid = decode_tid(Otid), dtid = decode_tid(Dtid)};
-postproc_tcmessage(E=#'End'{dtid = Dtid}) ->
-	E#'End'{dtid = decode_tid(Dtid)};
-postproc_tcmessage(B=#'Begin'{otid = Otid}) ->
-	B#'Begin'{otid = decode_tid(Otid)}.
+postproc_tcmessage(#'Unidirectional'{} = Unidirectional) ->
+	Unidirectional;
+postproc_tcmessage(#'Continue'{otid = Otid, dtid = Dtid} = Continue) ->
+	Continue#'Continue'{otid = decode_tid(Otid), dtid = decode_tid(Dtid)};
+postproc_tcmessage(#'End'{dtid = Dtid} = End) ->
+	End#'End'{dtid = decode_tid(Dtid)};
+postproc_tcmessage(#'Begin'{otid = Otid} = Begin) ->
+	Begin#'Begin'{otid = decode_tid(Otid)}.
 
