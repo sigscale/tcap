@@ -95,7 +95,7 @@ all() ->
 %% @doc Test case group information.
 group(tsl) ->
 	[{userdata, [{doc, "Q.787 7.1 TC Transaction Sublayer (TSL) test specification"}]}];
-group(tcl) ->
+group(csl) ->
 	[{userdata, [{doc, "Q.787 7.2 TC Component Sublayer (CSL) test specification"}]}].
 
 -spec groups() -> GroupDefs
@@ -118,8 +118,8 @@ group(tcl) ->
 %%
 groups() ->
 	TslCases = [receive_unidirectional, send_unidirectional],
-	TclCases = [],
-	[{tsl, [], TslCases}, {tcl, [], TclCases}].
+	CslCases = [],
+	[{tsl, [], TslCases}, {csl, [], CslCases}].
 
 %%---------------------------------------------------------------------
 %%  Test cases
