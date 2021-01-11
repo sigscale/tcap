@@ -905,7 +905,7 @@ get_start(dialogue, DialogueID, State) ->
 			Module:start_dialogue(DialogueID, State#state.ext_state);
 		false ->
 			StartUserFun = fun(CSL) -> Module:start_user(CSL, DialogueID, State#state.ext_state) end,
-			StartArgs = [DialogueID, self(), StartUserFun],
+			StartArgs = [self(), DialogueID, StartUserFun],
 			{gen_fsm, start_link, [tcap_dha_fsm, StartArgs, []]}
 	end;
 get_start(in_transaction, TransactionID, State) ->
