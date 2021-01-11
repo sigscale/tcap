@@ -819,58 +819,6 @@ format_status(Opt, [PDict, State] = _StatusData) ->
 	end.
 
 %%----------------------------------------------------------------------
-%% internal functions
-%%----------------------------------------------------------------------
-
--spec new_tid() -> tid().
-%% @doc Get the next originating transaction id from the global counter
-%%
-%% NOTE:  we are simply assuming that when the counter rolls over the last 
-%%        transaction to have this ID is long gone (4.2 billion IDs)
-%% @private
-%% @end
-%% reference: Figure A.3 bis/Q.774
-new_tid() ->
-	ets:update_counter(tcap_transaction, transactionID, {2, 1, 16#ffffffff, 0}).
-
-%% @hidden
-get_start(dialogue, DialogueID, State) ->
-	Module = State#state.module,
-	case erlang:function_exported(Module, start_dialogue, 1) of
-		true ->
-			Module:start_dialogue(DialogueID, State#state.ext_state);
-		false ->
-			StartUserFun = fun(CSL) -> Module:start_user(CSL, DialogueID, State#state.ext_state) end,
-			StartArgs = [DialogueID, self(), StartUserFun],
-			{gen_fsm, start_link, [tcap_dha_fsm, StartArgs, []]}
-	end;
-get_start(in_transaction, TransactionID, State) ->
-	Module = State#state.module,
-	Usap = State#state.usap,
-	case erlang:function_exported(Module, start_transaction, 1) of
-		true ->
-			Module:start_transaction(TransactionID, State#state.ext_state);
-		false ->
-			SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
-			StartDHA = get_start(dialogue, TransactionID, State),
-			% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
-			StartArgs = [SendFun, Usap, TransactionID, self()],
-			{supervisor, start_link, [tcap_transaction_sup, StartArgs]}
-	end;
-get_start(out_transaction, [TransactionID, Usap], State) when is_record(State, state) ->
-	#state{module = Module, supervisor = Sup} = State,
-	case erlang:function_exported(Module, start_transaction, 1) of
-		true ->
-			Module:start_transaction(TransactionID, State#state.ext_state);
-		false ->
-			SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
-			StartDHA = get_start(dialogue, TransactionID, State),
-			% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
-			StartArgs = [SendFun, Usap, TransactionID, self()],
-			{supervisor, start_link, [tcap_transaction_sup, StartArgs]}
-	end.
-
-%%----------------------------------------------------------------------
 %%  The gen_server API functions
 %%----------------------------------------------------------------------
 
@@ -940,6 +888,57 @@ enter_loop(Module, Options, State, Timeout) ->
 % enter_loop(Module, Options, State, ServerName) ->
 %	gen_server:enter_loop(Module, Options, State, ServerName).
 
+%%----------------------------------------------------------------------
+%% internal functions
+%%----------------------------------------------------------------------
+
+-spec new_tid() -> tid().
+%% @doc Get the next originating transaction id from the global counter
+%%
+%% NOTE:  we are simply assuming that when the counter rolls over the last 
+%%        transaction to have this ID is long gone (4.2 billion IDs)
+%% @private
+%% @end
+%% reference: Figure A.3 bis/Q.774
+new_tid() ->
+	ets:update_counter(tcap_transaction, transactionID, {2, 1, 16#ffffffff, 0}).
+
+%% @hidden
+get_start(dialogue, DialogueID, State) ->
+	Module = State#state.module,
+	case erlang:function_exported(Module, start_dialogue, 1) of
+		true ->
+			Module:start_dialogue(DialogueID, State#state.ext_state);
+		false ->
+			StartUserFun = fun(CSL) -> Module:start_user(CSL, DialogueID, State#state.ext_state) end,
+			StartArgs = [DialogueID, self(), StartUserFun],
+			{gen_fsm, start_link, [tcap_dha_fsm, StartArgs, []]}
+	end;
+get_start(in_transaction, TransactionID, State) ->
+	Module = State#state.module,
+	Usap = State#state.usap,
+	case erlang:function_exported(Module, start_transaction, 1) of
+		true ->
+			Module:start_transaction(TransactionID, State#state.ext_state);
+		false ->
+			SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
+			StartDHA = get_start(dialogue, TransactionID, State),
+			% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
+			StartArgs = [SendFun, Usap, TransactionID, self()],
+			{supervisor, start_link, [tcap_transaction_sup, StartArgs]}
+	end;
+get_start(out_transaction, [TransactionID, Usap], State) when is_record(State, state) ->
+	#state{module = Module, supervisor = Sup} = State,
+	case erlang:function_exported(Module, start_transaction, 1) of
+		true ->
+			Module:start_transaction(TransactionID, State#state.ext_state);
+		false ->
+			SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
+			StartDHA = get_start(dialogue, TransactionID, State),
+			% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
+			StartArgs = [SendFun, Usap, TransactionID, self()],
+			{supervisor, start_link, [tcap_transaction_sup, StartArgs]}
+	end.
 
 % convert a TID from the four-octet binary/list form (OCTET STRING) to unsigned int
 %% @hidden
