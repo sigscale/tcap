@@ -24,10 +24,11 @@ handle_info({'N', _, indication, _} = Primitive, State) ->
 send_primitive(Primitive, #state{ct = CT} = _State) ->
 	CT ! Primitive.
 
-start_user(_CSL, _DialogueID, _State) ->
+start_user(_CSL, _DialogueID, #state{ct = CT} = _State) ->
 	F = fun F() ->
 		receive
-			_ ->
+			Primitive ->
+				CT ! Primitive,
 				F()
 		end
 	end,

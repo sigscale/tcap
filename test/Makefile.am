@@ -13,7 +13,9 @@ check_DATA = .dialyzer_ok .common_test_ok
 	dialyzer --src $(top_srcdir)/src
 
 %.beam:$(top_srcdir)/test/%.erl $(top_srcdir)/include/tcap.hrl
-	$(ERLC) -pa $(top_builddir)/ebin $(ERLCFLAGS) -I $(top_srcdir)/include $<
+	$(ERLC) $(ERLCFLAGS) -pa $(top_builddir)/ebin \
+			-I $(top_builddir)/src/ITU \
+			-I $(top_srcdir)/include $<
 
 .common_test_ok:	$(addsuffix .beam, $(testmods)) sys.config
 	@if [ ! -d log ]; then mkdir log; fi

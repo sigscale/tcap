@@ -28,10 +28,13 @@
 %% common_test optional callbacks
 -export([groups/0, group/1]).
 %% common_test test cases
--export(['1.1.1.1'/0, '1.1.1.1'/1]).
+-export([receive_unidirectional/0, receive_unidirectional/1,
+		send_unidirectional/0, send_unidirectional/1]).
 
 -include("tcap.hrl").
 -include("sccp_primitive.hrl").
+-include("TC.hrl").
+-include("TR.hrl").
 -include_lib("sccp/include/sccp.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -85,6 +88,16 @@ sequences() ->
 all() ->
 	[{group, tsl}].
 
+-spec group(GroupName) -> [Info]
+	when
+		GroupName :: atom(),
+		Info :: term().
+%% @doc Test case group information.
+group(tsl) ->
+	[{userdata, [{doc, "Q.787 7.1 TC Transaction Sublayer (TSL) test specification"}]}];
+group(tcl) ->
+	[{userdata, [{doc, "Q.787 7.2 TC Component Sublayer (CSL) test specification"}]}].
+
 -spec groups() -> GroupDefs
 	when
 		GroupDefs :: [Group],
@@ -104,36 +117,42 @@ all() ->
 %% @doc Define test case groups.
 %%
 groups() ->
-	[{tsl, [], ['1.1.1.1']}, {tcl, [], []}].
-
--spec group(GroupName) -> [Info]
-	when
-		GroupName :: atom(),
-		Info :: term().
-%% @doc Test case group information.
-group(tsl) ->
-	[{userdata, [{doc, "Q.787 7.1 TC Transaction Sublayer (TSL) test specification"}]}];
-group(tcl) ->
-	[{userdata, [{doc, "Q.787 7.2 TC Component Sublayer (CSL) test specification"}]}].
+	TslCases = [receive_unidirectional, send_unidirectional],
+	TclCases = [],
+	[{tsl, [], TslCases}, {tcl, [], TclCases}].
 
 %%---------------------------------------------------------------------
 %%  Test cases
 %%---------------------------------------------------------------------
 
-'1.1.1.1'() ->
-	[{userdata, [{doc, "Valid function; Unstructured dialogue; Tested side sending"}]}].
+send_unidirectional() ->
+	[{userdata,
+			[{number, "1.1.1.1"},
+			{reference, "3.3.3.1.1/Q.774"},
+			{title, "Valid function; Unstructured dialogue"},
+			{subtitle, "Tested side sending"},
+			{purpose, "To verify that signalling point A is able to correctly send a Unidirectional message."},
+			{conditions, "SP A (TSL) and SP B (TSL) are to be in the idle state."},
+			{description,
+					"1. Send a Unidirectional message from SP A to SP B.\n"
+					"2. Check A: Was the Unidirectional message correctly sent from SP A?\n"
+					"3. Check B: Was the TSL state machine associated with this transaction left in the idle state at SP A?"}]}].
 
-'1.1.1.1'(Config) ->
+send_unidirectional(Config) ->
 	TSL = ?config(tco_pid, Config),
-	CalledParty = #party_address{pc = 6210, ssn = 146, ri = true},
-	CallingParty = #party_address{pc = 6202, ssn = 146, ri = true},
-	DestAddress = sccp_codec:party_address(CalledParty),
-	OrigAddress = sccp_codec:party_address(CallingParty),
-	ComponentPortion = crypto:strong_rand_bytes(rand:uniform(512)),
+	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
+			linkedId = asn1_NOVALUE,
+			opcode = {local, 1},
+			argument = asn1_NOVALUE}},
+	{ok, ComponentPortion} = 'TC':encode('Components', [Invoke]),
 	UserData = #'TR-user-data'{dialoguePortion = asn1_NOVALUE,
 			componentPortion = ComponentPortion},
 	SequenceControl = false,
 	ReturnOption = false,
+	CalledParty = #party_address{pc = 6210, ssn = 146, ri = true},
+	CallingParty = #party_address{pc = 6202, ssn = 146, ri = true},
+	DestAddress = sccp_codec:party_address(CalledParty),
+	OrigAddress = sccp_codec:party_address(CallingParty),
 	TrUniParms = #'TR-UNI'{qos = {SequenceControl, ReturnOption},
 			destAddress = DestAddress, origAddress = OrigAddress,
 			userData = UserData},
@@ -147,6 +166,49 @@ group(tcl) ->
 			sequenceControl = SequenceControl,
 			returnOption = ReturnOption,
 			userData = _} = SccpParams.
+
+receive_unidirectional() ->
+	[{userdata,
+			[{number, "1.1.1.1"},
+			{reference, "3.3.3.1.2/Q.774"},
+			{title, "Valid function; Unstructured dialogue"},
+			{subtitle, "Tested side receiving"},
+			{purpose, "To verify that signalling point A is able to correctly receive a Unidirectional message."},
+			{conditions, "SP A (TSL) and SP B (TSL) are to be in the idle state"},
+			{description,
+					"1. Send a Unidirectional message from SP B to SP A.\n"
+					"2. Check A: Was the Unidirectional message correctly received at SP A?\n"
+					"3. Check B: Was the TSL state machine associated with this transaction left in the idle state at SP A?"}]}].
+
+receive_unidirectional(Config) ->
+	TSL = ?config(tco_pid, Config),
+	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
+			linkedId = asn1_NOVALUE,
+			opcode = {local, 1},
+			argument = asn1_NOVALUE}},
+	{ok, ComponentPortion} = 'TC':encode('Components', [Invoke]),
+	Unidirectional = {unidirectional,
+			#'Unidirectional'{components = ComponentPortion}},
+	{ok, SccpUserData} = 'TR':encode('TCMessage', Unidirectional),
+	CalledParty = #party_address{pc = 6202, ssn = 146, ri = true},
+	CallingParty = #party_address{pc = 6210, ssn = 146, ri = true},
+	DestAddress = sccp_codec:party_address(CalledParty),
+	OrigAddress = sccp_codec:party_address(CallingParty),
+	SequenceControl = false,
+	ReturnOption = false,
+	UnitData = #'N-UNITDATA'{calledAddress = DestAddress,
+			callingAddress = OrigAddress,
+			sequenceControl = SequenceControl,
+			returnOption = ReturnOption,
+			userData = SccpUserData},
+	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
+	TcUniParams = receive
+		{'TC', 'UNI', indication, #'TC-UNI'{} = UniParams} ->
+		UniParams
+	end,
+	#'TC-UNI'{qos = {SequenceControl, ReturnOption},
+			destAddress = DestAddress, origAddress = OrigAddress,
+			componentsPresent = true} = TcUniParams.
 
 %%---------------------------------------------------------------------
 %%  Internal functions
