@@ -266,7 +266,8 @@ handle_cast({'N', 'UNITDATA', indication, UdataParms}, State)
 					%% TR-UNI indication CSL <- TSL
 					UserData = #'TR-user-data'{dialoguePortion = Unidirectional#'Unidirectional'.dialoguePortion,
 							componentPortion = Unidirectional#'Unidirectional'.components},
-					TrParms = #'TR-UNI'{qos =
+					TrParms = #'TR-UNI'{qos = {UdataParams#'N-UNITDATA'.sequenceControl,
+							UdataParams#'N-UNITDATA'.returnOption },
 							destAddress = UdataParms#'N-UNITDATA'.calledAddress,
 							origAddress = UdataParms#'N-UNITDATA'.callingAddress,
 							userData = UserData},
