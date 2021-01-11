@@ -60,7 +60,7 @@
 -include("sccp_primitive.hrl").
 
 -record(state,
-		{supervisor :: pid(),
+		{sup :: pid(),
 		module :: atom(),
 		ext_state :: any(),
 		usap :: pid()}).
@@ -177,10 +177,10 @@ init([Sup, Module, Args]) when is_list(Args) ->
 	process_flag(trap_exit, true),
 	case Module:init(Args) of
 		{ok, ExtState} ->
-			NewState = #state{supervisor = Sup, module = Module, ext_state = ExtState},
+			NewState = #state{sup = Sup, module = Module, ext_state = ExtState},
 			{ok, NewState};
 		{ok, ExtState, Timeout} ->
-			NewState = #state{supervisor = Sup, module = Module, ext_state = ExtState},
+			NewState = #state{sup = Sup, module = Module, ext_state = ExtState},
 			{ok, NewState, Timeout};
 		{stop, Reason} ->
 			{stop, Reason};
@@ -210,12 +210,6 @@ handle_call(set_usap, {From, _Tag}, State) ->
 	{reply, ok, State#state{usap = From}};
 handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
-handle_call({local_new_trans, OTID}, {Usap, _Tag}, State) ->
-	ChildName = list_to_atom("tcap_trans_sup_" ++ integer_to_list(OTID)),
-	StartFunc = get_start(out_transaction, [OTID, Usap] , State),
-	ChildSpec = {ChildName, StartFunc, temporary, 1000, worker, [tcap_tsm_fsm]},
-	Reply = supervisor:start_child(State#state.supervisor, ChildSpec),
-	{reply, Reply, State};
 handle_call(Request, From, State) ->
 	Module = State#state.module,
 	case Module:handle_call(Request, From, State#state.ext_state) of
@@ -268,7 +262,7 @@ handle_cast({'N', 'UNITDATA', indication, UdataParms}, State)
 					{ok, {M, F, A, Mods} = application:get_env(start_dha),
 					StartFunc = {M, F, A ++ [{State#state.nsap, State#state.usap, DialogueID, self(), SupId}]},
 					ChildSpec = {SupId, StartFunc, temporary, 10000, worker, Mods},
-					{ok, DHA} = supervisor:start_child(State#state.supervisor, ChildSpec),
+					{ok, DHA} = supervisor:start_child(State#state.sup, ChildSpec),
 					%% TR-UNI indication CSL <- TSL
 					UserData = #'TR-user-data'{dialoguePortion = Unidirectional#'Unidirectional'.dialoguePortion,
 							componentPortion = Unidirectional#'Unidirectional'.components},
@@ -301,7 +295,7 @@ handle_cast({'N', 'UNITDATA', indication, UdataParms}, State)
 					%%        value and doesn't ensure that it is not in use (unlikely)
 					%%        or that there are enough resources available.  The real
 					%%        test is in whether the start succeeds.
-					case supervisor:start_child(State#state.supervisor, ChildSpec) of
+					case supervisor:start_child(State#state.sup, ChildSpec) of
 						{ok, TSM} ->
 							%% Created a Transaction State Machine (TSM)
 							TsmParms = UdataParms#'N-UNITDATA'{userData = Begin},
@@ -505,7 +499,7 @@ handle_cast({'TR', 'BEGIN', request, BeginParms}, State)
 	{ok, {M, F, A, Mods}} = application:get_env(start_tsm),
 	StartFunc = {M, F, A ++ [{State#state.nsap, State#state.usap, OTID, ChildName}]},
 	ChildSpec = {ChildName, StartFunc, temporary, infinity, worker, Mods},
-	{ok, TSM} = supervisor:start_child(State#state.supervisor, ChildSpec),
+	{ok, TSM} = supervisor:start_child(State#state.sup, ChildSpec),
 	gen_fsm:send_event(TSM, {'BEGIN', transaction, BeginParms}),
 	{noreply, State};
 handle_cast({'TR', 'CONTINUE', request, ContParms}, State)
@@ -531,7 +525,7 @@ handle_cast({'TR', 'U-ABORT', request, AbortParms}, State)
 %% we can remove the supervisor child specification
 %%
 handle_cast({'tsm-stopped', SupRef}, State) ->
-	supervisor:delete_child(State#state.supervisor, SupRef),
+	supervisor:delete_child(State#state.sup, SupRef),
 	%% reference: Figure A.3/Q/774 (sheet 2 of 4)
 	{noreply, State};
 % unrecognized request
