@@ -424,7 +424,7 @@ initiation_sent({'TR', 'U-ABORT', indication, AbortParms}, State) when is_record
 		if
 			%% Is AC mode set? (no) Is Dialogue portion present? (no)
 			State#state.appContextMode == undefined and (not is_record(AbortParms#'TR-U-ABORT'.userData, 'TR-user-data')
-					or (AbortParms#'TR-U-ABORT'.userData)#'TR-user-data'.dialoguePortion == undefined) ->
+					or (AbortParms#'TR-U-ABORT'.userData)#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
 				throw(#'TC-U-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos, dialogueID = State#state.did});
 			%% Is AC mode set? (no) Is Dialogue portion present? (yes)
 			State#state.appContextMode == undefined, is_record(AbortParms#'TR-U-ABORT'.userData, 'TR-user-data'),
@@ -433,7 +433,7 @@ initiation_sent({'TR', 'U-ABORT', indication, AbortParms}, State) when is_record
 						dialogueID = State#state.did, pAbort = abnormalDialogue});
 			%% Is User Data included in primitive? (no)
 			not is_record(AbortParms#'TR-U-ABORT'.userData, 'TR-user-data');
-					(AbortParms#'TR-U-ABORT'.userData)#'TR-user-data'.dialoguePortion == undefined ->
+					(AbortParms#'TR-U-ABORT'.userData)#'TR-user-data'.dialoguePortion == asn1_NOVALUE ->
 				throw(#'TC-P-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos, 
 						dialogueID = State#state.did, pAbort = abnormalDialogue});
 			true -> ok
@@ -780,7 +780,7 @@ wait_for_end_components1(State) ->
 
 %% Dialogue portion included? (yes)
 extract_uni_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'),
-		UserData#'TR-user-data'.dialoguePortion /= undefined  ->
+		UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE ->
 	%% Dialogue portion correct?
 	case 'UnidialoguePDUs':decode('UnidialoguePDU', UserData#'TR-user-data'.dialoguePortion) of
 		{unidialoguePDU, AUDT} when is_record(AUDT, 'AUDT-apdu') ->
@@ -802,7 +802,7 @@ extract_uni_dialogue_portion(_DialoguePortion) ->
 	
 %% Dialogue portion included? (yes)
 extract_begin_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'),
-		UserData#'TR-user-data'.dialoguePortion /= undefined ->
+		UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE ->
 	%% Extract dialogue portion
 	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
 	% some implementations seem to be broken and not send the 'symtax' part?!?
@@ -827,27 +827,23 @@ extract_begin_dialogue_portion(_DialoguePortion) ->
 
 % ANY: if AC is undefined and dialogue portion present -> abort
 extract_dialogue_portion(UserData, undefined, _Any) when is_record(UserData, 'TR-user-data') and
-		(UserData#'TR-user-data'.dialoguePortion /= undefined) and
 		(UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE) ->
 		%% Dialogue portion included? (yes)  AC mode set? (no)
 	abort;
 % IS: if dialogue portion is not present but App context name is set -> abort
 extract_dialogue_portion(UserData, _AppContextName, initiation_sent)
 	when not is_record(UserData, 'TR-user-data') or
-		(UserData#'TR-user-data'.dialoguePortion == undefined) or
 		(UserData#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
 		%% Dialogue portion included? (no)  AC mode set? (yes)
 	abort;
 % ACTIVE: if dialogue portion is not present but App context name is set -> empty
 extract_dialogue_portion(UserData, _AppContextName, active)
 	when not is_record(UserData, 'TR-user-data') or
-		(UserData#'TR-user-data'.dialoguePortion == undefined) or
 		(UserData#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
 		%% Dialogue portion included? (no)  AC mode set? (yes)
 	undefined;
 % ANY: if dialogue portion is present and AppContext name is set -> decode dialogue and proceed
 extract_dialogue_portion(UserData, _AppContextName, _Any) when is_record(UserData, 'TR-user-data') and
-		(UserData#'TR-user-data'.dialoguePortion /= undefined) and
 		(UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE) ->
 	%% Extract dialogue portion
 	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,

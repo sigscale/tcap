@@ -192,8 +192,8 @@
 %%% This is probably due to dialogue handling being added after Q.771 was
 %%% first written.  We will define a record for the user data.
 -record('TR-user-data',
-		{dialoguePortion = asn1_noVALUE :: binary() | asn1_noVALUE,
-		componentPortion = asn1_noVALUE :: binary() | asn1_noVALUE}).
+		{dialoguePortion = asn1_NOVALUE :: binary() | asn1_NOVALUE,
+		componentPortion = asn1_NOVALUE :: binary() | asn1_NOVALUE}).
 
 %% reference: Table 18/Q.771 - TR-UNI primitives
 -record('TR-UNI',

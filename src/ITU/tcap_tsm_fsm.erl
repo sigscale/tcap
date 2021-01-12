@@ -113,7 +113,7 @@ idle({'BEGIN', transaction, BeginParms}, State)
 	%% NOTE - This may be provided by TC-user or be implicitly associated with
 	%%        the access point at which the N-UNITDATA primitive is issued. 
 	NewState = State#state{local_address = BeginParms#'TR-BEGIN'.origAddress},
-	TrUserData = process_undefined (BeginParms#'TR-BEGIN'.userData),
+	TrUserData = BeginParms#'TR-BEGIN'.userData,
 	DialoguePortion = TrUserData#'TR-user-data'.dialoguePortion,
 	ComponentPortion = TrUserData#'TR-user-data'.componentPortion,
 	Otid = State#state.localTID,
@@ -147,7 +147,7 @@ initiation_received({'CONTINUE', transaction, ContParms}, State)
 		NewAddress ->
 			NewState = State#state{local_address = NewAddress}
 	end,
-	TrUserData = process_undefined(ContParms#'TR-CONTINUE'.userData),
+	TrUserData = ContParms#'TR-CONTINUE'.userData,
 	DialoguePortion = TrUserData#'TR-user-data'.dialoguePortion,
 	ComponentPortion = TrUserData#'TR-user-data'.componentPortion,
 	Otid = State#state.localTID,
@@ -173,7 +173,7 @@ initiation_received({'END', transaction, EndParms}, State)
 %% End from TR-User (not prearranged)
 initiation_received({'END', transaction, EndParms}, State)
 		when is_record(EndParms, 'TR-END') ->
-	TrUserData = process_undefined(EndParms#'TR-END'.userData),
+	TrUserData = EndParms#'TR-END'.userData,
 	DialoguePortion = TrUserData#'TR-user-data'.dialoguePortion,
 	ComponentPortion = TrUserData#'TR-user-data'.componentPortion,
 	Dtid = State#state.remoteTID,
@@ -193,7 +193,7 @@ initiation_received({'END', transaction, EndParms}, State)
 %% Abort from TR-User
 initiation_received({'ABORT', transaction, AbortParms}, State)
 		when is_record(AbortParms, 'TR-U-ABORT') ->
-	TrUserData = process_undefined(AbortParms#'TR-U-ABORT'.userData),
+	TrUserData = AbortParms#'TR-U-ABORT'.userData,
 	Cause = TrUserData#'TR-user-data'.dialoguePortion,
 	Abort = #'Abort'{reason = {'u-abortCause', Cause}},
 	%% Assemble TR-portion of ABORT message
@@ -309,7 +309,7 @@ active({'CONTINUE', received, SccpParms}, State)
 %% Continue from TR-User
 active({'CONTINUE', transaction, ContParms}, State)
 		when is_record(ContParms, 'TR-CONTINUE') ->
-	TrUserData = process_undefined(ContParms#'TR-CONTINUE'.userData),
+	TrUserData = ContParms#'TR-CONTINUE'.userData,
 	DialoguePortion = TrUserData#'TR-user-data'.dialoguePortion,
 	ComponentPortion = TrUserData#'TR-user-data'.componentPortion,
 	Otid = State#state.localTID,
@@ -350,7 +350,7 @@ active({'END', transaction, EndParms}, State)
 %% End from TR-User (not prearranged)
 active({'END', transaction, EndParms}, State)
 		when is_record(EndParms, 'TR-END') ->
-	TrUserData = process_undefined(EndParms#'TR-END'.userData),
+	TrUserData = EndParms#'TR-END'.userData,
 	DialoguePortion = TrUserData#'TR-user-data'.dialoguePortion,
 	ComponentPortion = TrUserData#'TR-user-data'.componentPortion,
 	Dtid = State#state.remoteTID,
@@ -401,7 +401,7 @@ active({'local-abort', received, Cause}, State) ->
 %% Abort from TR-User
 active({'ABORT', transaction, AbortParms}, State) 
 		when is_record(AbortParms, 'TR-U-ABORT') ->
-	TrUserData = process_undefined(AbortParms#'TR-U-ABORT'.userData),
+	TrUserData = AbortParms#'TR-U-ABORT'.userData,
 	Cause = TrUserData#'TR-user-data'.dialoguePortion,
 	Abort = #'Abort'{reason = {'u-abortCause', Cause}},
 	%% Assemble TR-portion of ABORT message
@@ -448,11 +448,6 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 send_to_nsap(State, P) when is_record(State, state) ->
 	SendFun = State#state.nsap,
 	SendFun(P).
-
-process_undefined(U = #'TR-user-data'{dialoguePortion = undefined}) ->
-	U#'TR-user-data'{dialoguePortion = asn1_NOVALUE};
-process_undefined(U = #'TR-user-data'{}) ->
-	U.
 
 resolve_dha(DlgId) when is_integer(DlgId) ->
 	[{DlgId, DHA}] = ets:lookup(tcap_dha, DlgId),
