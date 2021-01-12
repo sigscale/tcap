@@ -46,7 +46,9 @@
 %% Require variables and set default values for the suite.
 %%
 suite() ->
-	[{timetrap, {minutes, 1}}].
+	[{userdata, [{doc,
+			"ITU-T Q.787 Transaction Capabilities (TC) Test Specification"}]},
+			{timetrap, {minutes, 1}}].
 
 -spec init_per_suite(Config :: [tuple()]) -> Config :: [tuple()].
 %% Initiation before the whole suite.
@@ -64,7 +66,8 @@ end_per_suite(_Config) ->
 -spec init_per_testcase(TestCase :: atom(), Config :: [tuple()]) -> Config :: [tuple()].
 %% Initiation before each test case.
 %%
-init_per_testcase(_TestCase, Config) ->
+init_per_testcase(TestCase, Config) ->
+	describe(TestCase),
 	{ok, TSL} = tcap:start_tsl(tcap_test_user, [self()], []),
 	unlink(TSL),
 	[{tco_pid, TSL} | Config].
@@ -94,9 +97,9 @@ all() ->
 		Info :: term().
 %% @doc Test case group information.
 group(tsl) ->
-	[{userdata, [{doc, "Q.787 7.1 TC Transaction Sublayer (TSL) test specification"}]}];
+	[{userdata, [{doc, "7.1 TC Transaction Sublayer (TSL) test specification"}]}];
 group(csl) ->
-	[{userdata, [{doc, "Q.787 7.2 TC Component Sublayer (CSL) test specification"}]}].
+	[{userdata, [{doc, "7.2 TC Component Sublayer (CSL) test specification"}]}].
 
 -spec groups() -> GroupDefs
 	when
@@ -169,7 +172,7 @@ send_unidirectional(Config) ->
 
 receive_unidirectional() ->
 	[{userdata,
-			[{number, "1.1.1.1"},
+			[{number, "1.1.1.2"},
 			{reference, "3.3.3.1.2/Q.774"},
 			{title, "Valid function; Unstructured dialogue"},
 			{subtitle, "Tested side receiving"},
@@ -213,4 +216,59 @@ receive_unidirectional(Config) ->
 %%---------------------------------------------------------------------
 %%  Internal functions
 %%---------------------------------------------------------------------
+
+-spec describe(TestCase) -> ok
+	when
+		TestCase :: atom().
+%% @doc Describe the test case in the log.
+describe(TestCase) ->
+	Group = get_group(TestCase),
+	{_, UserData1} = lists:keyfind(userdata, 1, suite()),
+	{_, UserData2} = lists:keyfind(userdata, 1, group(Group)),
+	{_, UserData3} = lists:keyfind(userdata, 1, ?MODULE:TestCase()),
+	Header1 = "<h2>" ++ proplists:get_value(doc, UserData1) ++ "</h2>",
+	Header2 = "<h3>" ++ proplists:get_value(doc, UserData2) ++ "</h3>",
+	Number = proplists:get_value(number, UserData3),
+	Reference = proplists:get_value(reference, UserData3),
+	Title = proplists:get_value(title, UserData3),
+	Subtitle = proplists:get_value(subtitle, UserData3),
+	Purpose = proplists:get_value(purpose, UserData3),
+	Conditions = proplists:get_value(conditions, UserData3),
+	Description = proplists:get_value(description, UserData3),
+	Table = "<table>"
+			"<tr><td>Test Number:</td>"
+			"<td>" ++ Number ++ "</td></tr>"
+			"<tr><td>Reference:</td>"
+			"<td>" ++ Reference ++ "</td></tr>"
+			"<tr><td>Title:</td>"
+			"<td>" ++ Title ++ "</td></tr>"
+			"<tr><td>Subtitle:</td>"
+			"<td>" ++ Subtitle ++ "</td></tr>"
+			"<tr><td>Purpose:</td>"
+			"<td>" ++ Purpose ++ "</td></tr>"
+			"<tr><td>Pre-test Conditions:</td>"
+			"<td>" ++ Conditions ++ "</td></tr>"
+			"<tr><td>Test Description:</td>"
+			"<td>" ++ Description ++ "</td></tr>"
+			"</table>",
+	ct:comment(Title ++ " " ++ Subtitle),
+	ct:log(Header1 ++ Header2 ++ Table).
+
+-spec get_group(TestCase) -> Group
+	when
+		TestCase :: atom(),
+		Group :: atom().
+%%% @doc Get the `Group' a `TestCase' is a member of.
+get_group(TestCase) ->
+	get_group(TestCase, groups()).
+%% @hidden
+get_group(TestCase, [{Group, _, TestCases} | T]) ->
+	case lists:member(TestCase, TestCases) of
+		true ->
+			Group;
+		false ->
+			get_group(TestCase, T)
+	end;
+get_group(_, []) ->
+	none.
 
