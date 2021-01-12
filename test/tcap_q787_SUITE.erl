@@ -120,7 +120,7 @@ group(csl) ->
 %% @doc Define test case groups.
 %%
 groups() ->
-	TslCases = [receive_unidirectional, send_unidirectional],
+	TslCases = [send_unidirectional, receive_unidirectional],
 	CslCases = [],
 	[{tsl, [], TslCases}, {csl, [], CslCases}].
 
