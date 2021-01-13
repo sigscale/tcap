@@ -204,7 +204,7 @@ A number of processes interact to provide the TCAP service.
 between processes used with the TCAP application.
 
 The TCAP protocol layer is split into two sublayers; the Transaction
-Sublayer and the Component Sublayer.
+Sublayer (TSL) and the Component Sublayer (CSL).
 
 In the transaction sublayer a transaction coordinator (TCO)
 process performs marshalling of incoming indications from the
