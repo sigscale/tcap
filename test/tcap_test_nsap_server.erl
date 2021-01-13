@@ -1,6 +1,6 @@
-%% tcap_test_user.erl
+%% tcap_test_nsap_server.erl
 %%
--module(tcap_test_user).
+-module(tcap_test_nsap_server).
 
 -behaviour(tcap_tco_server).
 
@@ -10,6 +10,7 @@
 -record(state, {ct :: pid()}).
 
 init([CT]) ->
+erlang:display({?MODULE, ?LINE, CT}),
 	{ok, #state{ct = CT}}.
 
 handle_call(_Request, _From, State) ->
@@ -19,18 +20,16 @@ handle_cast(_Request, State) ->
 	{noreply, State}.
 
 handle_info({'N', _, indication, _} = Primitive, State) ->
-	{primitive, Primitive, State}.
+	{primitive, Primitive, State};
+handle_info(_, State) ->
+	{noreply, State}.
 
 send_primitive(Primitive, #state{ct = CT} = _State) ->
 	CT ! Primitive.
 
 start_user(_CSL, _DialogueID, #state{ct = CT} = _State) ->
-	F = fun F() ->
-		receive
-			Primitive ->
-				CT ! Primitive,
-				F()
-		end
-	end,
-	proc_lib:spawn(F).
+erlang:display({?MODULE, ?LINE, _CSL, _DialogueID, CT}),
+	{ok, Fsm} = gen_fsm:start_link(tcap_test_usap_fsm, [[CT]], []),
+erlang:display({?MODULE, ?LINE, Fsm}),
+	Fsm.
 

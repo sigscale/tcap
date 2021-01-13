@@ -68,7 +68,7 @@ end_per_suite(_Config) ->
 %%
 init_per_testcase(TestCase, Config) ->
 	describe(TestCase),
-	{ok, TSL} = tcap:start_tsl(tcap_test_user, [self()], []),
+	{ok, TSL} = tcap:start_tsl(tcap_test_nsap_server, [self()], []),
 	unlink(TSL),
 	[{tco_pid, TSL} | Config].
 
@@ -120,7 +120,7 @@ group(csl) ->
 %% @doc Define test case groups.
 %%
 groups() ->
-	TslCases = [receive_unidirectional, send_unidirectional],
+	TslCases = [send_unidirectional, receive_unidirectional],
 	CslCases = [],
 	[{tsl, [], TslCases}, {csl, [], CslCases}].
 
@@ -206,6 +206,7 @@ receive_unidirectional(Config) ->
 			userData = SccpUserData},
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
 	TcUniParams = receive
+Other -> erlang:display({?MODULE, ?LINE, Other});
 		{'TC', 'UNI', indication, #'TC-UNI'{} = UniParams} ->
 		UniParams
 	end,
