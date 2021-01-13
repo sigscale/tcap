@@ -34,11 +34,13 @@ TR.erl:$(top_srcdir)/asn_src/ITU/TR.asn \
 TCAPMessages.erl:$(top_srcdir)/asn_src/ITU/TCAPMessages.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn
 	$(ERLC) $(ASNCFLAGS) $<
-	sed -i "/^-record('EXTERNAL'/,+6d" TCAPMessages.hrl
+	sed -e "/^-record('EXTERNAL'/,/^})\./d" TCAPMessages.hrl > TCAPMessages.hrl.tmp
+	mv TCAPMessages.hrl.tmp TCAPMessages.hrl
 
 UnidialoguePDUs.erl:$(top_srcdir)/asn_src/ITU/UnidialoguePDUs.asn
 	$(ERLC) $(ASNCFLAGS) $<
-	sed -i "/^-record('EXTERNAL'/,+6d" UnidialoguePDUs.hrl
+	sed -e "/^-record('EXTERNAL'/,/^})\./d" UnidialoguePDUs.hrl > UnidialoguePDUs.hrl.tmp
+	mv UnidialoguePDUs.hrl.tmp UnidialoguePDUs.hrl
 
 TC-Testing-User.erl:$(top_srcdir)/asn_src/ITU/TC-Testing-User.asn \
 		$(top_srcdir)/asn_src/ITU/TC-TMP.asn \
