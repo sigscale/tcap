@@ -2,7 +2,7 @@
 ##
 ## Process this file with automake to produce Makefile.in
 
-SUBDIRS = ITU ANSI
+SUBDIRS = itu # ansi
 
 appdir = $(beamdir)
 app_DATA = tcap.app
@@ -15,8 +15,7 @@ beam_DATA = tcap.beam \
 		tcap_transaction_sup.beam \
 		tcap_dialogue_sup.beam \
 		tcap_components_sup.beam \
-		tcap_invocation_sup.beam \
-		tcap_user.beam
+		tcap_invocation_sup.beam
 
 %.beam:$(top_srcdir)/src/%.erl	$(top_srcdir)/include/tcap.hrl
 	$(ERLC) $(ERLCFLAGS) -I $(top_srcdir)/include -I $(top_builddir)/include $<

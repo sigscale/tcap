@@ -1,4 +1,4 @@
-%%% $Id: tcap_app.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_app.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -40,12 +40,9 @@
 %%%
 %%% @reference <a href="index.html">TCAP User's Guide</a>
 %%%
-%%% @private
-         
 -module(tcap_app).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.3 $').
 
 %% export application behaviour callbacks
 -export([start/2, start_phase/3, prep_stop/1, stop/1, config_change/3]).
@@ -58,7 +55,6 @@
 %% 	State = term()
 %% 	Reason = term()
 %%
-%% @equiv //kernel/application:start/3
 %%
 start(normal, StartArgs) ->
 	ets:new(tcap_transaction, [named_table, public]),
@@ -72,7 +68,6 @@ start(normal, StartArgs) ->
 %% 	Node = node()
 %% 	Reason = term()
 %%
-%% @equiv //kernel/application:start_phase/3
 %%
 start_phase(_Phase, _StartType, _PhaseArgs) ->
 	ok.
@@ -80,14 +75,12 @@ start_phase(_Phase, _StartType, _PhaseArgs) ->
 %% @spec(State::term()) -> NewState
 %% 	NewState = term()
 %%
-%% @equiv //kernel/application:prep_stop/1
 %%
 prep_stop(State) ->
 	State.
 
 %% @spec(State) -> ok
 %%
-%% @equiv //kernel/application:stop/1
 %%
 stop(_State) ->
 	ok.
@@ -99,7 +92,6 @@ stop(_State) ->
 %% 	Par = atom()
 %% 	Val = term()
 %%
-%% @equiv //kernel/application:config_change/3
 %%
 config_change(_Changed, _New, _Removed) ->
 	ok.

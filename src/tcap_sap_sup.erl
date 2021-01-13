@@ -1,4 +1,4 @@
-%%% $Id: tcap_sap_sup.erl,v 1.5 2005/08/04 09:33:17 vances Exp $
+%%% tcap_sap_sup.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -35,17 +35,11 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
+%%% @docfile "{@docsrc supervision.edoc}"
 %%%
-%%% @doc TCAP service access point supervisor.
-%%%
-%%% @reference <a href="index.html">TCAP User's Guide</a>
-%%%
-%%% @private
-         
 -module(tcap_sap_sup).
 -copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.5 $').
 
 -behaviour(supervisor).
 
@@ -60,9 +54,7 @@
 %% @see supervisor:init/1
 %%
 init([Module, Args, Options]) when is_list(Args), is_list(Options) ->
-	SSN = hd(Args),
-	Name = list_to_atom("tcap_tco_ssn_" ++ integer_to_list(SSN)),
-	StartArgs = [{local, Name}, tcap_tco_server, [self(), Module, Args], Options],
+	StartArgs = [tcap_tco_server, [self(), Module, Args], Options],
 	StartFunc = {gen_server, start_link, StartArgs},
 	ChildSpec = {tco, StartFunc, permanent, 4000, worker, [Module, tcap_tco_server]},
 	{ok,{{one_for_one, 1, 1}, [ChildSpec]}}.

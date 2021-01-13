@@ -1,4 +1,4 @@
-%%% $Id: tcap_cco_server.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_cco_server.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -42,13 +42,9 @@
 %%% @reference ANSI T1.114.4 Transaction Capabilities Procedures 
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
-%%% @private
-%%%
-         
 -module(tcap_cco_server).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.3 $').
 
 -behaviour(gen_server).
 

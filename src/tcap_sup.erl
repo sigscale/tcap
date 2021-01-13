@@ -1,4 +1,4 @@
-%%% $Id: tcap_sup.erl,v 1.2 2005/08/04 09:33:17 vances Exp $
+%%% tcap_sup.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -35,34 +35,27 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
+%%% @docfile "{@docsrc supervision.edoc}"
 %%%
-%%% @doc TCAP application top level supervisor.
-%%%
-%%% @reference <a href="index.html">TCAP User's Guide</a>
-%%%
-%%% @private
-         
-         
 -module(tcap_sup).
 -copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.2 $').
 
 -behaviour(supervisor).
 
 %% call backs needed for supervisor behaviour
 -export([init/1]).
 
-%% @spec(StartArgs::term()) -> Result = {ok,{{RestartStrategy,MaxR,MaxT},[ChildSpec]}} | ignore
-%% 	RestartStrategy = one_for_all | one_for_one | rest_for_one | simple_one_for_one
-%% 	MaxR = MaxT = int()>=0
-%% 	ChildSpec = child_spec()
-%%
-%% @equiv //stdlib/supervisor:init/1
-%%
+-spec init(Args) -> Result
+	when
+		Args :: [term()],
+		Result :: {ok, {SupFlags, [ChildSpec]}} | ignore,
+		SupFlags :: supervisor:sup_flags(),
+		ChildSpec :: supervisor:child_spec().
+%% @doc Initialize the {@module} supervisor.
 init(_Args) ->
-	StartFunc = {tcap_sap_sup, start_link, []},
-	%	    {Id, StartFunc, Restart, Shutdown, Tpype, Modules}
-	ChildSpec = {tcap_sap_sup, StartFunc, permanent, infinity, supervisor, [tcap_sap_sup]},
-	% simple_one_for_one will not start any children!
+	Mod = tcap_sap_sup,
+	StartFunc = {Mod, start_link, []},
+	ChildSpec = {Mod, StartFunc, temporary, infinity, supervisor, [Mod]},
 	{ok,{{simple_one_for_one, 10, 60}, [ChildSpec]}}.
+

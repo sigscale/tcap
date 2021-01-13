@@ -1,7 +1,8 @@
-%%% $Id: tcap_dha_fsm.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_dha_fsm.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom, 2010-2012 Harald Welte
-%%% @author Vance Shipley <vances@motivity.ca>, Harald Welte <laforge@gnumonks.org>
+%%% @author Vance Shipley <vances@motivity.ca>
+%%% @author Harald Welte <laforge@gnumonks.org>
 %%% @end
 %%%
 %%% Copyright (c) 2004-2005, Motivity Telecom
@@ -42,13 +43,9 @@
 %%%
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
-%%% @private
-%%%
-
 -module(tcap_dha_fsm).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.3 $').
 
 -behaviour(gen_fsm).
 
@@ -67,14 +64,24 @@
 %% record definitions for TR-User primitives
 -include("tcap.hrl").
 %% record definitions for N-User primitives
--include("sccp.hrl").
+-include("sccp_primitive.hrl").
 %% record definitions for TCAP messages
 %-include("TCAPMessages.hrl").
 -include("UnidialoguePDUs.hrl").
 -include("DialoguePDUs.hrl").
 
 %% the dialogue_fsm state data
--record(state, {usap, tco, supid, cco, otid, did, parms, appContextMode}).
+-record(state,
+		{usap :: pid(),
+		tco :: pid(),
+		sup :: pid(),
+		cco :: pid(),
+		otid :: 0..4294967295,
+		did :: 0..4294967295,
+		parms :: #'TR-UNI'{} | #'TR-BEGIN'{} | #'TR-CONTINUE'{}
+				| #'TR-END'{} | #'TR-U-ABORT'{},
+		appContextMode :: tuple()}).
+-type state() :: #state{}.
 
 %%----------------------------------------------------------------------
 %%  The gen_fsm call backs
@@ -82,14 +89,14 @@
 
 %% Start the Dialogue Handler (DHA) process
 %% reference: Figure A.5/Q.774 (sheet 1 of 11)
-init({USAP, DialogueID, TCO}) ->
-	init({USAP, DialogueID, TCO, undefined});
-init({USAP, DialogueID, TCO, SupId}) ->
+init([USAP, DialogueID, TCO]) ->
+	init([USAP, DialogueID, TCO, undefined]);
+init([USAP, DialogueID, TCO, Sup]) ->
 	ets:insert(tcap_dha, {DialogueID, self()}),
 	CCO = list_to_atom("tcap_cco_" ++ integer_to_list(DialogueID)),
 	process_flag(trap_exit, true),
 	{ok, idle, #state{usap = USAP, did = DialogueID,
-			tco = TCO, supid = SupId, cco = CCO}}.
+			tco = TCO, sup = Sup, cco = CCO}}.
 
 %% reference: Figure A.5/Q.774 (sheet 1 of 11)
 %%% TC-UNI request from TCU
@@ -871,14 +878,14 @@ handle_sync_event(_Event, _From, StateName, StateData)  ->
 	{next_state, StateName, StateData}.
 
 %% handle a shutdown request
-terminate(_Reason, _StateName, State) when State#state.supid == undefined ->
+terminate(_Reason, _StateName, State) when State#state.sup == undefined ->
 	%% we were started by TSM, no worries	
 	ets:delete(tcap_dha, State#state.did),
 	ok;
 terminate(_Reason, _StateName, State) ->
 	%% signal TCO so he can reap the ChildSpec of our supervisor
 	ets:delete(tcap_dha, State#state.did),
-	gen_server:cast(State#state.tco, {'dha-stopped', State#state.supid}).
+	gen_server:cast(State#state.tco, {'dha-stopped', State#state.sup}).
 
 %% handle updating state data due to a code replacement
 code_change(_OldVsn, StateName, State, _Extra) ->

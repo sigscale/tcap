@@ -1,7 +1,8 @@
-%%% $Id: tcap_tsm_fsm.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_tsm_fsm.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom, 2010-2011 Harald Welte
-%%% @author Vance Shipley <vances@motivity.ca>, Harald Welte <laforge@gnumonks.org>
+%%% @author Vance Shipley <vances@motivity.ca>
+%%% @author Harald Welte <laforge@gnumonks.org>
 %%% @end
 %%%
 %%% Copyright (c) 2004-2005, Motivity Telecom
@@ -42,13 +43,9 @@
 %%%
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
-%%% @private
-%%%
-
 -module(tcap_tsm_fsm).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc., 2010-2011 Harald Welte').
 -author('vances@motivity.ca, laforge@gnumonks.org').
--vsn('$Revision: 1.3 $').
 
 -behaviour(gen_fsm).
 
@@ -62,7 +59,7 @@
 %% record definitions for TR-User primitives
 -include("tcap.hrl").
 %% record definitions for N-User primitives
--include("sccp.hrl").
+-include("sccp_primitive.hrl").
 %% record definitions for TCAP messages
 -include("TCAPMessages.hrl").
 

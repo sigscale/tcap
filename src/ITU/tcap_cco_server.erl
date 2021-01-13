@@ -1,4 +1,4 @@
-%%% $Id: tcap_cco_server.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_cco_server.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2010-2011 Harald Welte
 %%% @author Harald Welte <laforge@gnumonks.org>
@@ -41,13 +41,9 @@
 %%%
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
-%%% @private
-%%%
-
 -module(tcap_cco_server).
 -copyright('Copyright (c) 2010-2011 Harald Welte').
 -author('laforge@gnumonks.org').
--vsn('$Revision: 1.3 $').
 
 -behaviour(gen_server).
 

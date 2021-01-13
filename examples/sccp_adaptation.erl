@@ -1,4 +1,4 @@
-%%% $Id: sccp_adaptation.erl,v 1.1 2005/02/11 03:32:45 vances Exp $
+%%% sccp_adaptation.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -38,10 +38,8 @@
 %%% @doc Example Transaction Coordinator (TCO) adaptation callback module.
 %%% @private
 %%%
-
 -module(tcap_example_adaptation).
 -author('vances@motivity.ca').
--vsn('$Revision: 1.1 $').
 
 -behaviour(tcap_tco_server).
 

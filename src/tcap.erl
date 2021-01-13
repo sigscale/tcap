@@ -1,4 +1,4 @@
-%%% $Id: tcap.erl,v 1.10 2011/03/07 17:21:09 vances Exp $
+%%% tcap.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom
 %%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
@@ -35,98 +35,135 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
-%%%
 %%% @doc Transaction Capabilities Application Part
-%%%	<p>This module implements the user's API to the TCAP protocol
-%%% 	stack application.Transaction Capabilities are </p>
+%%%	<p>This module implements the user API to the TCAP protocol
+%%% 	stack application. Transaction Capabilities are ...</p>
 %%%
 %%% @reference <a href="index.html">TCAP User's Guide</a>
 %%%
-         
 -module(tcap).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
--vsn('$Revision: 1.10 $').
 
 %% our published API functions
--export([start/0, stop/0]).
+-export([start/0, stop/0, start_tsl/3, stop_tsl/1]).
 -export([open/3, close/1]).
-%-export([start_tsl/3]).
--export([dialogueID/1, transactionID/1]).
 
-
-%% @type tcap_options(). TCAP layer options
-%% 	<p>A list of one or more of the following tuples.</p>
-%% 	<dl>
-%%			<dt><tt>{variant, Variant}</tt></dt><dd><tt>itu | ansi</tt></dd>
-%% 	</dl>
-%% @end
+-type tcap_options() :: [Option :: {variant, Variant :: itu | ansi}].
+-export_type([tcap_options/0]).
 
 %%----------------------------------------------------------------------
-%%  The API functions
+%%  The tcap public API
 %%----------------------------------------------------------------------
 
-%% @spec () -> Result
-%% 	Result = ok | {error, Reason}
-%% 	Reason = term()
-%%
+-spec start() -> Result
+	when
+		Result :: ok | {error, Reason},
+		Reason :: term().
 %% @equiv application:start(tcap)
 %%
 start() ->
 	application:start(tcap).
 
-%% @spec () -> Result
-%% 	Result = ok | {error, Reason}
-%% 	Reason = term()
-%%
+-spec stop() -> Result
+	when
+		Result :: ok | {error, Reason},
+		Reason :: term().
 %% @equiv application:stop(tcap)
 %%
 stop() ->
 	application:stop(tcap).
 
-%% @spec (TSL::pid(), TCU::pid(), Args) -> CSL
-%% 	Args = [term()]
-%% 	CSL = {DHA, CCO}
-%% 	DHA = pid()
-%% 	CCO = pid()
+-spec start_tsl(Module, Args, Opts) -> Result
+	when
+		Module :: atom(),
+		Args :: [term()],
+		Opts :: [term()],
+		Result :: {ok, TSL} | {error, Reason},
+		TSL :: pid(),
+		Reason :: term().
+%% @doc Start a new transaction sublayer (TSL).
 %%
+%% 	The transaction sublayer (TSL) is realized as an
+%% 	instance of a {@link tcap_tco_server. tcap_tco_server}
+%% 	behaviour process. Binding to a lower layer (SCCP)
+%% 	service access point (SAP) is accomplished by providing
+%% 	a callback `Module' for the
+%% 	{@link tcap_tco_server. tcap_tco_server} behaviour.
+%%
+%% 	`Module' is the name of the callback module.
+%%
+%% 	`Args' will be the arguments passed to `Module:init/1'.
+%%
+%% 	`Opts' may include any of the options available to
+%% 	{@link //stdlib/gen_server:start_link/3. gen_server:start_link/3}.
+%%
+start_tsl(Module, Args, Opts) ->
+	case supervisor:start_child(tcap_sup, [Module, Args, Opts]) of
+		{ok, Sup} ->
+			[{tco, TSL, _, _}] = supervisor:which_children(Sup),
+			link(TSL),
+			{ok, TSL};
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
+-spec stop_tsl(TSL) -> Result
+	when
+		TSL :: pid(),
+		Result :: ok | {error, Reason},
+		Reason :: not_found | term().
+%% @doc Stop a running transaction sublayer (TSL).
+stop_tsl(TSL) when is_pid(TSL) ->
+	stop_tsl(TSL, supervisor:which_children(tcap_sup)).
+%% @hidden
+stop_tsl(TSL, [{_, SapSup, _, _} | T]) ->
+	ChildSpecs = supervisor:which_children(SapSup),
+	case lists:keyfind(tco, 1, ChildSpecs) of
+		{_, TSL, _, _} ->
+			supervisor:terminate_child(tcap_sup, SapSup);
+		_ ->
+			stop_tsl(TSL, T)
+	end;
+stop_tsl(_TSL, []) ->
+	{error, not_found}.
+
+-spec open(TSL, TCU, Args) -> CSL
+	when
+		TSL :: pid(),
+		TCU :: pid(),
+		Args :: [term()],
+		CSL :: {DHA, CCO},
+		DHA :: pid(),
+		CCO :: pid().
 %% @doc Start a new component sublayer (CSL).
-%% 	<p>Called by the TC-User to initialize the TCAP layer for a new
-%% 	dialogue.</p>
 %%
-%% 	<p><tt>TSL</tt> is the pid returned from a previous call to
-%% 	<a href="#open-3"><tt>open/3</tt></a>.</p>
+%% 	Called by the TC-User to initialize the TCAP layer for a new
+%% 	dialogue.
 %%
-%% 	<p><tt>TCU</tt> is the pid of the TC-User.</p>
+%% 	`TSL' is the pid returned from a previous call to
+%% 	{@link start_tsl/3. start_tsl/3}.
 %%
-%% 	<p>Returns <tt>{DHA, CCO}</tt>; the pids of the dialogue handler
-%% 	and component coordinator in the component sublayer.</p>.
+%% 	`TCU' is the pid of the `TC-User'.
+%%
+%% 	Returns `{DHA, CCO}', the pids of the dialogue handler
+%% 	and component coordinator in the component sublayer.
 %%
 open(TSL, TCU, Args) ->
 	gen_server:call(TSL, {start_dialogue, TCU, Args}).
 
-%% @spec (TSL::pid()) -> ok
+-spec close(TSL) -> ok
+	when
+		TSL :: pid().
+%% @doc Close a TCAP sublayer (TSL).
 %%
-%% @doc Close a TCAP service layer.
-%%
-%% 	<p><tt>TSL</tt> is the pid returned in a previous call to 
-%% 	<a href="#open-3"><tt>open/3</tt></a>.</p>
+%% 	`TSL' is the pid returned in a previous call to 
+%% 	{@link start_tsl/3. start_tsl/3}.
 %%
 close(TSL) when is_pid(TSL) ->
 	gen_server:call(TSL, close).
 
-%% @spec (TSL::pid()) -> tid()
-%%
-%% @doc Assign a new dialogue ID.
-%%
-%% 	<p><tt>TSL</tt> is the pid returned in a previous call to
-%% 	<a href="#open-3"><tt>open/3</tt></a>.</p>
-%%
-dialogueID(TSL) when is_pid(TSL) ->
-	gen_server:call(TSL, dialogueID).
-	
-%% @equiv dialogueID/0
-%%
-transactionID(TSL) when is_pid(TSL) ->
-	dialogueID(TSL).
+%%----------------------------------------------------------------------
+%%  Internal functions
+%%----------------------------------------------------------------------
 

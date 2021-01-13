@@ -1,4 +1,4 @@
-%%% $Id: tcap_ism_fsm.erl,v 1.3 2005/08/04 09:33:17 vances Exp $
+%%% tcap_ism_fsm.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2010-2013 Harald Welte
 %%% @author Harald Welte <laforge@gnumonks.org>
@@ -42,13 +42,9 @@
 %%% @reference ANSI T1.114.4 Transaction Capabilities Procedures 
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
-%%% @private
-%%%
-
 -module(tcap_ism_fsm).
 -copyright('Copyright (c) 2010-2013 Harald Welte').
 -author('laforge@gnumonks.org').
--vsn('$Revision: 1.3 $').
 
 -behaviour(gen_fsm).
 

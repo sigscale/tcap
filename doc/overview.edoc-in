@@ -10,12 +10,12 @@ of the Transaction Capabilities Application Part (TCAP) of the Signaling
 System No. 7 (SS7) specifications <cite>ITU-T Q.771-Q.774</cite> and
 <cite>ANSI T1.114-2000</cite>.  Transaction Capabilities (TC) users
 include the Intelligent Network Application Protocol (INAP)
-<cite>ITU-T Q.1208</cite4> and the Mobile Application Part (MAP)
+<cite>ITU-T Q.1208</cite> and the Mobile Application Part (MAP)
 <cite>3GPP 29.002</cite>.
 
 ==Requirements==
 This application includes only the TCAP procedures and must be used
-with a separate application providing the SCCP service. 
+with a separate application providing the SCCP service.
 
 ==Transaction Capabilities==
 Transaction Capabilities (TC) provides support for interactive
@@ -58,7 +58,7 @@ may contain a number of cooperating components, each with it's own protocol
 elements.  These components are called Application Service Elements (ASE).
 An ASE is a separately defined (standardized) part of an Application Entity.
 ASEs provide a service to higher level ASEs not a higher level layer.  The
-distinction being that unlike layer services an ASE service may consider 
+distinction being that unlike layer services an ASE service may consider
 only part of the communication between Application Entities.
 
 <p><img alt="diagram of application process"
@@ -70,7 +70,7 @@ Remote Operation Service Element (ROSE) <cite>X.219</cite> and <cite>X.229</cite
 The <cite>X.229</cite> protocol is contained within the TC component protocol.
 CSL includes some extensions to ROSE.  The dialogue control facilities are in
 partial alignment with the capabilities of the Association Control Service
-Element (ACSE) <citer>X.217</cite> and <cite>X.227</cite>. The abstract
+Element (ACSE) <cite>X.217</cite> and <cite>X.227</cite>. The abstract
 syntax for the dialogue control APDUs are a subset of the OSI ACSE abstract
 syntax.
 
@@ -185,7 +185,7 @@ shows the configuration of an AEI for INAP using the
 Figure 3-2: Example INAP AEI</p>
 
 ==Addressing==
-When used with SS7 network services the addressesing of the Signaling
+When used with SS7 network services the addressing of the Signaling
 Connection Control Part (SCCP) is used.  The SCCP CalledParty and
 CallingParty address formats are used in the TCAP address parameters;
 Destination Address and Originating Address.  These parameters identify
@@ -199,7 +199,7 @@ to separate instances of the TCAP Transaction Sublayer (TSL).
 Figure 4-1: SSN Distribution</p>
 
 ==Process Communication==
-A number of processes interact to provide the TCAP service. 
+A number of processes interact to provide the TCAP service.
 <a href="tcap_messaging.png">Figure 5-1</a> depicts the message paths
 between processes used with the TCAP application.
 
@@ -207,11 +207,11 @@ The TCAP protocol layer is split into two sublayers; the Transaction
 Sublayer and the Component Sublayer.
 
 In the transaction sublayer a transaction coordinator (TCO)
-process performs marshalling of incoming indications from the 
+process performs marshalling of incoming indications from the
 SCCP service access point (SAP).  It spawns a transaction state
 machine (TSM) for each new transaction.
 
-In the component sublayer a dialogue handler (DHA) process 
+In the component sublayer a dialogue handler (DHA) process
 is started for each transaction.  It then spawns a component
 coordinator process (CCO).  For a remotely initiated transaction
 DHA is started by TCO.  For a locally initiated transaction DHA
@@ -227,7 +227,7 @@ Figure 5-1: Process Communication</p>
 The processes which make up an instance of the TCAP service layer
 are all instantiated within a single supervision tree.  When the
 application is started a top level supervisor is created with no
-children.  The user calls <a href="tcap.html#open-3"><tt>tcap:open/3</tt></a>
+children.  The user calls {@link tcap:start_tsl/3. start_tsl/3}
 to create a new service access point (SAP) which dynamically adds
 a <tt>tcap_sap_sup</tt> supervisor with one worker TCO.
 
@@ -262,7 +262,7 @@ shows some examples of how this distribution may be accomplished.
 		name="figure6-1" src="tcap_distribution.png"><br />
 Figure 6-1: Process Distribution</p>
 
-When a SAP is created with <a href="tcap.html#open-3"><tt>tcap:open/3</tt></a>
+When a SAP is created with {@link tcap:start_tsl/3. start_tsl/3}
 the <a href="tcap_tco_server.html"><tt>tcap_tco_server</tt></a> callback
 module name is provided to start a TCO which can adapt the specific
 implementation of SCCP in use to this TCAP service layer.  Arguments
@@ -278,60 +278,60 @@ The DHA always starts the CCO and ISM processes on it's local node.
 
 
 ==Primitives (ITU)==
-===TC-User &#8594 Component Sublayer===
+===TC-User &#8594; Component Sublayer===
 ====Dialogue Handling====
-<tt>{'TC', 'UNI', request, Parms}</tt><br>
-<tt>{'TC', 'BEGIN', request, Parms}</tt><br> 
-<tt>{'TC', 'CONTINUE', request, Parms}</tt><br>
-<tt>{'TC', 'END', request, Parms}</tt><br>
-<tt>{'TC', 'U-ABORT', request, Parms}</tt><br>
+<tt>{'TC', 'UNI', request, Parms}</tt><br />
+<tt>{'TC', 'BEGIN', request, Parms}</tt><br />
+<tt>{'TC', 'CONTINUE', request, Parms}</tt><br />
+<tt>{'TC', 'END', request, Parms}</tt><br />
+<tt>{'TC', 'U-ABORT', request, Parms}</tt><br />
 ====Component Handling====
-<tt>{'TC', 'INVOKE', request, Parms}</tt><br>
-<tt>{'TC', 'RESULT-L', request, Parms}</tt><br>
-<tt>{'TC', 'RESULT-NL', request, Parms}</tt><br>
-<tt>{'TC', 'U-ERROR', request, Parms}</tt><br>
-<tt>{'TC', 'U-CANCEL', request, Parms}</tt><br>
-<tt>{'TC', 'U-REJECT', request, Parms}</tt><br>
+<tt>{'TC', 'INVOKE', request, Parms}</tt><br />
+<tt>{'TC', 'RESULT-L', request, Parms}</tt><br />
+<tt>{'TC', 'RESULT-NL', request, Parms}</tt><br />
+<tt>{'TC', 'U-ERROR', request, Parms}</tt><br />
+<tt>{'TC', 'U-CANCEL', request, Parms}</tt><br />
+<tt>{'TC', 'U-REJECT', request, Parms}</tt><br />
 
-===Component Sublayer &#8594 TC-User===
+===Component Sublayer &#8594; TC-User===
 ====Dialogue Handling====
-<tt>{'TC', 'UNI', indication, Parms}</tt><br> 
-<tt>{'TC', 'BEGIN', indication, Parms}</tt><br> 
-<tt>{'TC', 'END', indication, Parms}</tt><br> 
-<tt>{'TC', 'U-ABORT', indication, Parms}</tt><br> 
-<tt>{'TC', 'P-ABORT', indication, Parms}</tt><br> 
-<tt>{'TC', 'NOTICE', indication, Parms}</tt><br> 
+<tt>{'TC', 'UNI', indication, Parms}</tt><br />
+<tt>{'TC', 'BEGIN', indication, Parms}</tt><br />
+<tt>{'TC', 'END', indication, Parms}</tt><br />
+<tt>{'TC', 'U-ABORT', indication, Parms}</tt><br />
+<tt>{'TC', 'P-ABORT', indication, Parms}</tt><br />
+<tt>{'TC', 'NOTICE', indication, Parms}</tt><br />
 ====Component Handling====
-<tt>{'TC', 'INVOKE', indication, Parms}</tt><br>
-<tt>{'TC', 'RESULT-L', indication, Parms}</tt><br>
-<tt>{'TC', 'RESULT-NL', indication, Parms}</tt><br>
-<tt>{'TC', 'U-ERROR', indication, Parms}</tt><br>
-<tt>{'TC', 'L-CANCEL', indication, Parms}</tt><br>
-<tt>{'TC', 'L-REJECT', indication, Parms}</tt><br>
-<tt>{'TC', 'R-REJECT', indication, Parms}</tt><br>
-<tt>{'TC', 'U-REJECT', indication, Parms}</tt><br>
-<tt>{'TC', 'TIMER-RESET', indication, Parms}</tt><br>
+<tt>{'TC', 'INVOKE', indication, Parms}</tt><br />
+<tt>{'TC', 'RESULT-L', indication, Parms}</tt><br />
+<tt>{'TC', 'RESULT-NL', indication, Parms}</tt><br />
+<tt>{'TC', 'U-ERROR', indication, Parms}</tt><br />
+<tt>{'TC', 'L-CANCEL', indication, Parms}</tt><br />
+<tt>{'TC', 'L-REJECT', indication, Parms}</tt><br />
+<tt>{'TC', 'R-REJECT', indication, Parms}</tt><br />
+<tt>{'TC', 'U-REJECT', indication, Parms}</tt><br />
+<tt>{'TC', 'TIMER-RESET', indication, Parms}</tt><br />
 
-===Component Sublayer &#8594 Transaction Sublayer===
-<tt>{'TR', 'UNI', request, Parms}</tt><br> 
-<tt>{'TR', 'BEGIN', request, Parms}</tt><br> 
-<tt>{'TR', 'CONTINUE', request, Parms}</tt><br> 
-<tt>{'TR', 'END', request, Parms}</tt><br> 
-<tt>{'TR', 'U-ABORT', request, Parms}</tt><br> 
+===Component Sublayer &#8594; Transaction Sublayer===
+<tt>{'TR', 'UNI', request, Parms}</tt><br />
+<tt>{'TR', 'BEGIN', request, Parms}</tt><br />
+<tt>{'TR', 'CONTINUE', request, Parms}</tt><br />
+<tt>{'TR', 'END', request, Parms}</tt><br />
+<tt>{'TR', 'U-ABORT', request, Parms}</tt><br />
 
-===Transaction Sublayer &#8594 Component Sublayer===
-<tt>{'TR', 'UNI', indication, Parms}</tt><br> 
-<tt>{'TR', 'BEGIN', indication, Parms}</tt><br> 
-<tt>{'TR', 'CONTINUE', indication, Parms}</tt><br> 
-<tt>{'TR', 'END', indication, Parms}</tt><br> 
-<tt>{'TR', 'U-ABORT', indication, Parms}</tt><br> 
-<tt>{'TR', 'P-ABORT', indication, Parms}</tt><br> 
-<tt>{'TR', 'NOTICE', indication, Parms}</tt><br> 
+===Transaction Sublayer &#8594; Component Sublayer===
+<tt>{'TR', 'UNI', indication, Parms}</tt><br />
+<tt>{'TR', 'BEGIN', indication, Parms}</tt><br />
+<tt>{'TR', 'CONTINUE', indication, Parms}</tt><br />
+<tt>{'TR', 'END', indication, Parms}</tt><br />
+<tt>{'TR', 'U-ABORT', indication, Parms}</tt><br />
+<tt>{'TR', 'P-ABORT', indication, Parms}</tt><br />
+<tt>{'TR', 'NOTICE', indication, Parms}</tt><br />
 
-===Transaction Sublayer &#8594 SCCP===
-<tt>{'N', 'UNITDATA', request, Parms}</tt><br> 
+===Transaction Sublayer &#8594; SCCP===
+<tt>{'N', 'UNITDATA', request, Parms}</tt><br />
 
-===SCCP &#8594 Transaction Sublayer===
-<tt>{'N', 'UNITDATA', indication, Parms}</tt><br> 
-<tt>{'N', 'NOTICE', indication, Parms}</tt><br> 
+===SCCP &#8594; Transaction Sublayer===
+<tt>{'N', 'UNITDATA', indication, Parms}</tt><br />
+<tt>{'N', 'NOTICE', indication, Parms}</tt><br />
 
