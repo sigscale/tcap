@@ -3,7 +3,8 @@
 ##
 ## Process this file with automake to produce Makefile.in
 
-testmods = tcap_test_user \
+testmods = tcap_test_nsap_server \
+		tcap_test_usap_fsm \
 		tcap_api_SUITE \
 		tcap_q787_SUITE
 
