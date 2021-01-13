@@ -95,12 +95,12 @@ an instance of communication are determined by the Application Context
 on this information the AEI is instantiated from the AE-Type which fits
 these criteria.
 
-Using the <a href="tcap.html"><tt>tcap</tt></a> application you will
-implement your Application Process (AP) and Application Entity (AE) in
-Erlang.  The set of processes which make up an instance of the Component
-Sublayer (CSL) form the TC ASE.  For each new dialogue an AEI including
-a TC ASE and a TC-User ASE (e.g. MAP) is created.  The AE uses the ASEs
-together to provide higher level functions to the AP.
+Using the {@link //tcap. tcap} application you will implement your
+Application Process (AP) and Application Entity (AE) in Erlang.  The
+set of processes which make up an instance of the Component Sublayer
+(CSL) form the TC ASE.  For each new dialogue an AEI including a TC ASE
+and a TC-User ASE (e.g. MAP) is created.  The AE uses the ASEs together
+to provide higher level functions to the AP.
 
 <p><img alt="diagram of AE invocations"
 		name="figure3-1" src="ae_invocations.png" /><br />
@@ -223,30 +223,41 @@ transaction.
 		name="figure5-1" src="tcap_messaging.png" /><br />
 Figure 5-1: Process Communication</p>
 
-==Supervision Tree==
+==Supervision Hierarchy==
 The processes which make up an instance of the TCAP service layer
-are all instantiated within a single supervision tree.  When the
+are all instantiated within a supervision tree.  When the
 application is started a top level supervisor is created with no
-children.  The user calls {@link tcap:start_tsl/3. start_tsl/3}
-to create a new service access point (SAP) which dynamically adds
-a <tt>tcap_sap_sup</tt> supervisor with one worker TCO.
+children.  The user may call {@link tcap:start_tsl/3. start_tsl/3}
+to create a new transaction sublayer (TSL) for each SCCP service
+access point (SAP). A {@link tcap_tsl_sup. tcap_tsl_sup} supervisor
+is started with one worker TCO and a supervisor for dynamically
+added TSM workers.
 
 <a href="tcap_supervision.png">Figure 5-2</a> shows the structure
-of the supervision tree.
+of the supervision hierarchy.
 
-For every new transaction ID assigned (Begin indication or request)
-a <tt>tcap_transaction_sup</tt> supervisor is dynamically added to the
-<tt>tcap_sap_sup</tt> supervisor with one TSM worker and a
-<tt>tcap_dialogue_sup</tt> supervisor.  In the case of a Unidirectional
-primitive no transaction is assigned.  Instead a <tt>tcap_dialogue_sup</tt>
-supervisor is dynamically added to the <tt>tcap_sap_sup</tt> supervisor.
+For every new transaction ID assigned (`Begin' indication or request)
+TCO ({@link tcap_tco_server. tcap_tco_server}) starts a TSM
+({@link tcap_tsm_fsm. tcap_tsm_fsm}) by dynamically addding it to
+the {@link tcap_transaction_sup. tcap_transaction_sup} supervisor.
+In the case of a `Unidirectional' primitive no transaction is
+assigned and no TSM is started.
 
-When a <tt>tcap_dialogue_sup</tt> supervisor is started it immediately
-creates a DHA worker and a <tt>tcap_components_sup</tt> supervisor with
-one CCO worker and a <tt>tcap_invocation_sup</tt> supervisor.
+TCO also starts a {@link tcap_dialogue_sup. tcap_dialogue_sup}
+supervisor, by dynamically adding it to the
+{@link tcap_csl_sup. tcap_csl_sup} supervisor, when a `Begin' or
+`Unidirectional' primitive is received.
 
-A <tt>tcap_ism_fsm</tt> worker is dynamically added to the
-<tt>tcap_invocation_sup</tt> supervisor for each locally invoked operation.
+When a {@link tcap_dialogue_sup. tcap_dialogue_sup} supervisor is
+started it creates a DHA ({@link tcap_dha_fsm. tcap_dha_fsm})
+worker and a ({@link tcap_components_sup. tcap_components_sup})
+supervisor with one CCO ({@link tcap_cco_server. tcap_cco_server})
+worker and a {@link tcap_invocation_sup. tcap_invocation_sup}
+supervisor.
+
+An ISM ({@link tcap_ism_fsm. tcap_ism_fsm} worker is dynamically
+added to the {@link tcap_invocation_sup. tcap_invocation_sup}
+supervisor for each locally invoked operation.
 
 <p><img alt="diagram of supervision tree"
 		name="figure5-2" src="tcap_supervision.png" /><br />
@@ -254,84 +265,87 @@ Figure 5-2: Process Supervision</p>
 
 
 ==Distribution==
-In order to facilitate building very large systems the processes involved
-may be distributed across nodes.  <a href="tcap_distribution.png">Figure 6-1</a>
-shows some examples of how this distribution may be accomplished.
+In order to facilitate scalable systems the TC service layer
+may be decomposed with the TSL and CSL sublayers distributed
+across nodes.  <a href="tcap_distribution.png">Figure 6-1</a>
+shows an example of an AP having AEIs distributed across several
+remote Erlang nodes to accomplish load distribution. The AE
+includes an ASE for CAMEL Application Part (CAP) and an ASE
+for TCAP implemented with the CSL. 
 
 <p><img alt="diagram of process distribution"
 		name="figure6-1" src="tcap_distribution.png" /><br />
 Figure 6-1: Process Distribution</p>
 
-When a SAP is created with {@link tcap:start_tsl/3. start_tsl/3}
-the <a href="tcap_tco_server.html"><tt>tcap_tco_server</tt></a> callback
-module name is provided to start a TCO which can adapt the specific
-implementation of SCCP in use to this TCAP service layer.  Arguments
-are also passed to specify instance specific configuration such as SCCP
-subsystem number.
-
-The <a href="tcap_tco_server.html"><tt>tcap_tco_server</tt></a> callback
-module exports start functions used to create SAP, TCO, TSM and DHA
-processes.  This allows the user to configure how the application is
-distributed.
-
-The DHA always starts the CCO and ISM processes on it's local node.
-
+When the TSL is created with {@link tcap:start_tsl/3. start_tsl/3}
+the {@link tcap_tco_server. tcap_tco_server} behaviour callback module
+may (optionally) export a
+{@link tcap_tco_server:start_dialogue/1. start_dialogue/1} callback
+function used to start a CSL at a remote node by dynamically adding
+a child of a {@link tcap_csl_sup. tcap_csl_sup} supervisor in the
+{@link //tcap. tcap} application running on that node.
 
 ==Primitives (ITU)==
+The communication between layers is defined in ITU-T recommendations
+using "primitives". The information content is specified but not a
+specific encoding.  ITU-T Q.771 provides the primitives for TCAP.
+In the {@link //tcap. tcap} application tuples of the form provided
+below are sent as messages between processes. The `Parameters' are 
+represented using primitive specific records.
 ===TC-User &#8594; Component Sublayer===
 ====Dialogue Handling====
-<tt>{'TC', 'UNI', request, Parms}</tt><br />
-<tt>{'TC', 'BEGIN', request, Parms}</tt><br />
-<tt>{'TC', 'CONTINUE', request, Parms}</tt><br />
-<tt>{'TC', 'END', request, Parms}</tt><br />
-<tt>{'TC', 'U-ABORT', request, Parms}</tt><br />
+<tt>{'TC', 'UNI', request, Parameters}</tt><br />
+<tt>{'TC', 'BEGIN', request, Parameters}</tt><br />
+<tt>{'TC', 'CONTINUE', request, Parameters}</tt><br />
+<tt>{'TC', 'END', request, Parameters}</tt><br />
+<tt>{'TC', 'U-ABORT', request, Parameters}</tt><br />
 ====Component Handling====
-<tt>{'TC', 'INVOKE', request, Parms}</tt><br />
-<tt>{'TC', 'RESULT-L', request, Parms}</tt><br />
-<tt>{'TC', 'RESULT-NL', request, Parms}</tt><br />
-<tt>{'TC', 'U-ERROR', request, Parms}</tt><br />
-<tt>{'TC', 'U-CANCEL', request, Parms}</tt><br />
-<tt>{'TC', 'U-REJECT', request, Parms}</tt><br />
+<tt>{'TC', 'INVOKE', request, Parameters}</tt><br />
+<tt>{'TC', 'RESULT-L', request, Parameters}</tt><br />
+<tt>{'TC', 'RESULT-NL', request, Parameters}</tt><br />
+<tt>{'TC', 'U-ERROR', request, Parameters}</tt><br />
+<tt>{'TC', 'U-CANCEL', request, Parameters}</tt><br />
+<tt>{'TC', 'U-REJECT', request, Parameters}</tt><br />
 
 ===Component Sublayer &#8594; TC-User===
 ====Dialogue Handling====
-<tt>{'TC', 'UNI', indication, Parms}</tt><br />
-<tt>{'TC', 'BEGIN', indication, Parms}</tt><br />
-<tt>{'TC', 'END', indication, Parms}</tt><br />
-<tt>{'TC', 'U-ABORT', indication, Parms}</tt><br />
-<tt>{'TC', 'P-ABORT', indication, Parms}</tt><br />
-<tt>{'TC', 'NOTICE', indication, Parms}</tt><br />
+<tt>{'TC', 'UNI', indication, Parameters}</tt><br />
+<tt>{'TC', 'BEGIN', indication, Parameters}</tt><br />
+<tt>{'TC', 'END', indication, Parameters}</tt><br />
+<tt>{'TC', 'U-ABORT', indication, Parameters}</tt><br />
+<tt>{'TC', 'P-ABORT', indication, Parameters}</tt><br />
+<tt>{'TC', 'NOTICE', indication, Parameters}</tt><br />
 ====Component Handling====
-<tt>{'TC', 'INVOKE', indication, Parms}</tt><br />
-<tt>{'TC', 'RESULT-L', indication, Parms}</tt><br />
-<tt>{'TC', 'RESULT-NL', indication, Parms}</tt><br />
-<tt>{'TC', 'U-ERROR', indication, Parms}</tt><br />
-<tt>{'TC', 'L-CANCEL', indication, Parms}</tt><br />
-<tt>{'TC', 'L-REJECT', indication, Parms}</tt><br />
-<tt>{'TC', 'R-REJECT', indication, Parms}</tt><br />
-<tt>{'TC', 'U-REJECT', indication, Parms}</tt><br />
-<tt>{'TC', 'TIMER-RESET', indication, Parms}</tt><br />
+<tt>{'TC', 'INVOKE', indication, Parameters}</tt><br />
+<tt>{'TC', 'RESULT-L', indication, Parameters}</tt><br />
+<tt>{'TC', 'RESULT-NL', indication, Parameters}</tt><br />
+<tt>{'TC', 'U-ERROR', indication, Parameters}</tt><br />
+<tt>{'TC', 'L-CANCEL', indication, Parameters}</tt><br />
+<tt>{'TC', 'L-REJECT', indication, Parameters}</tt><br />
+<tt>{'TC', 'R-REJECT', indication, Parameters}</tt><br />
+<tt>{'TC', 'U-REJECT', indication, Parameters}</tt><br />
+<tt>{'TC', 'TIMER-RESET', indication, Parameters}</tt><br />
 
 ===Component Sublayer &#8594; Transaction Sublayer===
-<tt>{'TR', 'UNI', request, Parms}</tt><br />
-<tt>{'TR', 'BEGIN', request, Parms}</tt><br />
-<tt>{'TR', 'CONTINUE', request, Parms}</tt><br />
-<tt>{'TR', 'END', request, Parms}</tt><br />
-<tt>{'TR', 'U-ABORT', request, Parms}</tt><br />
+<tt>{'TR', 'UNI', request, Parameters}</tt><br />
+<tt>{'TR', 'BEGIN', request, Parameters}</tt><br />
+<tt>{'TR', 'CONTINUE', request, Parameters}</tt><br />
+<tt>{'TR', 'END', request, Parameters}</tt><br />
+<tt>{'TR', 'U-ABORT', request, Parameters}</tt><br />
 
 ===Transaction Sublayer &#8594; Component Sublayer===
-<tt>{'TR', 'UNI', indication, Parms}</tt><br />
-<tt>{'TR', 'BEGIN', indication, Parms}</tt><br />
-<tt>{'TR', 'CONTINUE', indication, Parms}</tt><br />
-<tt>{'TR', 'END', indication, Parms}</tt><br />
-<tt>{'TR', 'U-ABORT', indication, Parms}</tt><br />
-<tt>{'TR', 'P-ABORT', indication, Parms}</tt><br />
-<tt>{'TR', 'NOTICE', indication, Parms}</tt><br />
+<tt>{'TR', 'UNI', indication, Parameters}</tt><br />
+<tt>{'TR', 'BEGIN', indication, Parameters}</tt><br />
+<tt>{'TR', 'CONTINUE', indication, Parameters}</tt><br />
+<tt>{'TR', 'END', indication, Parameters}</tt><br />
+<tt>{'TR', 'U-ABORT', indication, Parameters}</tt><br />
+<tt>{'TR', 'P-ABORT', indication, Parameters}</tt><br />
+<tt>{'TR', 'NOTICE', indication, Parameters}</tt><br />
 
 ===Transaction Sublayer &#8594; SCCP===
-<tt>{'N', 'UNITDATA', request, Parms}</tt><br />
+<tt>{'N', 'UNITDATA', request, Parameters}</tt><br />
 
 ===SCCP &#8594; Transaction Sublayer===
-<tt>{'N', 'UNITDATA', indication, Parms}</tt><br />
-<tt>{'N', 'NOTICE', indication, Parms}</tt><br />
+<tt>{'N', 'UNITDATA', indication, Parameters}</tt><br />
+<tt>{'N', 'NOTICE', indication, Parameters}</tt><br />
 
