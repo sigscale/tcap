@@ -33,8 +33,9 @@ information related to application context or user information.  The TSL
 deals with the exchange of messages containing components and optionally,
 a dialogue portion, between TC-Users.
 
-<p>Figure 1-1: TC in OSI
-<img alt="diagram of transaction capabilities" name="figure1-1" src="transaction_capabilities.png" /></p>
+<p><img alt="diagram of transaction capabilities"
+		name="figure1-1" src="transaction_capabilities.png"><br />
+Figure 1-1: TC in SS7</p>
 
 ==Open Systems Interconnection (OSI)==
 TC is based on the Remote Operations concept defined in Recommendation
@@ -45,8 +46,9 @@ define an Intermediate Services Part (ISP) so the Presentation, Session
 and Transport layers are formally missing however some aspects of the these
 are present in TC.  CSL lies entirely within the application layer.
 
-<p>Figure 2-1: TC in OSI
-<img alt="diagram of osi layers" name="figure2-1" src="osi_model.png" /></p>
+<p><img alt="diagram of osi layers"
+		name="figure2-1" src="osi_model.png"><br />
+Figure 2-1: TC in OSI</p>
 
 <a href="application_process.png">Figure-2.2</a> shows the structure of the
 OSI Application Layer.  An Application Process (AP) consists of application
@@ -59,8 +61,9 @@ ASEs provide a service to higher level ASEs not a higher level layer.  The
 distinction being that unlike layer services an ASE service may consider
 only part of the communication between Application Entities.
 
-<p>Figure 2-2: OSI Application Process
-<img alt="diagram of application process" name="figure2-2" src="application_process.png" /></p>
+<p><img alt="diagram of application process"
+		name="figure2-2" src="application_process.png"><br />
+Figure 2-2: OSI Application Process</p>
 
 The Component sublayer is in partial alignment with the capabilities of the
 Remote Operation Service Element (ROSE) <cite>X.219</cite> and <cite>X.229</cite>.
@@ -75,8 +78,9 @@ syntax.
 Process with an Application Entity which includes the Transaction Capabilities
 ASE and the Mobile Application Part ASE.
 
-<p>Figure 2-3: SS7 Application Process
-<img alt="diagram of SS7 application process" name="figure2-3" src="tcap_application_process.png" /></p>
+<p><img alt="diagram of SS7 application process"
+		name="figure2-3" src="tcap_application_process.png"><br />
+Figure 2-3: SS7 Application Process</p>
 
 An Application Entity (AE) is the part of your Application Process (AP)
 which uses the services of a combined set of ASEs.  An AE-Type defines a
@@ -98,8 +102,9 @@ Sublayer (CSL) form the TC ASE.  For each new dialogue an AEI including
 a TC ASE and a TC-User ASE (e.g. MAP) is created.  The AE uses the ASEs
 together to provide higher level functions to the AP.
 
-<p>Figure 3-1: AE Invocations
-<img alt="diagram of AE invocations" name="figure3-1" src="ae_invocations.png" /></p>
+<p><img alt="diagram of AE invocations"
+		name="figure3-1" src="ae_invocations.png"><br />
+Figure 3-1: AE Invocations</p>
 
 For example you may have an AE which uses TCAP and MAP ASEs implemented
 in a {@link //stdlib/gen_fsm. gen_fsm} callback module named
@@ -175,8 +180,9 @@ defines many distinct ASEs.  <a href="inap_aei.png">Figure 3-2</a>
 shows the configuration of an AEI for INAP using the
 <tt>scf-to-ssf-status-reporting-v1</tt> AC.
 
-<p>Figure 3-2: Example INAP AEI
-<img alt="diagram of INAP AEI" name="figure3-2" src="inap_aei.png" /></p>
+<p><img alt="diagram of INAP AEI"
+		name="figure3-2" src="inap_aei.png"><br />
+Figure 3-2: Example INAP AEI</p>
 
 ==Addressing==
 When used with SS7 network services the addressing of the Signaling
@@ -188,8 +194,9 @@ the destination and originating TC-user.
 The SCCP Subsystem Number (SSN) is used by SCCP for message distrubution
 to separate instances of the TCAP Transaction Sublayer (TSL).
 
-<p>Figure 4-1: SSN Distribution
-<img alt="diagram of ssn distribution" name="figure4-1" src="ssn_distribution.png" /></p>
+<p><img alt="diagram of ssn distribution"
+		name="figure4-1" src="ssn_distribution.png"><br />
+Figure 4-1: SSN Distribution</p>
 
 ==Process Communication==
 A number of processes interact to provide the TCAP service.
@@ -212,8 +219,9 @@ is started by the TC-User.  An invocation state machine (ISM)
 is started for each locally invoked operation involved in the
 transaction.
 
-<p>Figure 5-1<br />
-<img alt="diagram of process communication" name="figure5-1" src="tcap_messaging.png" /></p>
+<p><img alt="diagram of process communication"
+		name="figure5-1" src="tcap_messaging.png"><br />
+Figure 5-1: Process Communication</p>
 
 ==Supervision Tree==
 The processes which make up an instance of the TCAP service layer
@@ -223,7 +231,8 @@ children.  The user calls {@link tcap:start_tsl/3. start_tsl/3}
 to create a new service access point (SAP) which dynamically adds
 a <tt>tcap_sap_sup</tt> supervisor with one worker TCO.
 
-<a href="tcap_supervision.png">Figure 5-2</a> shows the structure of the supervision tree.
+<a href="tcap_supervision.png">Figure 5-2</a> shows the structure
+of the supervision tree.
 
 For every new transaction ID assigned (Begin indication or request)
 a <tt>tcap_transaction_sup</tt> supervisor is dynamically added to the
@@ -239,8 +248,9 @@ one CCO worker and a <tt>tcap_invocation_sup</tt> supervisor.
 A <tt>tcap_ism_fsm</tt> worker is dynamically added to the
 <tt>tcap_invocation_sup</tt> supervisor for each locally invoked operation.
 
-<p>Figure 5-2<br />
-<img alt="diagram of supervision tree" name="figure5-2" src="tcap_supervision.png" /></p>
+<p><img alt="diagram of supervision tree"
+		name="figure5-2" src="tcap_supervision.png"><br />
+Figure 5-2: Process Supervision</p>
 
 
 ==Distribution==
@@ -248,8 +258,9 @@ In order to facilitate building very large systems the processes involved
 may be distributed across nodes.  <a href="tcap_distribution.png">Figure 6-1</a>
 shows some examples of how this distribution may be accomplished.
 
-<p>Figure 6-1<br />
-<img alt="diagram of process distribution" name="figure6-1" src="tcap_distribution.png" /></p>
+<p><img alt="diagram of process distribution"
+		name="figure6-1" src="tcap_distribution.png"><br />
+Figure 6-1: Process Distribution</p>
 
 When a SAP is created with {@link tcap:start_tsl/3. start_tsl/3}
 the <a href="tcap_tco_server.html"><tt>tcap_tco_server</tt></a> callback
