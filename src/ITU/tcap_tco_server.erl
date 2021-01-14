@@ -181,7 +181,7 @@
 -behaviour(gen_server).
 
 % export the gen_server interface
--export([start/4, start/5, start_link/3, start_link/4,
+-export([start/3, start/4, start_link/3, start_link/4,
 		call/2, call/3, cast/2, abcast/2, abcast/3, reply/2,
 		multi_call/2, multi_call/3, multi_call/4,
 		enter_loop/3, enter_loop/4, enter_loop/5]).
@@ -314,7 +314,8 @@
 				| {stop, Reason :: term()} | ignore.
 %% @see //stdlib/gen_server:init/1
 %% @private
-init([Sup, Module, Args]) when is_list(Args) ->
+init([Module, [Sup | Args]])
+		when is_atom(Module), is_pid(Sup) ->
 	process_flag(trap_exit, true),
 	case Module:init(Args) of
 		{ok, ExtState} ->
@@ -396,7 +397,6 @@ handle_cast({'N', 'UNITDATA', indication, UdataParams}, State)
 		when is_record(UdataParams, 'N-UNITDATA') ->
 	{ok, {Tag, ActRes}} = 'TR':decode('TCMessage', UdataParams#'N-UNITDATA'.userData),
 	PpRes = {Tag, postproc_tcmessage(ActRes)},
-	io:format("Decoded TCMessage: ~p~n", [PpRes]),
 	case PpRes of
 		{unidirectional, Unidirectional = #'Unidirectional'{}} ->
 			% Create a Dialogue Handler (DHA) 
@@ -436,7 +436,7 @@ handle_cast({'N', 'UNITDATA', indication, UdataParams}, State)
 				{ok, _TransSupPid} ->
 					% Created a Transaction State Machine (TSM)
 					case ets:lookup_element(tcap_transaction, TransactionID, 2) of
-					TSM ->
+					TSM when is_integer(TSM) ->
 						TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
 						% BEGIN received TSM <- TCO
 						gen_fsm:send_event(TSM, {'BEGIN', received, TsmParams});
@@ -818,20 +818,20 @@ format_status(Opt, [PDict, State] = _StatusData) ->
 %%----------------------------------------------------------------------
 
 %% @hidden
-start(Module, SupRef, Args, Options) ->
-	gen_server:start(?MODULE, [SupRef, Module, Args], Options).
+start(Module, Args, Options) ->
+	gen_server:start(?MODULE, [Module, Args], Options).
 
 %% @hidden
-start(ServerRef, SupRef, Module, Args, Options) ->
-	gen_server:start(ServerRef, ?MODULE, [SupRef, Module, Args], Options).
+start(ServerName, Module, Args, Options) ->
+	gen_server:start(ServerName, ?MODULE, [Module, Args], Options).
 
 %% @hidden
 start_link(Module, Args, Options) ->
-	gen_fsm:start_link(?MODULE, [Module, Args], Options).
+	gen_server:start_link(?MODULE, [Module, Args], Options).
 
 %% @hidden
-start_link(ServerRef, Module, Args, Options) ->
-	gen_fsm:start_link(ServerRef, ?MODULE, [Module, Args], Options).
+start_link(ServerName, Module, Args, Options) ->
+	gen_server:start_link(ServerName, ?MODULE, [Module, Args], Options).
 
 %% @hidden
 call(ServerRef, Request) ->
