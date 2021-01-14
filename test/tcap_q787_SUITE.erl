@@ -207,9 +207,8 @@ receive_unidirectional(Config) ->
 			userData = SccpUserData},
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
 	TcUniParams = receive
-Other -> erlang:display({?MODULE, ?LINE, Other});
 		{'TC', 'UNI', indication, #'TC-UNI'{} = UniParams} ->
-		UniParams
+			UniParams
 	end,
 	#'TC-UNI'{qos = {SequenceControl, ReturnOption},
 			destAddress = DestAddress, origAddress = OrigAddress,

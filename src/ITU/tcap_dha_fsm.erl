@@ -581,8 +581,6 @@ is_or_active(StateName, {'TR', 'CONTINUE', indication, ContParms}, State)
 	%% AC Mode set?
 	%% Extract dialogue portion
 	%% Dialogue portion correct?
-	io:format("Components: ~p\n", [Components]),
-	io:format("Dialogue: ~p\n", [(ContParms#'TR-CONTINUE'.userData)#'TR-user-data'.dialoguePortion]),
 	case extract_dialogue_portion(ContParms#'TR-CONTINUE'.userData, State#state.appContextMode, StateName) of
 		abort ->
 			%% Discard components

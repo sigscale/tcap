@@ -74,7 +74,6 @@
 %% initialize the server
 init([NsapFun, USAP, TID, SupRef, TCO]) ->
 	%% store our process identifier in the global transaction ID table
-	io:format("Inserting {~p, ~p} into tcap_transactions~n", [TID, self()]),
 	ets:insert(tcap_transaction, {TID, self()}),
 	process_flag(trap_exit, true),
 	{ok, idle, #state{nsap = NsapFun, usap = USAP, localTID = TID,
@@ -120,7 +119,6 @@ idle({'BEGIN', transaction, BeginParms}, State)
 	Begin = #'Begin'{otid = <<Otid:32/big>>, dialoguePortion = DialoguePortion,
 			components = ComponentPortion},
 	%% Assemble TR-portion of BEGIN message
-	io:format("Trying to encode ~p~n", [Begin]),
 	{ok, TPDU} = 'TR':encode('TCMessage', {'begin', Begin}),
 	{SequenceControl, ReturnOption} = qos_from_tr_prim(BeginParms),
 	SccpParms = #'N-UNITDATA'{calledAddress = BeginParms#'TR-BEGIN'.destAddress,
@@ -433,8 +431,6 @@ handle_info(Info, StateName, State) ->
 
 %% handle a shutdown request
 terminate(Reason, StateName, State) ->
-	io:format("Deleting {~p, ~p} from tcap_transactions (state ~p, reason ~p)~n",
-		  [ State#state.localTID, self(), StateName, Reason]),
 	ets:delete(tcap_transaction, State#state.localTID),
 	%% signal TCO that we are stopping
 	gen_server:cast(State#state.tco, {'tsm-stopped', State#state.supref}).

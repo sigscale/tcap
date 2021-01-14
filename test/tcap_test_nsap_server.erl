@@ -10,7 +10,6 @@
 -record(state, {ct :: pid()}).
 
 init([CT]) ->
-erlang:display({?MODULE, ?LINE, CT}),
 	{ok, #state{ct = CT}}.
 
 handle_call(_Request, _From, State) ->
@@ -28,8 +27,6 @@ send_primitive(Primitive, #state{ct = CT} = _State) ->
 	CT ! Primitive.
 
 start_user(_CSL, _DialogueID, #state{ct = CT} = _State) ->
-erlang:display({?MODULE, ?LINE, _CSL, _DialogueID, CT}),
 	{ok, Fsm} = gen_fsm:start_link(tcap_test_usap_fsm, [[CT]], []),
-erlang:display({?MODULE, ?LINE, Fsm}),
 	Fsm.
 
