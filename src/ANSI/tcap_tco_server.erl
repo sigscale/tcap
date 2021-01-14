@@ -80,14 +80,6 @@
 		CCO :: pid(),
 		DialogueID :: tid(),
 		State :: state().
--callback start_transaction(TransactionID, State) -> StartFunc
-	when
-		TransactionID :: tid(),
-		State :: term(),
-		StartFunc :: {Module, Function, Arguments},
-		Module :: atom(),
-		Function :: atom(),
-		Arguments :: [term()].
 -callback start_dialogue(DialogueID, State) -> StartFunc
 	when
 		DialogueID :: tid(),
@@ -159,7 +151,7 @@
       Status :: term().
 -optional_callbacks([handle_info/2, handle_continue/2,
 		terminate/2, code_change/3, format_status/2,
-		start_transaction/2, start_dialogue/2]).
+		start_dialogue/2]).
 
 %%----------------------------------------------------------------------
 %%  The gen_server call backs

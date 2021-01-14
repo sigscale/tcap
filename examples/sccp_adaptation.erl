@@ -48,7 +48,7 @@
 		terminate/2, code_change/3]).
 
 % export the tcap_tco_server specific call backs
--export([send_primitive/2, start_transaction/2, start_dialogue/2]).
+-export([send_primitive/2, start_dialogue/2]).
 
 -record(state, {nsap}).
 

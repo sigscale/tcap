@@ -113,36 +113,6 @@
 %%% 	new dialogue.
 %%%
 %%% 	<h3  class="function">
-%%% 		<a name="start_transaction-1">start_transaction/2</a>
-%%% 	</h3>
-%%% 	<div class="spec">
-%%% 		<p>
-%%% 			<tt>start_transaction(TransactionID, State) -&gt; StartFunc</tt>
-%%% 		</p>
-%%% 		<ul class="definitions">
-%%% 			<li><tt>TransactionID = tid()</tt></li>
-%%% 			<li><tt>State = term()</tt></li>
-%%% 			<li><tt>StartFunc = {M,F,A}</tt></li>
-%%% 			<li><tt>M = F = atom()</tt></li>
-%%% 			<li><tt>A = [term()]</tt></li>
-%%% 		</ul>
-%%% 	</div>
-%%% 	The callback module may optionally export this function
-%%%	to overide the default method used to start a transaction
-%%% 	state machine (TSM).
-%%%
-%%% 	`StartFunc' defines the function call used to start the `TSM'
-%%% 	process.  It should be a module-function-arguments (MFA) tuple
-%%% 	`{M,F,A}' used as `apply(M,F,A)'.
-%%%
-%%% 	The start function must create and link to the child process,
-%%% 	and should return `{ok, Child}' where `Child' is the pid of
-%%% 	the child process.
-%%%
-%%% 	See the description of `StartFunc' in the
-%%% 	{@link //stdlib/supervisor. supervisor} module.
-%%%
-%%% 	<h3  class="function">
 %%% 		<a name="start_dialogue-1">start_dialogue/1</a>
 %%% 	</h3>
 %%% 	<div class="spec">
@@ -221,14 +191,6 @@
 		CCO :: pid(),
 		DialogueID :: tid(),
 		State :: state().
--callback start_transaction(TransactionID, State) -> StartFunc
-	when
-		TransactionID :: tid(),
-		State :: term(),
-		StartFunc :: {Module, Function, Arguments},
-		Module :: atom(),
-		Function :: atom(),
-		Arguments :: [term()].
 -callback start_dialogue(DialogueID, State) -> StartFunc
 	when
 		DialogueID :: tid(),
@@ -300,7 +262,7 @@
       Status :: term().
 -optional_callbacks([handle_info/2, handle_continue/2,
 		terminate/2, code_change/3, format_status/2,
-		start_transaction/2, start_dialogue/2]).
+		start_dialogue/2]).
 
 %%----------------------------------------------------------------------
 %%  The gen_server callbacks
@@ -912,28 +874,18 @@ get_start(dialogue, DialogueID, State) ->
 get_start(in_transaction, TransactionID, State) ->
 	Module = State#state.module,
 	Usap = State#state.usap,
-	case erlang:function_exported(Module, start_transaction, 1) of
-		true ->
-			Module:start_transaction(TransactionID, State#state.ext_state);
-		false ->
-			SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
-			StartDHA = get_start(dialogue, TransactionID, State),
-			% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
-			StartArgs = [SendFun, Usap, TransactionID, self()],
-			{supervisor, start_link, [tcap_transaction_sup, StartArgs]}
-	end;
+	SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
+	StartDHA = get_start(dialogue, TransactionID, State),
+	% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
+	StartArgs = [SendFun, Usap, TransactionID, self()],
+	{supervisor, start_link, [tcap_transaction_sup, StartArgs]};
 get_start(out_transaction, [TransactionID, Usap], State) when is_record(State, state) ->
 	#state{module = Module, sup = Sup} = State,
-	case erlang:function_exported(Module, start_transaction, 1) of
-		true ->
-			Module:start_transaction(TransactionID, State#state.ext_state);
-		false ->
-			SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
-			StartDHA = get_start(dialogue, TransactionID, State),
-			% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
-			StartArgs = [SendFun, Usap, TransactionID, self()],
-			{supervisor, start_link, [tcap_transaction_sup, StartArgs]}
-	end.
+	SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
+	StartDHA = get_start(dialogue, TransactionID, State),
+	% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
+	StartArgs = [SendFun, Usap, TransactionID, self()],
+	{supervisor, start_link, [tcap_transaction_sup, StartArgs].
 
 % convert a TID from the four-octet binary/list form (OCTET STRING) to unsigned int
 %% @hidden
