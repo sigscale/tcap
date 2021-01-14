@@ -1,4 +1,4 @@
-%%% tcap_dialogue_sup.erl
+%%% tcap_csl_sup.erl
 %%% vim: ts=3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @copyright 2021 SigScale Global Inc.
@@ -18,7 +18,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @docfile "{@docsrc supervision.edoc}"
 %%%
--module(tcap_dialogue_sup).
+-module(tcap_csl_sup).
 -copyright('Copyright (c) 2021 SigScale Global Inc.').
 
 -behaviour(supervisor).
@@ -41,41 +41,26 @@
 %% @private
 %%
 init([] = _Args) ->
-	ChildSpecs = [supervisor(tcap_components_sup, []),
-			fsm(tcap_dha_fsm, [])],
-	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
+	ChildSpecs = [supervisor(tcap_dialogue_sup)],
+	SupFlags = #{strategy => simple_one_for_one,
+			intensity => 10, period => 60},
 	{ok, {SupFlags, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
 
--spec supervisor(StartMod, Args) -> Result
+-spec supervisor(StartMod) -> Result
 	when
 		StartMod :: atom(),
-		Args :: [term()],
 		Result :: supervisor:child_spec().
 %% @doc Build a supervisor child specification for a
 %% 	{@link //stdlib/supervisor. supervisor} behaviour.
 %% @private
 %%
-supervisor(StartMod, Args) ->
-	StartArgs = [StartMod, Args],
+supervisor(StartMod) ->
+	StartArgs = [StartMod],
 	StartFunc = {supervisor, start_link, StartArgs},
-	#{id => StartMod, start => StartFunc,
+	#{id => StartMod, start => StartFunc, restart => temporary,
 			type => supervisor, modules => [StartMod]}.
-
--spec fsm(StartMod, Args) -> Result
-	when
-		StartMod :: atom(),
-		Args :: [term()],
-		Result :: supervisor:child_spec().
-%% @doc Build a supervisor child specification for a
-%% 	{@link //stdlib/gen_fsm. gen_fsm} behaviour.
-%% @private
-%%
-fsm(StartMod, Args) ->
-	StartArgs = [StartMod, Args],
-	StartFunc = {gen_fsm, start_link, StartArgs},
-	#{id => StartMod, start => StartFunc, modules => [StartMod]}.
 

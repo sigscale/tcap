@@ -68,7 +68,8 @@ end_per_suite(_Config) ->
 %%
 init_per_testcase(TestCase, Config) ->
 	describe(TestCase),
-	{ok, TSL} = tcap:start_tsl(tcap_test_nsap_server, [self()], []),
+	Module = tcap_test_nsap_server,
+	{ok, TSL} = tcap:start_tsl({local, Module}, Module, [self()], []),
 	unlink(TSL),
 	[{tco_pid, TSL} | Config].
 

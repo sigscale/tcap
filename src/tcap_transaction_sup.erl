@@ -1,66 +1,65 @@
 %%% tcap_transaction_sup.erl
-%%%---------------------------------------------------------------------
-%%% @copyright 2004-2005 Motivity Telecom, 2010-2011 Harald Welte
-%%% @author Vance Shipley <vances@motivity.ca>
-%%% @author Harald Welte <laforge@gnumonks.org>
+%%% vim: ts=3
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% @copyright 2021 SigScale Global Inc.
+%%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @end
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
 %%%
-%%% Copyright (c) 2004-2005, Motivity Telecom
-%%% Copyright (c) 2010-2011, Harald Welte
-%%% 
-%%% All rights reserved.
-%%% 
-%%% Redistribution and use in source and binary forms, with or without
-%%% modification, are permitted provided that the following conditions
-%%% are met:
-%%% 
-%%%    - Redistributions of source code must retain the above copyright
-%%%      notice, this list of conditions and the following disclaimer.
-%%%    - Redistributions in binary form must reproduce the above copyright
-%%%      notice, this list of conditions and the following disclaimer in
-%%%      the documentation and/or other materials provided with the 
-%%%      distribution.
-%%%    - Neither the name of Motivity Telecom nor the names of its
-%%%      contributors may be used to endorse or promote products derived
-%%%      from this software without specific prior written permission.
+%%%     http://www.apache.org/licenses/LICENSE-2.0
 %%%
-%%% THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-%%% "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-%%% LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-%%% A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-%%% OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-%%% SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-%%% LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-%%% DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-%%% THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-%%% (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-%%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-%%%
-%%%---------------------------------------------------------------------
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @docfile "{@docsrc supervision.edoc}"
 %%%
 -module(tcap_transaction_sup).
--copyright('Copyright (c) 2003-2005 Motivity Telecom Inc., 2010-2011 Harald Welte').
--author('vances@motivity.ca, laforge@gnumonks.org').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
 
 -behaviour(supervisor).
 
-%% call backs needed for supervisor behaviour
+%% export the callback needed for supervisor behaviour
 -export([init/1]).
 
-gen_tsm_childspec(NSAP, USAP, TID, TCO) ->
-	Name = list_to_atom("tcap_tsm_" ++ integer_to_list(TID)),
-	StartArgs = [{local, Name}, tcap_tsm_fsm, [NSAP, USAP, TID, self(), TCO], [{debug, [trace]}]],
+%%----------------------------------------------------------------------
+%%  The supervisor callback
+%%----------------------------------------------------------------------
+
+-spec init(Args) -> Result
+	when
+		Args :: [],
+		Result :: {ok, {SupFlags, [ChildSpec]}},
+		SupFlags :: supervisor:sup_flags(),
+		ChildSpec :: supervisor:child_spec().
+%% @doc Initialize the {@module} supervisor.
+%% @see //stdlib/supervisor:init/1
+%% @private
+%%
+init([] = _Args) ->
+	ChildSpecs = [fsm(tcap_tsm_fsm)],
+	SupFlags = #{strategy => simple_one_for_one,
+			intensity => 0, period => 1},
+	{ok, {SupFlags, ChildSpecs}}.
+
+%%----------------------------------------------------------------------
+%%  internal functions
+%%----------------------------------------------------------------------
+
+-spec fsm(StartMod) -> Result
+	when
+		StartMod :: atom(),
+		Result :: supervisor:child_spec().
+%% @doc Build a supervisor child specification for a
+%% 	{@link //stdlib/gen_fsm. gen_fsm} behaviour.
+%% @private
+%%
+fsm(StartMod) ->
+	StartArgs = [StartMod],
 	StartFunc = {gen_fsm, start_link, StartArgs},
-	{Name, StartFunc, permanent, 1000, worker, [tcap_tsm_fsm]}.
+	#{id => StartMod, start => StartFunc, modules => [StartMod]}.
 
-gen_dha_sup_childspec(_NSAP, User, LocalTID, TCO) ->
-	Name = list_to_atom("tcap_dialogue_sup_" ++ integer_to_list(LocalTID)),
-	StartArgs = [{local, Name}, tcap_dialogue_sup, {User, LocalTID, TCO}],
-	StartFunc = {supervisor, start_link, StartArgs},
-	{dha_sup, StartFunc, permanent, 1000, worker, [tcap_dialogue_sup]}.
-
-init([NSAPfun, USAP, TID, TCO]) ->
-	TsmChild = gen_tsm_childspec(NSAPfun, USAP, TID, TCO),
-	DhaSupChild = gen_dha_sup_childspec(NSAPfun, USAP, TID, TCO),
-	{ok,{{one_for_all, 0, 1}, [TsmChild, DhaSupChild]}}.

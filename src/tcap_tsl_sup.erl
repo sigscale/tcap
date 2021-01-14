@@ -1,4 +1,4 @@
-%%% tcap_dialogue_sup.erl
+%%% tcap_tsl_sup.erl
 %%% vim: ts=3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @copyright 2021 SigScale Global Inc.
@@ -18,7 +18,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @docfile "{@docsrc supervision.edoc}"
 %%%
--module(tcap_dialogue_sup).
+-module(tcap_tsl_sup).
 -copyright('Copyright (c) 2021 SigScale Global Inc.').
 
 -behaviour(supervisor).
@@ -32,7 +32,20 @@
 
 -spec init(Args) -> Result
 	when
-		Args :: [],
+		Args :: [Arg],
+		Arg :: TcoName | TcoArgs | TcoOpts,
+		TcoName :: {local, LocalName} | {global, GlobalName}
+				| {via, ViaModule, ViaName},
+		LocalName :: atom(),
+		GlobalName :: term(),
+		ViaModule :: atom(),
+		ViaName :: term(),
+		TcoArgs :: [term()],
+		TcoOpts :: [Option],
+		Option :: {timeout, Timeout} | {debug, [Flag]},
+		Timeout :: pos_integer(),
+		Flag :: trace | log | {logfile, file:filename()}
+				| statistics | debug,
 		Result :: {ok, {SupFlags, [ChildSpec]}},
 		SupFlags :: supervisor:sup_flags(),
 		ChildSpec :: supervisor:child_spec().
@@ -40,10 +53,12 @@
 %% @see //stdlib/supervisor:init/1
 %% @private
 %%
-init([] = _Args) ->
-	ChildSpecs = [supervisor(tcap_components_sup, []),
-			fsm(tcap_dha_fsm, [])],
-	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
+init([TcoName, TcoModule, TcoArgs, TcoOpts] = _Args)
+		when is_tuple(TcoName), is_atom(TcoModule),
+		is_list(TcoArgs), is_list(TcoOpts) ->
+	ChildSpecs = [supervisor(tcap_transaction_sup, []),
+			tco_server(TcoModule, TcoName, [self() | TcoArgs], TcoOpts)],
+	SupFlags = #{intensity => 10, period => 60},
 	{ok, {SupFlags, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
@@ -65,17 +80,29 @@ supervisor(StartMod, Args) ->
 	#{id => StartMod, start => StartFunc,
 			type => supervisor, modules => [StartMod]}.
 
--spec fsm(StartMod, Args) -> Result
+-spec tco_server(StartMod, Name, Args, Opts) -> Result
 	when
 		StartMod :: atom(),
+		Name :: {local, LocalName} | {global, GlobalName}
+				| {via, ViaModule, ViaName},
+		LocalName :: atom(),
+		GlobalName :: term(),
+		ViaModule :: atom(),
+		ViaName :: term(),
 		Args :: [term()],
+		Opts :: [Option],
+		Option :: {timeout, Timeout} | {debug, [Flag]},
+		Timeout :: pos_integer(),
+		Flag :: trace | log | {logfile, file:filename()}
+				| statistics | debug,
 		Result :: supervisor:child_spec().
 %% @doc Build a supervisor child specification for a
-%% 	{@link //stdlib/gen_fsm. gen_fsm} behaviour.
+%% 	{@link tcap_tco_server. tcap_tco_server} behaviour
+%% 	with a registered name and options.
 %% @private
 %%
-fsm(StartMod, Args) ->
-	StartArgs = [StartMod, Args],
-	StartFunc = {gen_fsm, start_link, StartArgs},
+tco_server(StartMod, Name, Args, Opts) ->
+	StartArgs = [Name, StartMod, Args, Opts],
+	StartFunc = {tcap_tco_server, start_link, StartArgs},
 	#{id => StartMod, start => StartFunc, modules => [StartMod]}.
 

@@ -6,8 +6,9 @@
 modhtml = tcap.html \
 		tcap_app.html \
 		tcap_sup.html \
-		tcap_sap_sup.html \
+		tcap_tsl_sup.html \
 		tcap_transaction_sup.html \
+		tcap_csl_sup.html \
 		tcap_dialogue_sup.html \
 		tcap_components_sup.html \
 		tcap_invocation_sup.html \

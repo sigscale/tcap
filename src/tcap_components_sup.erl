@@ -1,65 +1,81 @@
 %%% tcap_components_sup.erl
-%%%---------------------------------------------------------------------
-%%% @copyright 2004-2005 Motivity Telecom
-%%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
+%%% vim: ts=3
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% @copyright 2021 SigScale Global Inc.
+%%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @end
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
 %%%
-%%% Copyright (c) 2004-2005, Motivity Telecom
-%%% 
-%%% All rights reserved.
-%%% 
-%%% Redistribution and use in source and binary forms, with or without
-%%% modification, are permitted provided that the following conditions
-%%% are met:
-%%% 
-%%%    - Redistributions of source code must retain the above copyright
-%%%      notice, this list of conditions and the following disclaimer.
-%%%    - Redistributions in binary form must reproduce the above copyright
-%%%      notice, this list of conditions and the following disclaimer in
-%%%      the documentation and/or other materials provided with the 
-%%%      distribution.
-%%%    - Neither the name of Motivity Telecom nor the names of its
-%%%      contributors may be used to endorse or promote products derived
-%%%      from this software without specific prior written permission.
+%%%     http://www.apache.org/licenses/LICENSE-2.0
 %%%
-%%% THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-%%% "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-%%% LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-%%% A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-%%% OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-%%% SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-%%% LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-%%% DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-%%% THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-%%% (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-%%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-%%%
-%%%---------------------------------------------------------------------
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @docfile "{@docsrc supervision.edoc}"
-%%%         
+%%%
 -module(tcap_components_sup).
--copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
--author('vances@motivity.ca').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
 
 -behaviour(supervisor).
 
-%% call backs needed for supervisor behaviour
+%% export the callback needed for supervisor behaviour
 -export([init/1]).
 
-gen_cco_child(USAP, ID) ->
-	Name = list_to_atom("tcap_cco_" ++ integer_to_list(ID)),
-	StartArgs = [{local, Name}, tcap_cco_server, [self(), USAP, ID], [{debug, [trace]}]],
+%%----------------------------------------------------------------------
+%%  The supervisor callback
+%%----------------------------------------------------------------------
+
+-spec init(Args) -> Result
+	when
+		Args :: [],
+		Result :: {ok, {SupFlags, [ChildSpec]}},
+		SupFlags :: supervisor:sup_flags(),
+		ChildSpec :: supervisor:child_spec().
+%% @doc Initialize the {@module} supervisor.
+%% @see //stdlib/supervisor:init/1
+%% @private
+%%
+init([] = _Args) ->
+	ChildSpecs = [supervisor(tcap_invocation_sup, []),
+			server(tcap_cco_server, [])],
+	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
+	{ok, {SupFlags, ChildSpecs}}.
+
+%%----------------------------------------------------------------------
+%%  internal functions
+%%----------------------------------------------------------------------
+
+-spec supervisor(StartMod, Args) -> Result
+	when
+		StartMod :: atom(),
+		Args :: [term()],
+		Result :: supervisor:child_spec().
+%% @doc Build a supervisor child specification for a
+%% 	{@link //stdlib/supervisor. supervisor} behaviour.
+%% @private
+%%
+supervisor(StartMod, Args) ->
+	StartArgs = [StartMod, Args],
+	StartFunc = {supervisor, start_link, StartArgs},
+	#{id => StartMod, start => StartFunc,
+			type => supervisor, modules => [StartMod]}.
+
+-spec server(StartMod, Args) -> Result
+	when
+		StartMod :: atom(),
+		Args :: [term()],
+		Result :: supervisor:child_spec().
+%% @doc Build a supervisor child specification for a
+%% 	{@link //stdlib/gen_server. gen_server} behaviour.
+%% @private
+%%
+server(StartMod, Args) ->
+	StartArgs = [StartMod, Args, []],
 	StartFunc = {gen_server, start_link, StartArgs},
-	{cco, StartFunc, permanent, 4000, worker, [tcap_cco_server]}.
-
-gen_inv_sup_child(ID) ->
-	StartFunc = {tcap_invocation_sup, start_link, [ID]},
-	{invocation_sup, StartFunc, permanent, 4000, supervisor, [tcap_invocation_sup]}.
-
-init([USAP, ID]) ->
-	% start the CCO server as well as a (childless) invocation supervisor
-	InvSup = gen_inv_sup_child(ID),
-	Cco = gen_cco_child(USAP, ID),
-	io:format("~p starting InvSup(~p) CCO(~p)~n", [?MODULE, InvSup, Cco]),
-	{ok,{{one_for_all, 0, 1}, [InvSup, Cco]}}.
+	#{id => StartMod, start => StartFunc, modules => [StartMod]}.
 

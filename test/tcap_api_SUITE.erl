@@ -85,15 +85,18 @@ start_tsl() ->
 	[{userdata, [{doc, "Start a transaction sublayer (TSL)"}]}].
 
 start_tsl(_Config) ->
-	{ok, TSL} = tcap:start_tsl(tcap_test_nsap_server, [self()], []),
+	Module = tcap_test_nsap_server,
+	{ok, TSL} = tcap:start_tsl({local, start_tsl}, Module, [self()], []),
 	unlink(TSL),
-	true = is_process_alive(TSL).
+	true = is_process_alive(TSL),
+	tcap:stop_tsl(TSL).
 
 stop_tsl() ->
 	[{userdata, [{doc, "Stop a transaction sublayer (TSL)"}]}].
 
 stop_tsl(_Config) ->
-	{ok, TSL} = tcap:start_tsl(tcap_test_nsap_server, [self()], []),
+	Module = tcap_test_nsap_server,
+	{ok, TSL} = tcap:start_tsl({local, stop_tsl}, Module, [self()], []),
 	unlink(TSL),
 	ok = tcap:stop_tsl(TSL),
 	false = is_process_alive(TSL).

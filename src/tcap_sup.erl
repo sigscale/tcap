@@ -1,61 +1,96 @@
 %%% tcap_sup.erl
-%%%---------------------------------------------------------------------
-%%% @copyright 2004-2005 Motivity Telecom
-%%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
+%%% vim: ts=3
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% @copyright 2021 SigScale Global Inc.
+%%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @end
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
 %%%
-%%% Copyright (c) 2004-2005, Motivity Telecom
-%%% 
-%%% All rights reserved.
-%%% 
-%%% Redistribution and use in source and binary forms, with or without
-%%% modification, are permitted provided that the following conditions
-%%% are met:
-%%% 
-%%%    - Redistributions of source code must retain the above copyright
-%%%      notice, this list of conditions and the following disclaimer.
-%%%    - Redistributions in binary form must reproduce the above copyright
-%%%      notice, this list of conditions and the following disclaimer in
-%%%      the documentation and/or other materials provided with the 
-%%%      distribution.
-%%%    - Neither the name of Motivity Telecom nor the names of its
-%%%      contributors may be used to endorse or promote products derived
-%%%      from this software without specific prior written permission.
+%%%     http://www.apache.org/licenses/LICENSE-2.0
 %%%
-%%% THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-%%% "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-%%% LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-%%% A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-%%% OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-%%% SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-%%% LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-%%% DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-%%% THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-%%% (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-%%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-%%%
-%%%---------------------------------------------------------------------
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @docfile "{@docsrc supervision.edoc}"
 %%%
 -module(tcap_sup).
--copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
--author('vances@motivity.ca').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
 
 -behaviour(supervisor).
 
-%% call backs needed for supervisor behaviour
+%% export the callback needed for supervisor behaviour
 -export([init/1]).
+%% export the private API
+-export([start_tsl/2, start_csl/2]).
+
+%%----------------------------------------------------------------------
+%%  The tcap_sup private API
+%%----------------------------------------------------------------------
+
+-spec start_tsl(Id, Args) -> Result
+	when
+		Id :: term(),
+		Args :: [term()],
+		Result :: supervisor:startchild_ret().
+%% @doc Start a {@link tcap_tsl_sup. tcap_tsl_sup} supervisor.
+%%
+%% 	The `ChildSpec' for the {@link tcap_tsl_sup. tcap_tsl_sup}
+%% 	may be identified by the `child_id()' in `Id'.
+%%
+%% 	`Args' should be a list of `[Name, Module, Args, Opts]' used to
+%% 	start the TCO ({@link tcap_tco_server. tcap_tco_server}) with
+%% 	{@link //stdlib/gen_server:start_link/4. gen_server:start_link/4}.
+%%
+%% @private
+start_tsl(Id, Args) when is_list(Args) ->
+	StartMod = tcap_tsl_sup,
+	StartArgs = [StartMod, Args],
+	StartFunc = {supervisor, start_link, StartArgs},
+	ChildSpec = #{id => Id, type => supervisor,
+			start => StartFunc, restart => permanent,
+			modules => [StartMod]},
+	supervisor:start_child(?MODULE, ChildSpec).
+
+-spec start_csl(Id, Args) -> Result
+	when
+		Id :: term(),
+		Args :: [term()],
+		Result :: supervisor:startchild_ret().
+%% @doc Start a {@link tcap_csl_sup. tcap_csl_sup} supervisor.
+start_csl(Id, Args) when is_list(Args) ->
+	StartMod = tcap_csl_sup,
+	StartArgs = [StartMod, Args],
+	StartFunc = {supervisor, start_link, StartArgs},
+	ChildSpec = #{id => Id, type => supervisor,
+			start => StartFunc, restart => permanent,
+			modules => [StartMod]},
+	supervisor:start_child(?MODULE, ChildSpec).
+
+%%----------------------------------------------------------------------
+%%  The supervisor callback
+%%----------------------------------------------------------------------
 
 -spec init(Args) -> Result
 	when
-		Args :: [term()],
+		Args :: [],
 		Result :: {ok, {SupFlags, [ChildSpec]}} | ignore,
 		SupFlags :: supervisor:sup_flags(),
 		ChildSpec :: supervisor:child_spec().
 %% @doc Initialize the {@module} supervisor.
+%% @see //stdlib/supervisor:init/1
+%% @private
+%%
 init(_Args) ->
-	Mod = tcap_sap_sup,
-	StartFunc = {Mod, start_link, []},
-	ChildSpec = {Mod, StartFunc, temporary, infinity, supervisor, [Mod]},
-	{ok,{{simple_one_for_one, 10, 60}, [ChildSpec]}}.
+	ChildSpecs = [],
+	SupFlags = #{intensity => 10, period => 60},
+	{ok, {SupFlags, ChildSpecs}}.
+
+%%----------------------------------------------------------------------
+%%  internal functions
+%%----------------------------------------------------------------------
 

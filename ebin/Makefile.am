@@ -11,8 +11,9 @@ EXTRA_DIST = tcap.app
 beam_DATA = tcap.beam \
 		tcap_app.beam \
 		tcap_sup.beam \
-		tcap_sap_sup.beam \
+		tcap_tsl_sup.beam \
 		tcap_transaction_sup.beam \
+		tcap_csl_sup.beam \
 		tcap_dialogue_sup.beam \
 		tcap_components_sup.beam \
 		tcap_invocation_sup.beam

@@ -60,8 +60,7 @@ start(normal, StartArgs) ->
 	ets:new(tcap_transaction, [named_table, public]),
 	ets:insert(tcap_transaction, {transactionID, 0}),
 	ets:new(tcap_dha, [named_table, public]),
-	{ok, SupRef} = application:get_env(supref),
-	supervisor:start_link(SupRef, tcap_sup, StartArgs).
+	supervisor:start_link({local, tcap_sup}, tcap_sup, StartArgs).
 
 %% @spec(Phase::atom(), StartType, PhaseArgs::term()) -> ok | {error, Reason}
 %% 	StartType = normal | {takeover,Node} | {failover,Node}

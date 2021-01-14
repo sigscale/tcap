@@ -46,7 +46,7 @@
 -author('vances@motivity.ca').
 
 %% our published API functions
--export([start/0, stop/0, start_tsl/3, stop_tsl/1]).
+-export([start/0, stop/0, start_tsl/4, stop_tsl/1]).
 -export([open/3, close/1]).
 
 -type tcap_options() :: [Option :: {variant, Variant :: itu | ansi}].
@@ -74,11 +74,21 @@ start() ->
 stop() ->
 	application:stop(tcap).
 
--spec start_tsl(Module, Args, Opts) -> Result
+-spec start_tsl(Name, Module, Args, Opts) -> Result
 	when
+		Name :: {local, LocalName} | {global, GlobalName}
+				| {via, ViaModule, ViaName},
+		LocalName :: atom(),
+		GlobalName :: term(),
+		ViaModule :: atom(),
+		ViaName :: term(),
 		Module :: atom(),
 		Args :: [term()],
-		Opts :: [term()],
+		Opts :: [Option],
+		Option :: {timeout, Timeout} | {debug, [Flag]},
+		Timeout :: pos_integer(),
+		Flag :: trace | log | {logfile, file:filename()}
+				| statistics | debug,
 		Result :: {ok, TSL} | {error, Reason},
 		TSL :: pid(),
 		Reason :: term().
@@ -91,6 +101,9 @@ stop() ->
 %% 	a callback `Module' for the
 %% 	{@link tcap_tco_server. tcap_tco_server} behaviour.
 %%
+%% 	The {@link tcap_tco_server. tcap_tco_server} process
+%% 	will be registered with `Name'.
+%%
 %% 	`Module' is the name of the callback module.
 %%
 %% 	`Args' will be the arguments passed to `Module:init/1'.
@@ -98,10 +111,11 @@ stop() ->
 %% 	`Opts' may include any of the options available to
 %% 	{@link //stdlib/gen_server:start_link/3. gen_server:start_link/3}.
 %%
-start_tsl(Module, Args, Opts) ->
-	case supervisor:start_child(tcap_sup, [Module, Args, Opts]) of
+start_tsl(Name, Module, Args, Opts) ->
+	case tcap_sup:start_tsl(Module, [Name, Module, Args, Opts]) of
 		{ok, Sup} ->
-			[{tco, TSL, _, _}] = supervisor:which_children(Sup),
+			ChildSpecs = supervisor:which_children(Sup),
+			{_, TSL, _, _} = lists:keyfind(Module, 1, ChildSpecs),
 			link(TSL),
 			{ok, TSL};
 		{error, Reason} ->
@@ -117,11 +131,16 @@ start_tsl(Module, Args, Opts) ->
 stop_tsl(TSL) when is_pid(TSL) ->
 	stop_tsl(TSL, supervisor:which_children(tcap_sup)).
 %% @hidden
-stop_tsl(TSL, [{_, SapSup, _, _} | T]) ->
-	ChildSpecs = supervisor:which_children(SapSup),
-	case lists:keyfind(tco, 1, ChildSpecs) of
+stop_tsl(TSL, [{Id, Sup, _, _} | T]) ->
+	ChildSpecs = supervisor:which_children(Sup),
+	case lists:keyfind(TSL, 2, ChildSpecs) of
 		{_, TSL, _, _} ->
-			supervisor:terminate_child(tcap_sup, SapSup);
+			case supervisor:terminate_child(tcap_sup, Id) of
+				ok ->
+					supervisor:delete_child(tcap_sup, Id);
+				{error, Reason} ->
+					{error, Reason}
+			end;
 		_ ->
 			stop_tsl(TSL, T)
 	end;
