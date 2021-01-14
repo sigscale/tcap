@@ -26,7 +26,7 @@
 %% export the callback needed for supervisor behaviour
 -export([init/1]).
 %% export the private API
--export([start_tsl/2, start_csl/2]).
+-export([start_tsl/2]).
 
 %%----------------------------------------------------------------------
 %%  The tcap_sup private API
@@ -56,21 +56,6 @@ start_tsl(Id, Args) when is_list(Args) ->
 			modules => [StartMod]},
 	supervisor:start_child(?MODULE, ChildSpec).
 
--spec start_csl(Id, Args) -> Result
-	when
-		Id :: term(),
-		Args :: [term()],
-		Result :: supervisor:startchild_ret().
-%% @doc Start a {@link tcap_csl_sup. tcap_csl_sup} supervisor.
-start_csl(Id, Args) when is_list(Args) ->
-	StartMod = tcap_csl_sup,
-	StartArgs = [StartMod, Args],
-	StartFunc = {supervisor, start_link, StartArgs},
-	ChildSpec = #{id => Id, type => supervisor,
-			start => StartFunc, restart => permanent,
-			modules => [StartMod]},
-	supervisor:start_child(?MODULE, ChildSpec).
-
 %%----------------------------------------------------------------------
 %%  The supervisor callback
 %%----------------------------------------------------------------------
@@ -86,11 +71,26 @@ start_csl(Id, Args) when is_list(Args) ->
 %% @private
 %%
 init(_Args) ->
-	ChildSpecs = [],
+	ChildSpecs = [supervisor(tcap_csl_sup, [])],
 	SupFlags = #{intensity => 10, period => 60},
 	{ok, {SupFlags, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
+
+-spec supervisor(StartMod, Args) -> Result
+	when
+		StartMod :: atom(),
+		Args :: [term()],
+		Result :: supervisor:child_spec().
+%% @doc Build a supervisor child specification for a
+%% 	{@link //stdlib/supervisor. supervisor} behaviour.
+%% @private
+%%
+supervisor(StartMod, Args) ->
+	StartArgs = [StartMod, Args],
+	StartFunc = {supervisor, start_link, StartArgs},
+	#{id => StartMod, start => StartFunc,
+			type => supervisor, modules => [StartMod]}.
 
