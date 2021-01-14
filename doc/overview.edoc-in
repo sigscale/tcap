@@ -226,8 +226,9 @@ Figure 5-1: Process Communication</p>
 ==Supervision Hierarchy==
 The processes which make up an instance of the TCAP service layer
 are all instantiated within a supervision tree.  When the
-application is started a top level supervisor is created with no
-children.  The user may call {@link tcap:start_tsl/3. start_tsl/3}
+application is started a top level {@link tcap_sup. tcap_sup}
+supervisor is created with a {@link tcap_csl_sup. tcap_csl_sup}
+child supervisor.  The user may call {@link tcap:start_tsl/3. start_tsl/3}
 to create a new transaction sublayer (TSL) for each SCCP service
 access point (SAP). A {@link tcap_tsl_sup. tcap_tsl_sup} supervisor
 is started with one worker TCO and a supervisor for dynamically
