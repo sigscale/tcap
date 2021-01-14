@@ -885,7 +885,7 @@ get_start(out_transaction, [TransactionID, Usap], State) when is_record(State, s
 	StartDHA = get_start(dialogue, TransactionID, State),
 	% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
 	StartArgs = [SendFun, Usap, TransactionID, self()],
-	{supervisor, start_link, [tcap_transaction_sup, StartArgs].
+	{supervisor, start_link, [tcap_transaction_sup, StartArgs]}.
 
 % convert a TID from the four-octet binary/list form (OCTET STRING) to unsigned int
 %% @hidden
