@@ -32,7 +32,9 @@
 
 -spec init(Args) -> Result
 	when
-		Args :: [],
+		Args :: [TSL | TCU],
+		TSL :: pid(),
+		TCU :: pid(),
 		Result :: {ok, {SupFlags, [ChildSpec]}},
 		SupFlags :: supervisor:sup_flags(),
 		ChildSpec :: supervisor:child_spec().
@@ -40,9 +42,9 @@
 %% @see //stdlib/supervisor:init/1
 %% @private
 %%
-init([] = _Args) ->
-	ChildSpecs = [supervisor(tcap_components_sup, []),
-			fsm(tcap_dha_fsm, [])],
+init([_TSL, _TCU] = Args) ->
+	ChildSpecs = [supervisor(tcap_components_sup, Args),
+			fsm(tcap_dha_fsm, Args)],
 	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
 	{ok, {SupFlags, ChildSpecs}}.
 
@@ -75,7 +77,7 @@ supervisor(StartMod, Args) ->
 %% @private
 %%
 fsm(StartMod, Args) ->
-	StartArgs = [StartMod, Args],
+	StartArgs = [StartMod, Args, []],
 	StartFunc = {gen_fsm, start_link, StartArgs},
 	#{id => StartMod, start => StartFunc, modules => [StartMod]}.
 

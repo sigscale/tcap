@@ -71,7 +71,7 @@ start_tsl(Id, Args) when is_list(Args) ->
 %% @private
 %%
 init(_Args) ->
-	ChildSpecs = [supervisor(tcap_csl_sup, [])],
+	ChildSpecs = [supervisor(tcap_csl_sup, tcap_csl_sup, [])],
 	SupFlags = #{intensity => 10, period => 60},
 	{ok, {SupFlags, ChildSpecs}}.
 
@@ -79,8 +79,9 @@ init(_Args) ->
 %%  internal functions
 %%----------------------------------------------------------------------
 
--spec supervisor(StartMod, Args) -> Result
+-spec supervisor(StartMod, Name, Args) -> Result
 	when
+		Name :: atom(),
 		StartMod :: atom(),
 		Args :: [term()],
 		Result :: supervisor:child_spec().
@@ -88,8 +89,8 @@ init(_Args) ->
 %% 	{@link //stdlib/supervisor. supervisor} behaviour.
 %% @private
 %%
-supervisor(StartMod, Args) ->
-	StartArgs = [StartMod, Args],
+supervisor(StartMod, Name, Args) ->
+	StartArgs = [{local, Name}, StartMod, Args],
 	StartFunc = {supervisor, start_link, StartArgs},
 	#{id => StartMod, start => StartFunc,
 			type => supervisor, modules => [StartMod]}.

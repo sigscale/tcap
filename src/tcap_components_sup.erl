@@ -32,7 +32,9 @@
 
 -spec init(Args) -> Result
 	when
-		Args :: [],
+		Args :: [TCO | TCU],
+		TCO :: pid(),
+		TCU :: pid(),
 		Result :: {ok, {SupFlags, [ChildSpec]}},
 		SupFlags :: supervisor:sup_flags(),
 		ChildSpec :: supervisor:child_spec().
@@ -40,9 +42,9 @@
 %% @see //stdlib/supervisor:init/1
 %% @private
 %%
-init([] = _Args) ->
+init([_TCO, _TCU] = Args) ->
 	ChildSpecs = [supervisor(tcap_invocation_sup, []),
-			server(tcap_cco_server, [])],
+			server(tcap_cco_server, Args)],
 	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
 	{ok, {SupFlags, ChildSpecs}}.
 

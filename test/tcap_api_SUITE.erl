@@ -25,7 +25,8 @@
 -export([init_per_testcase/2, end_per_testcase/2]).
 
 %% export test cases
--export([start_tsl/0, start_tsl/1, stop_tsl/0, stop_tsl/1]).
+-export([start_tsl/0, start_tsl/1, stop_tsl/0, stop_tsl/1,
+		start_csl/0, start_csl/1, stop_csl/0, stop_csl/1]).
 
 -include("tcap.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -75,7 +76,7 @@ sequences() ->
 %% Returns a list of all test cases in this test suite.
 %%
 all() ->
-	[start_tsl, stop_tsl].
+	[start_tsl, stop_tsl, start_csl, stop_csl].
 
 %%---------------------------------------------------------------------
 %%  Test cases
@@ -100,6 +101,44 @@ stop_tsl(_Config) ->
 	unlink(TSL),
 	ok = tcap:stop_tsl(TSL),
 	false = is_process_alive(TSL).
+
+start_csl() ->
+	[{userdata, [{doc, "Start a component sublayer (CSL)"}]}].
+
+start_csl(_Config) ->
+	Module = tcap_test_nsap_server,
+	{ok, TSL} = tcap:start_tsl({local, start_tsl}, Module, [self()], []),
+	unlink(TSL),
+	{ok, DHA, CCO} = tcap:open(TSL, self()),
+	{_, _, _, [PDict1 | _]} = sys:get_status(DHA),
+	{_, {tcap_dha_fsm, _, _}} = lists:keyfind('$initial_call', 1, PDict1),
+	{_, _, _, [PDict2 | _]} = sys:get_status(CCO),
+	{_, {tcap_cco_server, _, _}} = lists:keyfind('$initial_call', 1, PDict2),
+	tcap:stop_tsl(TSL).
+
+stop_csl() ->
+	[{userdata, [{doc, "Stop a component sublayer (CSL)"}]}].
+
+stop_csl(_Config) ->
+	Module = tcap_test_nsap_server,
+	{ok, TSL} = tcap:start_tsl({local, start_tsl}, Module, [self()], []),
+	unlink(TSL),
+	{ok, DHA, CCO} = tcap:open(TSL, self()),
+	true = is_process_alive(DHA),
+	true = is_process_alive(CCO),
+	process_flag(trap_exit, true),
+	link(DHA),
+	link(CCO),
+	ok = tcap:close(DHA),
+	receive
+		{'EXIT', DHA, _} ->
+			receive
+				{'EXIT', CCO, _} ->
+					ok
+			end
+	end,
+	process_flag(trap_exit, false),
+	tcap:stop_tsl(TSL).
 
 %%---------------------------------------------------------------------
 %%  Internal functions

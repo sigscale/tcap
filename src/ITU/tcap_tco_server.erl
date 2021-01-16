@@ -90,57 +90,60 @@
 %%% 	to deliver to the SCCP layer.
 %%%
 %%% 	<h3  class="function">
-%%% 		<a name="start_user-2">start_user/2</a>
+%%% 		<a name="start_aei-2">start_aei/2</a>
 %%% 	</h3>
 %%% 	<div class="spec">
 %%% 		<p>
-%%% 			<tt>start_user(CSL, DialogueID, State) -&gt; pid()</tt>
+%%% 			<tt>start_aei(DialoguePortion, State) -&gt; Result</tt>
 %%% 		</p>
 %%% 		<ul class="definitions">
-%%% 			<li><tt>CSL = {DHA, CCO}</tt></li>
+%%% 			<li><tt>DialoguePortion = binary()</tt></li>
+%%% 			<li><tt>TSL = pid()</tt></li>
+%%% 			<li><tt>State = term()</tt></li>
+%%% 			<li><tt>Result = {ok, DHA, CCO, TCU, State}
+%%% 					| {error, Reason}</tt></li>
 %%% 			<li><tt>DHA = pid()</tt></li>
 %%% 			<li><tt>CCO = pid()</tt></li>
-%%% 			<li><tt>DialogueID = tid()</tt></li>
+%%% 			<li><tt>TCU = pid()</tt></li>
 %%% 		</ul>
 %%% 	</div>
-%%% 	This function is called by a dialogue handler (DHA) to initialize
-%%% 	a local TC-User for a dialogue begun by a remote TC-User.
+%%% 	This function is called by TCO to initialize an Application
+%%% 	Entity Instance (AEI) in response to a remote TC-User initiating
+%%% 	a dialogue. A transaction capabilities (TC) Application Service
+%%% 	Element (ASE) is represented by a newly created TC component
+%%% 	sublayer (CSL) instance.
 %%%
-%%% 	`CSL' is the component sublayer identifier which contains the
-%%% 	pids of the dialogue handler and component coordinator.
+%%% 	`DialoguePortion' is the undecoded dialogue portion.
 %%%
-%%% 	Returns the pid of the TC-User process which will handle the
-%%% 	new dialogue.
+%%% 	`DHA' is the pid of the dialogue handler in the newly created CSL.
+%%%
+%%% 	`CCO' is the pid of the component coordinator in the newly created CSL.
+%%%
+%%% 	`TCU' is the pid of the TC-User which shall received indications
+%%% 	from the CSL.
 %%%
 %%% 	<h3  class="function">
-%%% 		<a name="start_dialogue-1">start_dialogue/1</a>
+%%% 		<a name="start_dialogue-2">start_dialogue/2</a>
 %%% 	</h3>
 %%% 	<div class="spec">
 %%% 		<p>
-%%% 			<tt>start_dialogue(DialogueID, State) -&gt; StartFunc</tt>
+%%% 			<tt>start_dialogue(DialoguePortion, State) -&gt; Result</tt>
 %%% 		</p>
 %%% 		<ul class="definitions">
-%%% 			<li><tt>DialogueID = tid()</tt></li>
+%%% 			<li><tt>DialoguePortion = binary()</tt></li>
 %%% 			<li><tt>State = term()</tt></li>
-%%% 			<li><tt>StartFunc = {M,F,A}</tt></li>
-%%% 			<li><tt>M = F = atom()</tt></li>
-%%% 			<li><tt>A = [term()]</tt></li>
+%%% 			<li><tt>Result = {ok, DHA, State} | {error, Reason}</tt></li>
+%%% 			<li><tt>DHA = pid()</tt></li>
+%%% 			<li><tt>Reason = term()</tt></li>
 %%% 		</ul>
 %%% 	</div>
 %%% 	The callback module may optionally export this function
 %%%	to overide the default method used to start a dialogue
 %%% 	handler (DHA).
 %%%
-%%% 	`StartFunc' defines the function call used to start the DHA
-%%% 	process.  It should be a module-function-arguments (MFA) tuple
-%%% 	`{M,F,A}' used as `apply(M,F,A)'.
-%%%
 %%% 	The start function must create and link to the child process,
-%%% 	and should return `{ok, Child}' where `Child' is the pid of
-%%% 	the child process.
-%%%
-%%% 	See the description of `StartFunc' in the
-%%% 	{@link //stdlib/supervisor. supervisor} module.
+%%% 	and should return `{ok, DHA}' where `DHA' is the pid of
+%%% 	the (possibly remote) DHA process.
 %%% @end
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
@@ -184,21 +187,15 @@
 		State :: state(),
 		Primitive :: {'N', 'UNITDATA', request, UdataParams},
 		UdataParams :: #'N-UNITDATA'{}.
--callback start_user(CSL, DialogueID, State) -> pid()
+-callback start_aei(DialoguePortion, State) -> Result
 	when
-		CSL :: {DHA, CCO},
+		DialoguePortion:: binary(),
+		State :: term(),
+		Result :: {ok, DHA, CCO, TCU, State} | {error, Reason},
 		DHA :: pid(),
 		CCO :: pid(),
-		DialogueID :: tid(),
-		State :: state().
--callback start_dialogue(DialogueID, State) -> StartFunc
-	when
-		DialogueID :: tid(),
-		State :: term(),
-		StartFunc :: {Module, Function, Arguments},
-		Module :: atom(),
-		Function :: atom(),
-		Arguments :: [term()].
+		TCU :: pid(),
+		Reason :: term().
 -callback init(Args) -> Result
 	when
 		Args :: [term()],
@@ -261,8 +258,7 @@
       State :: term(),
       Status :: term().
 -optional_callbacks([handle_info/2, handle_continue/2,
-		terminate/2, code_change/3, format_status/2,
-		start_dialogue/2]).
+		terminate/2, code_change/3, format_status/2]).
 
 %%----------------------------------------------------------------------
 %%  The gen_server callbacks
@@ -355,27 +351,10 @@ handle_call(Request, From, State) ->
 % service primitive indications from the network layer
 %
 % reference: Figure A.3/Q.774 (sheet 1 of 4)
-handle_cast({'N', 'UNITDATA', indication, UdataParams}, State) 
-		when is_record(UdataParams, 'N-UNITDATA') ->
-	{ok, {Tag, ActRes}} = 'TR':decode('TCMessage', UdataParams#'N-UNITDATA'.userData),
-	PpRes = {Tag, postproc_tcmessage(ActRes)},
-	case PpRes of
-		{unidirectional, Unidirectional = #'Unidirectional'{}} ->
-			% Create a Dialogue Handler (DHA) 
-			DialogueID = new_tid(),
-			StartFunc = get_start(dialogue, DialogueID, State),
-			ChildSpec = {DialogueID, StartFunc, temporary, 4000, worker, [tcap_dha_fsm]},
-			{ok, DHA} = supervisor:start_child(State#state.sup, ChildSpec),
-			% TR-UNI indication CSL <- TSL
-			UserData = #'TR-user-data'{dialoguePortion = Unidirectional#'Unidirectional'.dialoguePortion,
-					componentPortion = Unidirectional#'Unidirectional'.components},
-			TrParams = #'TR-UNI'{qos = {UdataParams#'N-UNITDATA'.sequenceControl,
-					UdataParams#'N-UNITDATA'.returnOption },
-					destAddress = UdataParams#'N-UNITDATA'.calledAddress,
-					origAddress = UdataParams#'N-UNITDATA'.callingAddress,
-					userData = UserData},
-			gen_fsm:send_event(DHA, {'TR', 'UNI', indication, TrParams}),
-			{noreply, State};
+handle_cast({'N', 'UNITDATA', indication,
+		#'N-UNITDATA'{userData = UserData1} = UdataParams},
+		#state{module = Module, ext_state = ExtState1} = State) ->
+	{ok, {Tag, ActRes}} = 'TR':decode('TCMessage', UserData1),
 %					{error, Reason} ->
 %					% Discard received message
 %					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
@@ -384,11 +363,29 @@ handle_cast({'N', 'UNITDATA', indication, UdataParams}, State)
 %							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
 %					{noreply, State}
 %			end;
+	PpRes = {Tag, postproc_tcmessage(ActRes)},
+	case PpRes of
+		{unidirectional, #'Unidirectional'{dialoguePortion = DialoguePortion,
+				components = ComponentPortion}} ->
+			case Module:start_aei(DialoguePortion, ExtState1) of
+				{ok, DHA, _CCO, _TCU, ExtState2}  ->
+					% TR-UNI indication CSL <- TSL
+					UserData2 = #'TR-user-data'{dialoguePortion = DialoguePortion,
+							componentPortion = ComponentPortion},
+					TrParams = #'TR-UNI'{qos = {UdataParams#'N-UNITDATA'.sequenceControl,
+							UdataParams#'N-UNITDATA'.returnOption},
+							destAddress = UdataParams#'N-UNITDATA'.calledAddress,
+							origAddress = UdataParams#'N-UNITDATA'.callingAddress,
+							userData = UserData2},
+					gen_fsm:send_event(DHA, {'TR', 'UNI', indication, TrParams}),
+					{noreply, State#state{ext_state = ExtState2}};
+				{error, _Reason} ->
+					{noreply, State}
+			end;
 		{'begin', TPDU = #'Begin'{}} ->
 			% Assign local transaction ID
 			TransactionID = new_tid(),
-			StartFunc = get_start(in_transaction, TransactionID, State),
-			ChildSpec = {TransactionID, StartFunc, temporary, infinity, supervisor, [tcap_tsm_fsm]},
+			ChildSpec = [],
 			% Is TID = no TID?
 			% Note:  The assignment of the ID above just gets the next available
 			%        value and doesn't ensure that it is not in use (unlikely)
@@ -859,33 +856,6 @@ enter_loop(Module, Options, State, Timeout) ->
 %% reference: Figure A.3 bis/Q.774
 new_tid() ->
 	ets:update_counter(tcap_transaction, transactionID, {2, 1, 16#ffffffff, 0}).
-
-%% @hidden
-get_start(dialogue, DialogueID, State) ->
-	Module = State#state.module,
-	case erlang:function_exported(Module, start_dialogue, 1) of
-		true ->
-			Module:start_dialogue(DialogueID, State#state.ext_state);
-		false ->
-			StartUserFun = fun(CSL) -> Module:start_user(CSL, DialogueID, State#state.ext_state) end,
-			StartArgs = [self(), DialogueID, StartUserFun],
-			{gen_fsm, start_link, [tcap_dha_fsm, StartArgs, []]}
-	end;
-get_start(in_transaction, TransactionID, State) ->
-	Module = State#state.module,
-	Usap = State#state.usap,
-	SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
-	StartDHA = get_start(dialogue, TransactionID, State),
-	% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
-	StartArgs = [SendFun, Usap, TransactionID, self()],
-	{supervisor, start_link, [tcap_transaction_sup, StartArgs]};
-get_start(out_transaction, [TransactionID, Usap], State) when is_record(State, state) ->
-	#state{module = Module, sup = Sup} = State,
-	SendFun = fun(P) -> Module:send_primitive(P, State#state.ext_state) end,
-	StartDHA = get_start(dialogue, TransactionID, State),
-	% FIXME: use StartDHA and pass it into transaction_sup->tsm_fsm
-	StartArgs = [SendFun, Usap, TransactionID, self()],
-	{supervisor, start_link, [tcap_transaction_sup, StartArgs]}.
 
 % convert a TID from the four-octet binary/list form (OCTET STRING) to unsigned int
 %% @hidden

@@ -1,13 +1,17 @@
+
 %% tcap_test_nsap_server.erl
 %%
 -module(tcap_test_nsap_server).
-
 -behaviour(tcap_tco_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-		send_primitive/2, start_user/3]).
+		send_primitive/2, start_aei/2]).
 
--record(state, {ct :: pid()}).
+-record(state,
+		{ct :: pid(),
+		dha :: pid(),
+		cco :: pid(),
+		tcu :: pid()}).
 
 init([CT]) ->
 	{ok, #state{ct = CT}}.
@@ -26,7 +30,9 @@ handle_info(_, State) ->
 send_primitive(Primitive, #state{ct = CT} = _State) ->
 	CT ! Primitive.
 
-start_user(_CSL, _DialogueID, #state{ct = CT} = _State) ->
-	{ok, Fsm} = gen_fsm:start_link(tcap_test_usap_fsm, [[CT]], []),
-	Fsm.
+start_aei(DialoguePortion, #state{ct = CT} = State) ->
+	{ok, TCU} = gen_fsm:start_link(tcap_test_usap_fsm, [CT], []),
+	{ok, DHA, CCO} = tcap:open(self(), TCU),
+	NewState = State#state{dha = DHA, cco = CCO, tcu = TCU},
+	{ok, DHA, CCO, TCU, NewState}.
 

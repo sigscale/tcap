@@ -47,7 +47,7 @@
 
 %% our published API functions
 -export([start/0, stop/0, start_tsl/4, stop_tsl/1]).
--export([open/3, close/1]).
+-export([open/2, close/1]).
 
 -type tcap_options() :: [Option :: {variant, Variant :: itu | ansi}].
 -export_type([tcap_options/0]).
@@ -147,40 +147,47 @@ stop_tsl(TSL, [{Id, Sup, _, _} | T]) ->
 stop_tsl(_TSL, []) ->
 	{error, not_found}.
 
--spec open(TSL, TCU, Args) -> CSL
+-spec open(TSL, TCU) -> CSL
 	when
 		TSL :: pid(),
 		TCU :: pid(),
-		Args :: [term()],
-		CSL :: {DHA, CCO},
+		CSL :: {ok, DHA, CCO} | {error, Reason},
 		DHA :: pid(),
-		CCO :: pid().
+		CCO :: pid(),
+		Reason :: term().
 %% @doc Start a new component sublayer (CSL).
-%%
-%% 	Called by the TC-User to initialize the TCAP layer for a new
-%% 	dialogue.
 %%
 %% 	`TSL' is the pid returned from a previous call to
 %% 	{@link start_tsl/3. start_tsl/3}.
 %%
-%% 	`TCU' is the pid of the `TC-User'.
+%% 	`TCU' is the pid of a `TC-User'.
 %%
-%% 	Returns `{DHA, CCO}', the pids of the dialogue handler
-%% 	and component coordinator in the component sublayer.
+%% 	Returns `{ok, DHA, CCO}', the pids of the dialogue handler and
+%% 	component coordinator in the newly created component sublayer.
 %%
-open(TSL, TCU, Args) ->
-	gen_server:call(TSL, {start_dialogue, TCU, Args}).
+open(TSL, TCU) ->
+	case supervisor:start_child(tcap_csl_sup, [[TSL, TCU]]) of
+		{ok, Sup1} ->
+			Children1 = supervisor:which_children(Sup1),
+			{_, DHA, _, _} = lists:keyfind(tcap_dha_fsm, 1, Children1),
+			{_, Sup2, _, _} = lists:keyfind(tcap_components_sup, 1, Children1),
+			Children2 = supervisor:which_children(Sup2),
+			{_, CCO, _, _} = lists:keyfind(tcap_cco_server, 1, Children2),
+			{ok, DHA, CCO};
+		{error, Reason} ->
+			{error, Reason}
+	end.
 
--spec close(TSL) -> ok
+-spec close(DHA) -> ok
 	when
-		TSL :: pid().
-%% @doc Close a TCAP sublayer (TSL).
+		DHA :: pid().
+%% @doc Close a component sublayer (CSL).
 %%
-%% 	`TSL' is the pid returned in a previous call to 
-%% 	{@link start_tsl/3. start_tsl/3}.
+%% 	`DHA' is a pid returned in a previous call to 
+%% 	{@link open/2. open/2}.
 %%
-close(TSL) when is_pid(TSL) ->
-	gen_server:call(TSL, close).
+close(DHA) when is_pid(DHA) ->
+	gen_fsm:stop(DHA).
 
 %%----------------------------------------------------------------------
 %%  Internal functions

@@ -74,7 +74,6 @@
 -record(state,
 		{usap :: pid(),
 		tco :: pid(),
-		sup :: pid(),
 		cco :: pid(),
 		otid :: 0..4294967295,
 		did :: 0..4294967295,
@@ -89,14 +88,9 @@
 
 %% Start the Dialogue Handler (DHA) process
 %% reference: Figure A.5/Q.774 (sheet 1 of 11)
-init([USAP, DialogueID, TCO]) ->
-	init([USAP, DialogueID, TCO, undefined]);
-init([USAP, DialogueID, TCO, Sup]) ->
-	ets:insert(tcap_dha, {DialogueID, self()}),
-	CCO = list_to_atom("tcap_cco_" ++ integer_to_list(DialogueID)),
+init([TCO, TCU]) ->
 	process_flag(trap_exit, true),
-	{ok, idle, #state{usap = USAP, did = DialogueID,
-			tco = TCO, sup = Sup, cco = CCO}}.
+	{ok, idle, #state{tco = TCO, usap = TCU}}.
 
 %% reference: Figure A.5/Q.774 (sheet 1 of 11)
 %%% TC-UNI request from TCU
@@ -872,24 +866,16 @@ handle_sync_event(_Event, _From, StateName, StateData)  ->
 	{next_state, StateName, StateData}.
 
 %% handle a shutdown request
-terminate(_Reason, _StateName, State) when State#state.sup == undefined ->
-	%% we were started by TSM, no worries	
-	ets:delete(tcap_dha, State#state.did),
-	ok;
 terminate(_Reason, _StateName, State) ->
-	%% signal TCO so he can reap the ChildSpec of our supervisor
-	ets:delete(tcap_dha, State#state.did),
-	gen_server:cast(State#state.tco, {'dha-stopped', State#state.sup}).
+	ets:delete(tcap_dha, State#state.did).
 
 %% handle updating state data due to a code replacement
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 
-
 % front-end function called by tcap_user to get CCO for given DHA
 get_cco_pid(DHA) ->
 	gen_fsm:sync_send_all_state_event(DHA, get_cco_pid).
-
 
 % Wrap encoded DialoguePortion in EXTERNAL ASN.1 data type
 dialogue_ext(undefined) ->

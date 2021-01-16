@@ -55,7 +55,12 @@
 -include("TR.hrl").
 -include("TC.hrl").
 
--record(state, {supervisor, usap, dialogueID, components, dha, ism}).
+-record(state,
+		{usap :: pid(),
+		dialogueID :: 0..4294967295,
+		components = [],
+		dha :: pid(),
+		ism = []}).
 
 -record(component, {asn_ber, user_prim}).
 
@@ -64,11 +69,9 @@
 %%----------------------------------------------------------------------
 
 %% initialize the server
-init([Supervisor, USAP, DialogueID]) ->
+init([_TCO, TCU]) ->
 	process_flag(trap_exit, true),
-	DHA = list_to_atom("tcap_dha_" ++ integer_to_list(DialogueID)),
-	{ok, #state{supervisor = Supervisor, usap = USAP, dha = DHA,
-		    dialogueID = DialogueID, components = [], ism = []}}.
+	{ok, #state{usap = TCU}}.
 
 %% set the DHA pid
 handle_call(set_dha, From, State) ->
