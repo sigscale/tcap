@@ -285,9 +285,7 @@ init([Module, [Sup | Args]])
 		{stop, Reason} ->
 			{stop, Reason};
 		ignore ->
-			ignore;
-		Other ->
-			Other
+			ignore
 	end.
 
 -spec handle_call(Request, From, State) -> Result
@@ -323,9 +321,7 @@ handle_call(Request, From, State) ->
 		{stop, Reason, Reply, ExtState} ->
 			{stop, Reason, Reply, State#state{ext_state = ExtState}};
 		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}};
-		Other ->
-			Other
+			{stop, Reason, State#state{ext_state = ExtState}}
 	end.
 
 -spec handle_cast(Request, State) -> Result
@@ -402,8 +398,8 @@ handle_cast({'N', 'UNITDATA', indication,
 					{error, _Reason} ->
 						error_logger:error_report(["Unable to find TSM that was just started"])
 					end;
-				Other ->
-					error_logger:error_report(["Unable to start TSM", {childspec, ChildSpec}, {error, Other}]),
+				{error, Reason} ->
+					error_logger:error_report(["Unable to start TSM", {childspec, ChildSpec}, {error, Reason}]),
 					% TID = no TID
 					% Build ABORT message (P-Abort Cause = Resource Limitation)
 					Abort = {abort, #'Abort'{dtid = encode_tid(TPDU#'Begin'.otid),
@@ -645,9 +641,7 @@ handle_cast(Request, State) ->
 		{primitive, Primitive, ExtState} ->
 			handle_cast(Primitive, State#state{ext_state = ExtState});
 		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}};
-		Other ->
-			Other
+			{stop, Reason, State#state{ext_state = ExtState}}
 	end.
 
 -spec handle_continue(Info, State) -> Result

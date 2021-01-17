@@ -177,9 +177,7 @@ init([Sup, Module, Args]) when is_list(Args) ->
 		{stop, Reason} ->
 			{stop, Reason};
 		ignore ->
-			ignore;
-		Other ->
-			Other
+			ignore
 	end.
 
 
@@ -216,9 +214,7 @@ handle_call(Request, From, State) ->
 		{stop, Reason, Reply, ExtState} ->
 			{stop, Reason, Reply, State#state{ext_state = ExtState}};
 		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}};
-		Other ->
-			Other
+			{stop, Reason, State#state{ext_state = ExtState}}
 	end.
 
 -spec handle_cast(Request, State) -> Result
@@ -294,7 +290,7 @@ handle_cast({'N', 'UNITDATA', indication, UdataParms}, State)
 							TsmParms = UdataParms#'N-UNITDATA'{userData = Begin},
 							%% BEGIN received TSM <- TCO
 							gen_fsm:send_event(TSM, {'BEGIN', received, TsmParms});
-						_Other ->
+						{error, Reason} ->
 							%% TID = no TID
 							%% Build ABORT message (P-Abort Cause = Resource Limitation)
 							Abort = {abort, #'Abort'{dtid = TPDU#'Begin'.otid,
@@ -307,7 +303,8 @@ handle_cast({'N', 'UNITDATA', indication, UdataParms}, State)
 							%% TR-UNI request TSL -> SCCP
 							gen_fsm:send_event(State#state.nsap, {'N', 'UNITDATA', request, SccpParms}),
 							error_logger:error_report(["Unable to create TSM for received N-BEGIN",
-									{nsap, State#state.nsap}, {caller, UdataParms#'N-UNITDATA'.callingAddress},
+									{error, Reason}, {nsap, State#state.nsap},
+									{caller, UdataParms#'N-UNITDATA'.callingAddress},
 									{called, UdataParms#'N-UNITDATA'.calledAddress}])
 					end,
 					{noreply, State};
@@ -532,9 +529,7 @@ handle_cast(Request, State) ->
 		{primitive, Primitive, ExtState} ->
 			handle_cast(Primitive, State#state{ext_state = ExtState});
 		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}};
-		Other ->
-			Other
+			{stop, Reason, State#state{ext_state = ExtState}}
 	end.
 
 -spec handle_info(Info, State) -> Result
