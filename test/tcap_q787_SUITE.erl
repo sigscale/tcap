@@ -29,7 +29,8 @@
 -export([groups/0, group/1]).
 %% common_test test cases
 -export([receive_unidirectional/0, receive_unidirectional/1,
-		send_unidirectional/0, send_unidirectional/1]).
+		send_unidirectional/0, send_unidirectional/1,
+		send_begin/0, send_begin/1]).
 
 -include("tcap.hrl").
 -include("sccp_primitive.hrl").
@@ -121,7 +122,7 @@ group(csl) ->
 %% @doc Define test case groups.
 %%
 groups() ->
-	TslCases = [send_unidirectional, receive_unidirectional],
+	TslCases = [send_unidirectional, receive_unidirectional, send_begin],
 	CslCases = [],
 	[{tsl, [], TslCases}, {csl, [], CslCases}].
 
@@ -213,6 +214,69 @@ receive_unidirectional(Config) ->
 	#'TC-UNI'{qos = {SequenceControl, ReturnOption},
 			destAddress = DestAddress, origAddress = OrigAddress,
 			componentsPresent = true} = TcUniParams.
+
+send_begin() ->
+	[{userdata,
+			[{number, "1.1.2.1.1 1)"},
+			{reference, "3.3.3.2.1/Q.774 and 3.3.3.2.3/Q.774"},
+			{title, "Valid function; Structured dialogue"},
+			{subtitle, "Clearing before subsequent Message; Valid clearing "
+					"from initiating side; Prearranged ending"},
+			{purpose, "To verify that signalling point A is able to correctly "
+					"send a Begin message and then terminate the transaction "
+					"locally by the \"prearranged end\" method"},
+			{conditions, "SP A (TSL) and SP B (TSL) are to be in the idle state."},
+			{description,
+					"1. Send a Begin message from SP A to SP B.\n"
+					"2. Before a reply is received from SP B, arrange for a "
+						"TR-END request primitive (prearranged) to be passed to "
+						"the TSL at SP A.\n"
+					"3. Check A: Was the begin message correctly sent from SP A?\n"
+					"4. Check B: Verify that an end message was not sent by SP A.\n"
+					"5. Check C: Were tsl state machines associated with this "
+						"transaction left in the idle state at SP A?\n"}]}].
+
+send_begin(Config) ->
+	TSL = ?config(tco_pid, Config),
+	TID = tcap_tco_server:new_tid(),
+	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
+			linkedId = asn1_NOVALUE,
+			opcode = {local, 1},
+			argument = asn1_NOVALUE}},
+	{ok, ComponentPortion} = 'TC':encode('Components', [Invoke]),
+	UserData = #'TR-user-data'{dialoguePortion = asn1_NOVALUE,
+			componentPortion = ComponentPortion},
+	SequenceControl = false,
+	ReturnOption = false,
+	CalledParty = #party_address{pc = 6210, ssn = 146, ri = true},
+	CallingParty = #party_address{pc = 6202, ssn = 146, ri = true},
+	DestAddress = sccp_codec:party_address(CalledParty),
+	OrigAddress = sccp_codec:party_address(CallingParty),
+	TrBeginParms = #'TR-BEGIN'{transactionID = TID,
+			qos = {SequenceControl, ReturnOption},
+			destAddress = DestAddress, origAddress = OrigAddress,
+			userData = UserData},
+	gen_server:cast(TSL, {'TR', 'BEGIN', request, TrBeginParms}),
+	SccpParams = receive
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UnitData} ->
+			UnitData
+	end,
+	#'N-UNITDATA'{calledAddress = DestAddress,
+			callingAddress = OrigAddress,
+			sequenceControl = SequenceControl,
+			returnOption = ReturnOption,
+			userData = _} = SccpParams,
+	TrEndParms = #'TR-END'{transactionID = TID,
+			qos = {SequenceControl, ReturnOption},
+			termination = prearranged},
+	gen_server:cast(TSL, {'TR', 'END', request, TrEndParms}),
+	receive
+		{'N', 'UNITDATA', request, _} ->
+			ct:fail(end_sent)
+	after
+		1000 ->
+			ok
+	end.
 
 %%---------------------------------------------------------------------
 %%  Internal functions
