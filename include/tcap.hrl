@@ -88,7 +88,7 @@
 		appContextName :: tuple(),
 		componentsPresent :: boolean(),
 		userInfo,
-		termination}).
+		termination :: prearranged | basic | abort}).
 
 %% reference: Table 8/Q.771 - TC-U-ABORT primitives
 -record('TC-U-ABORT',
@@ -221,7 +221,7 @@
 -record('TR-END',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
 		transactionID :: 0..4294967295,
-		termination,
+		termination :: prearranged | basic | abort,
 		userData :: #'TR-user-data'{}}).
 
 %% reference: Table 23/Q.771 - TR-U-ABORT primitives
