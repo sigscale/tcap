@@ -176,10 +176,9 @@
 -record(state,
 		{tsl_sup:: pid(),
 		tsm_sup :: pid(),
-		tsm :: map(),
+		tsm  = #{} :: map(),
 		module :: atom(),
-		ext_state :: any(),
-		usap :: pid()}).
+		ext_state :: any()}).
 -type state() :: #state{}.
 
 -type tid() :: 0..4294967295.
@@ -303,12 +302,16 @@ init([Module, [Sup | Args]])
 				| {stop, Reason :: term(), NewState :: state()}.
 %% @see //stdlib/gen_server:handle_call/3
 %% @private
-handle_call(dialogueID = _Request, _From, State) ->
-	{reply, new_tid(), State};
-handle_call(set_usap, {From, _Tag}, State) ->
-	{reply, ok, State#state{usap = From}};
-handle_call(stop, _From, State) ->
-	{stop, shutdown, ok, State};
+handle_call({'TR', 'BEGIN', request,
+		#'TR-BEGIN'{transactionID = TransactionID} = BeginParams},
+		{DHA, _} = _From, #state{tsm_sup = Sup, tsm = Map} = State) ->
+	case supervisor:start_child(Sup, [[self(), DHA, TransactionID], []]) of
+		{ok, TSM} ->
+			gen_fsm:send_event(TSM, {'BEGIN', transaction, BeginParams}),
+			{reply, ok, State#state{tsm = Map#{TransactionID => TSM}}};
+		{error, Reason} ->
+			{stop, {error, Reason}, Reason, State}
+	end;
 handle_call(Request, From, State) ->
 	Module = State#state.module,
 	case Module:handle_call(Request, From, State#state.ext_state) of
@@ -379,7 +382,7 @@ handle_cast({'N', 'UNITDATA', indication,
 					NewState = State#state{ext_state = ExtState2},
 					% Assign local transaction ID
 					TransactionID = new_tid(),
-					ChildSpec = [self(), DHA, TransactionID],
+					ChildSpec = [[self(), DHA, TransactionID], []],
 					% Is TID = no TID?
 					case supervisor:start_child(TsmSup, ChildSpec) of
 						{ok, TSM} ->
@@ -553,16 +556,6 @@ handle_cast({'TR', 'UNI', request,
 					{components, ComponentPortion}]),
 			{noreply, State}
 	end;
-handle_cast({'TR', 'BEGIN', request,
-		#'TR-BEGIN'{transactionID = TransactionID} = BeginParams},
-		#state{tsm_sup = Sup, tsm = Map} = State) ->
-	case supervisor:start_child(Sup, [self(), TransactionID]) of
-		{ok, TSM} ->
-			gen_fsm:send_event(TSM, {'BEGIN', transaction, BeginParams}),
-			{noreply, State#state{tsm = Map#{TransactionID => TSM}}};
-		{error, Reason} ->
-			{shutdown, Reason, State}
-	end;
 handle_cast({'TR', 'CONTINUE', request,
 		#'TR-CONTINUE'{transactionID = TransactionID} = ContParams},
 		#state{tsm = Map} = State) ->
@@ -596,6 +589,10 @@ handle_cast({'TR', 'U-ABORT', request,
 			% @todo: Handle unknown TID
 			{noreply, State}
 	end;
+handle_cast({'N', 'UNITDATA', request, _} = Primitive,
+		#state{module = Module, ext_state = ExtState} = State) ->
+	Module:send_primitive(Primitive, ExtState),
+	{noreply, State};
 handle_cast(Request, State) ->
 	Module = State#state.module,
 	case Module:handle_cast(Request, State#state.ext_state) of

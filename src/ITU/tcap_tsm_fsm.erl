@@ -88,8 +88,8 @@ init([TCO, DHA, TID]) ->
 
 %% started by remote
 %% reference: Figure A.4/Q.774 (sheet 1 of 5)
-idle({'BEGIN', received, SccpParms}, State)
-		when is_record(SccpParms, 'N-UNITDATA') ->
+idle({'BEGIN', received,
+		#'N-UNITDATA'{} = SccpParms}, State) ->
 	%% Store remote address and remote TID
 	NewState = State#state{remote_address = SccpParms#'N-UNITDATA'.callingAddress,
 			       local_address = SccpParms#'N-UNITDATA'.calledAddress,

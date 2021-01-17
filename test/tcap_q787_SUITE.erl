@@ -256,7 +256,7 @@ send_begin(Config) ->
 			qos = {SequenceControl, ReturnOption},
 			destAddress = DestAddress, origAddress = OrigAddress,
 			userData = UserData},
-	gen_server:cast(TSL, {'TR', 'BEGIN', request, TrBeginParms}),
+	ok = gen_server:call(TSL, {'TR', 'BEGIN', request, TrBeginParms}),
 	SccpParams = receive
 		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UnitData} ->
 			UnitData

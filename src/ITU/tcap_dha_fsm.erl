@@ -59,8 +59,6 @@
 		wait_cont_components_active/2, wait_for_end_components/2,
 		initiation_sent/2, active/2]).
 
--export([get_cco_pid/1]).
-
 %% record definitions for TR-User primitives
 -include("tcap.hrl").
 %% record definitions for N-User primitives
@@ -708,12 +706,15 @@ wait_for_begin_components({'requested-components', Components}, State) ->
 	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
 	TrParms = (State#state.parms)#'TR-BEGIN'{userData = NewUserData},
 	wait_for_begin_components1(State#state{parms = TrParms}).
-wait_for_begin_components1(State) ->
+wait_for_begin_components1(#state{tco = TCO, parms = TrParms} = State) ->
 	%% We don't Assign local transaction ID, as we simply re-use the DialougeID!
-	TrParms = State#state.parms,
 	%% TR-BEGIN request to TSL
-	gen_server:cast(State#state.tco, {'TR', 'BEGIN', request, TrParms}),
-	{next_state, initiation_sent, State#state{parms = TrParms}}.
+	case gen_server:call(TCO, {'TR', 'BEGIN', request, TrParms}) of
+		ok ->
+			{next_state, initiation_sent, State};
+		{error, Reason} ->
+			{stop, Reason, State}
+	end.
 	
 %% reference: Figure A.5 bis/Q.774
 %% reference: Figure A.5/Q.774 (sheet 5 of 11)
@@ -848,34 +849,24 @@ extract_dialogue_portion(UserData, _AppContextName, _Any) when is_record(UserDat
 			abort	%% Dialogue portion correct? (no)
 	end.
 
-
 %% handle any other message
-handle_info(Info, StateName, State) ->
-	error_logger:format("dialogue_fsm (~w) received unexpected message: ~w~n", [Info]),
-	{next_state, StateName, State}.
+handle_info(Info, _StateName, State) ->
+	{stop, Info, State}.
 
 %% handle an event sent using gen:fsm_send_all_state_event/2
-handle_event(_Event, StateName, StateData) ->
-	{next_state, StateName, StateData}.
+handle_event(Event, _StateName, StateData) ->
+	{stop, Event, StateData}.
 
-%% handle an event sent using gen_fsm:sync_send_all_state_event/2,3
-handle_sync_event(get_cco_pid, From, StateName, StateData)  ->
-	CCO = StateData#state.cco,
-	{reply, CCO, StateName, StateData};
-handle_sync_event(_Event, _From, StateName, StateData)  ->
-	{next_state, StateName, StateData}.
+handle_sync_event(Event, _From, _StateName, StateData)  ->
+	{stop, Event, StateData}.
 
 %% handle a shutdown request
-terminate(_Reason, _StateName, State) ->
-	ets:delete(tcap_dha, State#state.did).
+terminate(_Reason, _StateName, _State) ->
+	ok.
 
 %% handle updating state data due to a code replacement
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
-
-% front-end function called by tcap_user to get CCO for given DHA
-get_cco_pid(DHA) ->
-	gen_fsm:sync_send_all_state_event(DHA, get_cco_pid).
 
 % Wrap encoded DialoguePortion in EXTERNAL ASN.1 data type
 dialogue_ext(undefined) ->
