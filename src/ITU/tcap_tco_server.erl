@@ -174,7 +174,9 @@
 -include("sccp_primitive.hrl").
 
 -record(state,
-		{sup:: pid(),
+		{tsl_sup:: pid(),
+		tsm_sup :: pid(),
+		tsm :: map(),
 		module :: atom(),
 		ext_state :: any(),
 		usap :: pid()}).
@@ -277,11 +279,11 @@ init([Module, [Sup | Args]])
 	process_flag(trap_exit, true),
 	case Module:init(Args) of
 		{ok, ExtState} ->
-			NewState = #state{sup = Sup, module = Module, ext_state = ExtState},
-			{ok, NewState};
+			NewState = #state{tsl_sup = Sup, module = Module, ext_state = ExtState},
+			{ok, NewState, {continue, {?MODULE, infinity}}};
 		{ok, ExtState, Timeout} ->
-			NewState = #state{sup = Sup, module = Module, ext_state = ExtState},
-			{ok, NewState, Timeout};
+			NewState = #state{tsl_sup = Sup, module = Module, ext_state = ExtState},
+			{ok, NewState, {continue, {?MODULE, Timeout}}};
 		{stop, Reason} ->
 			{stop, Reason};
 		ignore ->
@@ -348,183 +350,140 @@ handle_call(Request, From, State) ->
 %
 % reference: Figure A.3/Q.774 (sheet 1 of 4)
 handle_cast({'N', 'UNITDATA', indication,
-		#'N-UNITDATA'{userData = UserData1} = UdataParams},
-		#state{module = Module, ext_state = ExtState1} = State) ->
-	{ok, {Tag, ActRes}} = 'TR':decode('TCMessage', UserData1),
-%					{error, Reason} ->
-%					% Discard received message
-%					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
-%					error_logger:error_report(["Syntax error in received N-UNI", {error, Reason},
-%							{caller, UdataParams#'N-UNITDATA'.callingAddress},
-%							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
-%					{noreply, State}
-%			end;
-	PpRes = {Tag, postproc_tcmessage(ActRes)},
-	case PpRes of
-		{unidirectional, #'Unidirectional'{dialoguePortion = DialoguePortion,
-				components = ComponentPortion}} ->
+		#'N-UNITDATA'{userData = UserData1, calledAddress = CalledAddress,
+		callingAddress = CallingAddress, sequenceControl = SequenceControl,
+		returnOption = ReturnOption} = UdataParams},
+		#state{module = Module, ext_state = ExtState1,
+		tsm_sup = TsmSup, tsm = Map} = State) ->
+	case 'TR':decode('TCMessage', UserData1) of
+		{ok, {unidirectional, #'Unidirectional'{dialoguePortion = DialoguePortion,
+				components = ComponentPortion}}} ->
 			case Module:start_aei(DialoguePortion, ExtState1) of
 				{ok, DHA, _CCO, _TCU, ExtState2}  ->
 					% TR-UNI indication CSL <- TSL
 					UserData2 = #'TR-user-data'{dialoguePortion = DialoguePortion,
 							componentPortion = ComponentPortion},
-					TrParams = #'TR-UNI'{qos = {UdataParams#'N-UNITDATA'.sequenceControl,
-							UdataParams#'N-UNITDATA'.returnOption},
-							destAddress = UdataParams#'N-UNITDATA'.calledAddress,
-							origAddress = UdataParams#'N-UNITDATA'.callingAddress,
+					TrParams = #'TR-UNI'{qos = {SequenceControl, ReturnOption},
+							destAddress = CalledAddress, origAddress = CallingAddress,
 							userData = UserData2},
 					gen_fsm:send_event(DHA, {'TR', 'UNI', indication, TrParams}),
 					{noreply, State#state{ext_state = ExtState2}};
 				{error, _Reason} ->
+%% @todo Handle error starting AEI.
 					{noreply, State}
 			end;
-		{'begin', TPDU = #'Begin'{}} ->
-			% Assign local transaction ID
-			TransactionID = new_tid(),
-			ChildSpec = [],
-			% Is TID = no TID?
-			% Note:  The assignment of the ID above just gets the next available
-			%        value and doesn't ensure that it is not in use (unlikely)
-			%        or that there are enough resources available.  The real
-			%        test is in whether the start succeeds.
-			case supervisor:start_child(State#state.sup, ChildSpec) of
-				{ok, _TransSupPid} ->
-					% Created a Transaction State Machine (TSM)
-					case ets:lookup_element(tcap_transaction, TransactionID, 2) of
-					TSM when is_integer(TSM) ->
-						TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
-						% BEGIN received TSM <- TCO
-						gen_fsm:send_event(TSM, {'BEGIN', received, TsmParams});
-					{error, _Reason} ->
-						error_logger:error_report(["Unable to find TSM that was just started"])
+		{ok, {'begin', #'Begin'{dialoguePortion = DialoguePortion,
+				otid = Otid} = Begin1}} ->
+			case Module:start_aei(DialoguePortion, ExtState1) of
+				{ok, DHA, _CCO, _TCU, ExtState2}  ->
+					NewState = State#state{ext_state = ExtState2},
+					% Assign local transaction ID
+					TransactionID = new_tid(),
+					ChildSpec = [self(), DHA, TransactionID],
+					% Is TID = no TID?
+					case supervisor:start_child(TsmSup, ChildSpec) of
+						{ok, TSM} ->
+							Begin2 = Begin1#'Begin'{otid = decode_tid(Otid)},
+							TsmParams = UdataParams#'N-UNITDATA'{userData = Begin2},
+							gen_fsm:send_event(TSM, {'BEGIN', received, TsmParams}),
+							{noreply, NewState#state{tsm = Map#{TransactionID => TSM}}};
+						{error, Reason} ->
+							% TID = no TID
+							Abort = {abort, #'Abort'{dtid = encode_tid(Otid),
+									reason = {'p-abortCause', resourceLimitation}}},
+							{ok, EncAbort} = 'TR':encode('TCMessage', Abort),
+							SccpParams = #'N-UNITDATA'{calledAddress = CallingAddress,
+									callingAddress = CalledAddress, sequenceControl = false,
+									returnOption = false, userData = list_to_binary(EncAbort)},
+							Primitive = {'N', 'UNITDATA', request, SccpParams},
+							Module:send_primitive(Primitive, ExtState1),
+							{stop, Reason, NewState}
 					end;
 				{error, Reason} ->
-					error_logger:error_report(["Unable to start TSM", {childspec, ChildSpec}, {error, Reason}]),
 					% TID = no TID
-					% Build ABORT message (P-Abort Cause = Resource Limitation)
-					Abort = {abort, #'Abort'{dtid = encode_tid(TPDU#'Begin'.otid),
+					Abort = {abort, #'Abort'{dtid = encode_tid(Otid),
 							reason = {'p-abortCause', resourceLimitation}}},
-					case 'TR':encode('TCMessage', Abort) of
-					{ok, EncAbort} ->
-						SccpParams = #'N-UNITDATA'{calledAddress = UdataParams#'N-UNITDATA'.callingAddress,
-								callingAddress = UdataParams#'N-UNITDATA'.calledAddress,
-								sequenceControl = false,
-								returnOption = false,
-								userData = list_to_binary(EncAbort)},
-						% TR-UNI request TSL -> SCCP
-						Module = State#state.module,
-						Module:send_primitive({'N', 'UNITDATA', request, SccpParams}, State#state.ext_state);
-					{error, Err} ->
-						error_logger:error_report(["Error generating ASN1", {abort, Abort}, {error, Err}])
-					end,
-					error_logger:error_report(["Unable to create TSM for received N-BEGIN",
-							{caller, UdataParams#'N-UNITDATA'.callingAddress},
-							{called, UdataParams#'N-UNITDATA'.calledAddress}])
-			end,
+					{ok, EncAbort} = 'TR':encode('TCMessage', Abort),
+					SccpParams = #'N-UNITDATA'{calledAddress = CallingAddress,
+							callingAddress = CalledAddress, sequenceControl = false,
+							returnOption = false, userData = list_to_binary(EncAbort)},
+					Primitive = {'N', 'UNITDATA', request, SccpParams},
+					Module:send_primitive(Primitive, ExtState1),
+					{stop, Reason, State}
+			end;
+		{ok, {'begin', _TPDU}} ->
+			% is OTID derivable?
+			%    Build ABORT message with appropraite P-Abort Cause value
+			%    N-UNITDATA request TSL -> SCCP
+			% Discard received message
+			% reference: Figure A.3/Q/774 (sheet 4 of 4) label (4)
 			{noreply, State};
-%				{error, Reason} ->
-% TODO
-%					% is OTID derivable?
-%					%    Build ABORT message with appropraite P-Abort Cause value
-%					%    N-UNITDATA request TSL -> SCCP
-%					% Discard received message
-%					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (4)
-%					error_logger:error_report(["Syntax error in received N-BEGIN", {error, Reason},
-%									{caller, UdataParams#'N-UNITDATA'.callingAddress},
-%									{called, UdataParams#'N-UNITDATA'.calledAddress}]),
-%					{noreply, State}
-		{continue, TPDU = #'Continue'{dtid = Dtid}} ->
+		{ok, {continue, #'Continue'{otid = Otid, dtid = Dtid} = Continue1}} ->
 			% DTID assigned?
-			case ets:lookup_element(tcap_transaction, Dtid, 2) of
-				{error, _Reason}  ->
-					error_logger:error_report(["DTID not found in received N-CONTINUE",
-								{dtid, Dtid},
-								{caller, UdataParams#'N-UNITDATA'.callingAddress},
-								{called, UdataParams#'N-UNITDATA'.calledAddress}]),
-% TODO
+			case maps:find(Dtid, Map) of
+				{ok, TSM} ->
+					Continue2 = Continue1#'Continue'{otid = decode_tid(Otid),
+							dtid = decode_tid(Dtid)},
+					TsmParams = UdataParams#'N-UNITDATA'{userData = Continue2},
+					gen_fsm:send_event(TSM, {'CONTINUE', received, TsmParams}),
+					{noreply, State};
+				error ->
+% TODO Handle Continue with unknown transaction ID.
 					% Build ABORT message with appropriate P-Abort Cause values
 					% N-UNITDATA request TSL -> SCCP
 					% Discard received message
 					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (4)
-					{noreply, State};
-				TSM ->
-					TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
-					% CONTINUE received TSM <- TCO
-					gen_fsm:send_event(TSM, {'CONTINUE', received, TsmParams}),
 					{noreply, State}
 			end;
-%				{error, Reason} ->
-% TODO
-					% OTID derivable?
-					% DTID assigned?
-					% Build ABORT message with appropraite P-Abort Cause value
-					% N-UNITDATA request TSL -> SCCP
-					% Local Abort TSM <- TCO
-					% Discard received message
-					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (2)
-%					error_logger:error_report(["Syntax error in received N-CONTINUE", {error, Reason},
-%							{caller, UdataParams#'N-UNITDATA'.callingAddress},
-%							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
-%					{noreply, State}
-%			end;
-		{'end', TPDU = #'End'{dtid = Dtid}} ->
+		{ok, {continue, _TPDU}} ->
+			% OTID derivable?
 			% DTID assigned?
-			case ets:lookup_element(tcap_transaction, Dtid, 2) of
-				{error, _Reason}  ->
-					error_logger:error_report(["DTID not found in received N-END",
-								{dtid, Dtid},
-								{caller, UdataParams#'N-UNITDATA'.callingAddress},
-								{called, UdataParams#'N-UNITDATA'.calledAddress}]),
-					% Discard received message
-					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
-					{noreply, State};
-				TSM ->
-					TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
+			% Build ABORT message with appropraite P-Abort Cause value
+			% N-UNITDATA request TSL -> SCCP
+			% Local Abort TSM <- TCO
+			% Discard received message
+			% reference: Figure A.3/Q/774 (sheet 4 of 4) label (2)
+			{noreply, State};
+		{ok, {'end', #'End'{dtid = Dtid} = End1}} ->
+			% DTID assigned?
+			case maps:find(Dtid, Map) of
+				{ok, TSM} ->
+					End2 = End1#'End'{dtid = decode_tid(Dtid)},
+					TsmParams = UdataParams#'N-UNITDATA'{userData = End2},
 					% END received TSM <- TCO
 					gen_fsm:send_event(TSM, {'END', received, TsmParams}),
-					{noreply, State}
-			end;
-%				{error, Reason} ->
-% TODO
-%					% DTID assigned?
-%					%    Local Abort TSM <- TCO
-%					% Discard received message
-%					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (5)
-%					error_logger:error_report(["Syntax error in received N-END", {error, Reason},
-%							{caller, UdataParams#'N-UNITDATA'.callingAddress},
-%							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
-%					{noreply, State}
-%			end;
-		{abort, TPDU = #'Abort'{}} ->
-			% DTID assigned?
-			case catch ets:lookup(tcap_transaction, TPDU#'Abort'.dtid, 2) of
-				{error, _Reason} ->
-					error_logger:error_report(["DTID not found in received N-ABORT",
-							{dtid, TPDU#'Abort'.dtid},
-							{caller, UdataParams#'N-UNITDATA'.callingAddress},
-							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
+					{noreply, State};
+				error ->
 					% Discard received message
 					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
-					{noreply, State};
-				TSM ->
+					{noreply, State}
+			end;
+		{ok, {'end', _TPDU}} ->
+			% DTID assigned?
+			%    Local Abort TSM <- TCO
+			% Discard received message
+			% reference: Figure A.3/Q/774 (sheet 4 of 4) label (5)
+			{noreply, State};
+		{ok, {abort, #'Abort'{dtid = Dtid} = TPDU}} ->
+			% DTID assigned?
+			case maps:find(Dtid, Map) of
+				{ok, TSM} ->
 					TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
 					% Abort received TSM <- TCO
 					gen_fsm:send_event(TSM, {'ABORT', received, TsmParams}),
+					{noreply, State};
+				error ->
+					% Discard received message
+					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
 					{noreply, State}
 			end;
-%					{error, Reason} ->
-% TODO
-%					% DTID assigned?
-%					%    Local Abort TSM <- TCO
-%					% Discard received message
-%					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (5)
-%					error_logger:error_report(["Syntax error in received N-ABORT", {error, Reason},
-%							{caller, UdataParams#'N-UNITDATA'.callingAddress},
-%							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
-%					{noreply, State}
-%			end;
-		{error, Reason} ->
-% TODO
+		{ok, {abort, _TPDU}} ->
+			% DTID assigned?
+			%    Local Abort TSM <- TCO
+			% Discard received message
+			% reference: Figure A.3/Q/774 (sheet 4 of 4) label (5)
+			{noreply, State};
+		{ok, {_Tag, _TPDU}} ->
 			% Message type unknown
 			% OTID derivable?
 			% DTID assigned?
@@ -533,104 +492,110 @@ handle_cast({'N', 'UNITDATA', indication,
 			% Local Abort TSM <- TCO
 			% Discard received message
 			% reference: Figure A.3/Q/774 (sheet 4 of 4) label (2)
-			error_logger:error_report(["Unknown TCMessage received", {error, Reason},
-							{caller, UdataParams#'N-UNITDATA'.callingAddress},
-							{called, UdataParams#'N-UNITDATA'.calledAddress}]),
+			{noreply, State};
+		{error, _Reason} ->
+			% Discard received message
+			% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
 			{noreply, State}
 	end;
-handle_cast({'N', 'NOTICE', indication, NoticeParams}, State) ->
-	% Extract the originating transactionID
-	case 'TR':decode('TCMessage', NoticeParams#'N-NOTICE'.userData) of
+handle_cast({'N', 'NOTICE', indication,
+		#'N-NOTICE'{userData = UserData, callingAddress = CallingAddress,
+		calledAddress = CalledAddress, reason = Reason} = _NoticeParams},
+		State) ->
+	TransactionID  = case 'TR':decode('TCMessage', UserData) of
 		{ok, {'begin', TPDU}} ->
 			case 'TR':decode('Begin', TPDU) of
-				{ok, Begin} ->
-					TransactionID = Begin#'Begin'.otid;
+				{ok, #'Begin'{otid = TID} = _Begin} ->
+					TID;
 				_ ->
-					TransactionID = undefined
+					undefined
 			end;
 		{ok, {continue, TPDU}} ->
 			case 'TR':decode('Continue', TPDU) of
-				{ok, Continue} ->
-					TransactionID = Continue#'Continue'.otid;
+				{ok, #'Continue'{otid = TID} = _Continue} ->
+					TID;
 				_ ->
-					TransactionID = undefined
+					undefined
 			end;
 		_ ->
-			TransactionID = undefined
+			undefined
 	end,
 	% TR-NOTICE indication CSL <- TSL
 	% reference: Figure A.3/Q.774 (sheet 2 of 4)
-	% The CSL is a null layer for this indication so it becomes
-	% TC-NOTICE indication TCU <- TSL
-	% reference: Figure A.5/Q.774 (sheet 7 of 11)
-	% reference: Figure A.3/Q.774 (sheet 10 of 11)
-	TcParams = #'TC-NOTICE'{
-			dialogueID = TransactionID,
-			origAddress = NoticeParams#'N-NOTICE'.callingAddress,
-			destAddress = NoticeParams#'N-NOTICE'.calledAddress,
-			reportCause = NoticeParams#'N-NOTICE'.reason},
-	% TODO:  fixme!!! gen_fsm:send_event(State#state.usap, {'TC', 'NOTICE', indication, TcParams}),
+	TrParams = #'TR-NOTICE'{transactionID = TransactionID,
+			origAddress = CallingAddress, destAddress = CalledAddress,
+			reportCause = Reason},
+	% gen_fsm:send_event(DHA, {'TR', 'NOTICE', indication, TcParams}),
 	{noreply, State};
 %%
 %% service primitive requests from the TR-User
 %% reference: Figure A.3/Q.774 (sheets 2&3 of 4)
-handle_cast({'TR', 'UNI', request, UniParams}, State) 
-		when is_record(UniParams, 'TR-UNI') ->
-	% Assemble TR-portion of UNI message
-	{SequenceControl, ReturnOption} = UniParams#'TR-UNI'.qos,
-	DialoguePortion = (UniParams#'TR-UNI'.userData)#'TR-user-data'.dialoguePortion,
-	ComponentPortion = (UniParams#'TR-UNI'.userData)#'TR-user-data'.componentPortion,
-	case 'TR':encode('TCMessage', {unidirectional, #'Unidirectional'{
-			 dialoguePortion = DialoguePortion, components = ComponentPortion}}) of
+handle_cast({'TR', 'UNI', request,
+		#'TR-UNI'{qos = QoS, destAddress = DestAddress,
+		origAddress = OrigAddress, userData = UserData} = _UniParams},
+		#state{module = Module, ext_state = ExtState} = State) ->
+	{SequenceControl, ReturnOption} = QoS,
+	DialoguePortion = UserData#'TR-user-data'.dialoguePortion,
+	ComponentPortion = UserData#'TR-user-data'.componentPortion,
+	case 'TR':encode('TCMessage',
+			{unidirectional, #'Unidirectional'{dialoguePortion = DialoguePortion,
+			components = ComponentPortion}}) of
 		{ok, TPDU} ->
-			TpduBin = iolist_to_binary(TPDU),
-			SccpParams = #'N-UNITDATA'{calledAddress = UniParams#'TR-UNI'.destAddress,
-					callingAddress =  UniParams#'TR-UNI'.origAddress,
-					sequenceControl = SequenceControl, returnOption = ReturnOption,
-					userData = TpduBin},
-			Module = State#state.module,
-			Module:send_primitive({'N', 'UNITDATA', request, SccpParams}, State#state.ext_state),
+			SccpParams = #'N-UNITDATA'{userData = iolist_to_binary(TPDU),
+					calledAddress = DestAddress, callingAddress =  OrigAddress,
+					sequenceControl = SequenceControl, returnOption = ReturnOption},
+			Module:send_primitive({'N', 'UNITDATA', request, SccpParams}, ExtState),
 			{noreply, State};
-		{error, Err} ->
-			error_logger:error_report(["Error generating ASN1", {error, Err},
+		{error, Reason} ->
+			error_logger:error_report(["Error generating ASN1",
+					{error, Reason}, {message_type, unidirectional},
 					{dialogue_portion, DialoguePortion},
 					{components, ComponentPortion}]),
 			{noreply, State}
 	end;
-handle_cast({'TR', 'BEGIN', request, BeginParams}, State)
-		when is_record(BeginParams, 'TR-BEGIN') ->
-	% Create a Transaction State Machine (TSM)
-	TransactionID = BeginParams#'TR-BEGIN'.transactionID,
-	TSM  = ets:lookup_element(tcap_transaction, TransactionID, 2),
-	gen_fsm:send_event(TSM, {'BEGIN', transaction, BeginParams}),
-	{noreply, State};
-handle_cast({'TR', 'CONTINUE', request, ContParams}, State)
-		when is_record(ContParams, 'TR-CONTINUE') ->
-	TransactionID = ContParams#'TR-CONTINUE'.transactionID,
-	TSM  = ets:lookup_element(tcap_transaction, TransactionID, 2),
-	gen_fsm:send_event(TSM, {'CONTINUE', transaction, ContParams}),
-	{noreply, State};
-handle_cast({'TR', 'END', request, EndParams}, State)
-		when is_record(EndParams, 'TR-END') ->
-	TransactionID = EndParams#'TR-END'.transactionID,
-	TSM  = ets:lookup_element(tcap_transaction, TransactionID, 2),
-	gen_fsm:send_event(TSM, {'END', transaction, EndParams}),
-	{noreply, State};
-handle_cast({'TR', 'U-ABORT', request, AbortParams}, State)
-		when is_record(AbortParams, 'TR-U-ABORT') ->
-	TransactionID = AbortParams#'TR-U-ABORT'.transactionID,
-	TSM  = ets:lookup_element(tcap_transaction, TransactionID, 2),
-	gen_fsm:send_event(TSM, {'ABORT', transaction, AbortParams}),
-	{noreply, State};
-%
-% The TSM sends us a message as it's last action so
-% we can remove the supervisor child specification
-%
-handle_cast({'tsm-stopped', SupRef}, State) ->
-	supervisor:delete_child(State#state.sup, SupRef),
-	% reference: Figure A.3/Q/774 (sheet 2 of 4)
-	{noreply, State};
-% unrecognized request
+handle_cast({'TR', 'BEGIN', request,
+		#'TR-BEGIN'{transactionID = TransactionID} = BeginParams},
+		#state{tsm_sup = Sup, tsm = Map} = State) ->
+	case supervisor:start_child(Sup, [self(), TransactionID]) of
+		{ok, TSM} ->
+			gen_fsm:send_event(TSM, {'BEGIN', transaction, BeginParams}),
+			{noreply, State#state{tsm = Map#{TransactionID => TSM}}};
+		{error, Reason} ->
+			{shutdown, Reason, State}
+	end;
+handle_cast({'TR', 'CONTINUE', request,
+		#'TR-CONTINUE'{transactionID = TransactionID} = ContParams},
+		#state{tsm = Map} = State) ->
+	case maps:find(TransactionID, Map) of
+		{ok, TSM} ->
+			gen_fsm:send_event(TSM, {'CONTINUE', transaction, ContParams}),
+			{noreply, State};
+		error ->
+			% @todo: Handle unknown TID
+			{noreply, State}
+	end;
+handle_cast({'TR', 'END', request,
+		#'TR-END'{transactionID = TransactionID} = EndParams},
+		#state{tsm = Map} = State) ->
+	case maps:find(TransactionID, Map) of
+		{ok, TSM} ->
+			gen_fsm:send_event(TSM, {'END', transaction, EndParams}),
+			{noreply, State};
+		error ->
+			% @todo: Handle unknown TID
+			{noreply, State}
+	end;
+handle_cast({'TR', 'U-ABORT', request,
+		#'TR-U-ABORT'{transactionID = TransactionID} = AbortParams},
+		#state{tsm = Map} = State) ->
+	case maps:find(TransactionID, Map) of
+		{ok, TSM} ->
+			gen_fsm:send_event(TSM, {'ABORT', transaction, AbortParams}),
+			{noreply, State};
+		error ->
+			% @todo: Handle unknown TID
+			{noreply, State}
+	end;
 handle_cast(Request, State) ->
 	Module = State#state.module,
 	case Module:handle_cast(Request, State#state.ext_state) of
@@ -652,6 +617,11 @@ handle_cast(Request, State) ->
 				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
 				| {stop, Reason :: term(), NewState :: state()}.
 %% @doc Handle continued execution.
+handle_continue({?MODULE, Timeout}, #state{tsl_sup = TslSup} = State) ->
+	Children = supervisor:which_children(TslSup),
+	{_, TsmSup, _, _} = lists:keyfind(tcap_transaction_sup, 1, Children),
+	NewState = State#state{tsm_sup = TsmSup},
+	{noreply, NewState, Timeout};
 handle_continue(Info, State) ->
 	Module = State#state.module,
 	case erlang:function_exported(Module, handle_continue, 2) of
@@ -686,9 +656,24 @@ handle_continue(Info, State) ->
 %%
 %% @@see //stdlib/gen_server:handle_info/2
 %% @private
-handle_info({'EXIT', _Pid, Reason}, State) ->
-	{stop, Reason, State};
+handle_info({'EXIT', _Pid, {shutdown, {tcap_tsm_fsm, TID}}},
+		#state{tsm = Map} = State) ->
+	{noreply, State#state{tsm = maps:remove(TID, Map)}};
+handle_info({'EXIT', _Pid, {shutdown, _}} = Info, State) ->
+	handle_info1(Info, State);
+handle_info({'EXIT', Pid, _Reason} = Info, #state{tsm = Map} = State) ->
+	F = fun F({TID, Value, _Iterator}) when Value == Pid ->
+				{noreply, State#state{tsm = maps:remove(TID, Map)}};
+			F({_, _, Iterator}) ->
+				F(maps:next(Iterator));
+			F(none) ->
+				handle_info1(Info, State)
+	end,
+	F(maps:next(maps:iterator(Map)));
 handle_info(Info, State) ->
+	handle_info1(Info, State).
+%% @hidden
+handle_info1(Info, State) ->
 	Module = State#state.module,
 	case erlang:function_exported(Module, handle_info, 2) of
 		true ->
@@ -865,14 +850,4 @@ encode_tid(In) when is_list(In) ->
 	list_to_binary(In);
 encode_tid(In) when is_binary(In) ->
 	In.
-
-%% @hidden
-postproc_tcmessage(#'Unidirectional'{} = Unidirectional) ->
-	Unidirectional;
-postproc_tcmessage(#'Continue'{otid = Otid, dtid = Dtid} = Continue) ->
-	Continue#'Continue'{otid = decode_tid(Otid), dtid = decode_tid(Dtid)};
-postproc_tcmessage(#'End'{dtid = Dtid} = End) ->
-	End#'End'{dtid = decode_tid(Dtid)};
-postproc_tcmessage(#'Begin'{otid = Otid} = Begin) ->
-	Begin#'Begin'{otid = decode_tid(Otid)}.
 
