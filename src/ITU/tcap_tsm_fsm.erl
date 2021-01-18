@@ -80,7 +80,7 @@
 init([TCO, DHA, TID]) ->
 	link(TCO),
 	process_flag(trap_exit, true),
-	{ok, idle, #state{localTID = TID, tco = TCO}}.
+	{ok, idle, #state{localTID = TID, tco = TCO, dha = DHA}}.
 
 %%%
 %%% idle state handler
@@ -89,22 +89,23 @@ init([TCO, DHA, TID]) ->
 %% started by remote
 %% reference: Figure A.4/Q.774 (sheet 1 of 5)
 idle({'BEGIN', received,
-		#'N-UNITDATA'{} = SccpParms}, State) ->
+		#'N-UNITDATA'{sequenceControl = SequenceControl,
+		returnOption = ReturnOption,
+		callingAddress = CallingAddress, calledAddress = CalledAddress,
+		userData = #'Begin'{otid = OTID, dialoguePortion = DialoguePortion,
+		components = Components}} = _SccpParms},
+		#state{localTID = LocalTID, dha = DHA} = State) ->
 	%% Store remote address and remote TID
-	NewState = State#state{remote_address = SccpParms#'N-UNITDATA'.callingAddress,
-			       local_address = SccpParms#'N-UNITDATA'.calledAddress,
-			remoteTID = (SccpParms#'N-UNITDATA'.userData)#'Begin'.otid},
-	Begin = SccpParms#'N-UNITDATA'.userData,
-	QOS = {SccpParms#'N-UNITDATA'.sequenceControl, SccpParms#'N-UNITDATA'.returnOption},
-	UserData = #'TR-user-data'{dialoguePortion = Begin#'Begin'.dialoguePortion,
-			componentPortion = Begin#'Begin'.components},
+	NewState = State#state{remote_address = CallingAddress,
+			local_address = CalledAddress, remoteTID = OTID},
+	QOS = {SequenceControl, ReturnOption},
+	UserData = #'TR-user-data'{dialoguePortion = DialoguePortion,
+			componentPortion = Components},
 	TrParms = #'TR-BEGIN'{qos = QOS,
-			destAddress = SccpParms#'N-UNITDATA'.calledAddress,
-			origAddress = SccpParms#'N-UNITDATA'.callingAddress,
-			transactionID = State#state.localTID,
-			userData = UserData},
+			destAddress = CalledAddress, origAddress = CallingAddress,
+			transactionID = LocalTID, userData = UserData},
 	%% TR-BEGIN CSL <- TSL
-	gen_fsm:send_event(resolve_dha(NewState), {'TR', 'BEGIN', indication, TrParms}),
+	gen_fsm:send_event(DHA, {'TR', 'BEGIN', indication, TrParms}),
 	{next_state, initiation_received, NewState};
 
 %% started by TR-User
@@ -205,59 +206,63 @@ initiation_received({'ABORT', transaction,
 %%% reference: Figure A.4/Q.774 (sheet 2 of 5)
 
 %% Continue from remote
-initiation_sent({'CONTINUE', received, SccpParms}, State)
-		when is_record(SccpParms, 'N-UNITDATA') ->
+initiation_sent({'CONTINUE', received,
+		#'N-UNITDATA'{callingAddress = CallingAddress,
+		sequenceControl = SequenceControl, returnOption = ReturnOption,
+		userData = #'Continue'{otid = OTID,
+		dialoguePortion = DialoguePortion,
+		components = Components}} = _SccpParms},
+		#state{localTID = LocalTID, dha = DHA} = State) ->
 	%% Store remote address and remote TID
-	Continue = SccpParms#'N-UNITDATA'.userData,
-	OTID = Continue#'Continue'.otid,
-	NewState = State#state{ remote_address
-			= SccpParms#'N-UNITDATA'.callingAddress, remoteTID = OTID},
-	QOS = {SccpParms#'N-UNITDATA'.sequenceControl,
-			SccpParms#'N-UNITDATA'.returnOption},
-	UserData = #'TR-user-data'{dialoguePortion = Continue#'Continue'.dialoguePortion,
-				   componentPortion = Continue#'Continue'.components},
+	NewState = State#state{remote_address = CallingAddress,
+			remoteTID = OTID},
+	QOS = {SequenceControl, ReturnOption},
+	UserData = #'TR-user-data'{dialoguePortion = DialoguePortion,
+				   componentPortion = Components},
 	TrParms = #'TR-CONTINUE'{qos = QOS,
-			transactionID = State#state.localTID,
+			transactionID = LocalTID,
 			userData = UserData},
-	gen_fsm:send_event(resolve_dha(NewState), {'TR', 'CONTINUE', indication, TrParms}),
+	gen_fsm:send_event(DHA, {'TR', 'CONTINUE', indication, TrParms}),
 	{next_state, active, NewState};
 
 %% End from remote
 initiation_sent({'END', received,
 		#'N-UNITDATA'{sequenceControl = SequenceControl,
-		returnOption = ReturnOption, userData = End} = _SccpParms},
-		#state{localTID = TID} = State) ->
-	UserData = #'TR-user-data'{dialoguePortion = End#'End'.dialoguePortion,
-			componentPortion = End#'End'.components},
+		returnOption = ReturnOption,
+		userData = #'End'{dialoguePortion = DialoguePortion,
+		components = Components}} = _SccpParms},
+		#state{localTID = TID, dha = DHA} = State) ->
+	UserData = #'TR-user-data'{dialoguePortion = DialoguePortion,
+			componentPortion = Components},
 	TrParms = #'TR-END'{qos = {SequenceControl, ReturnOption},
 			transactionID = TID, userData = UserData},
-	gen_fsm:send_event(resolve_dha(State), {'TR', 'END', indication, TrParms}),
+	gen_fsm:send_event(DHA, {'TR', 'END', indication, TrParms}),
 	{stop, {shutdown, TID}, State};
 
 %% Abort from remote
 initiation_sent({'ABORT', received,
 		#'N-UNITDATA'{sequenceControl = SequenceControl,
 		returnOption = ReturnOption, userData = Abort} = _SccpParms},
-		#state{localTID = TID} = State) ->
+		#state{localTID = TID, dha = DHA} = State) ->
 	%% TR-U-ABORT?
 	case Abort#'Abort'.reason of
 		{'p-abortCause', Cause} ->
 			TrParms = #'TR-P-ABORT'{qos = {SequenceControl, ReturnOption},
 					transactionID = TID, pAbort = Cause},
-			gen_fsm:send_event(resolve_dha(State), {'TR', 'P-ABORT', indication, TrParms});
+			gen_fsm:send_event(DHA, {'TR', 'P-ABORT', indication, TrParms});
 		{'u-abortCause', Cause} ->
 			UserData = #'TR-user-data'{dialoguePortion = Cause},
 			TrParms = #'TR-U-ABORT'{qos = {SequenceControl, ReturnOption},
 					transactionID = TID, userData = UserData},
-			gen_fsm:send_event(resolve_dha(State), {'TR', 'U-ABORT', indication, TrParms})
+			gen_fsm:send_event(DHA, {'TR', 'U-ABORT', indication, TrParms})
 	end,
 	{stop, {shutdown, TID}, State};
 
 %% Local Abort 
 initiation_sent({'local-abort', received, Cause},
-		#state{localTID = TID} = State) ->
+		#state{localTID = TID, dha = DHA} = State) ->
 	TrParms = #'TR-P-ABORT'{pAbort = Cause},
-	gen_fsm:send_event(resolve_dha(State), {'TR', 'P-ABORT', indication, TrParms}),
+	gen_fsm:send_event(DHA, {'TR', 'P-ABORT', indication, TrParms}),
 	{stop, {shutdown, TID}, State};
 
 %% End from TR-User
@@ -279,18 +284,19 @@ initiation_sent({'ABORT', transaction,
 %%% reference: Figure A.4/Q.774 (sheet 2 of 5)
 
 %% Continue received from remote
-active({'CONTINUE', received, SccpParms}, State)
-		when is_record(SccpParms, 'N-UNITDATA') ->
-	Continue = SccpParms#'N-UNITDATA'.userData,
-	QOS = {SccpParms#'N-UNITDATA'.sequenceControl,
-			SccpParms#'N-UNITDATA'.returnOption},
-	UserData = #'TR-user-data'{dialoguePortion = Continue#'Continue'.dialoguePortion,
-			componentPortion = Continue#'Continue'.components},
+active({'CONTINUE', received,
+		#'N-UNITDATA'{sequenceControl = SequenceControl,
+		returnOption = ReturnOption,
+		userData = #'Continue'{dialoguePortion = DialoguePortion,
+		components = Components}} = _SccpParms},
+		#state{localTID = LocalTID, dha = DHA} = State) ->
+	QOS = {SequenceControl, ReturnOption},
+	UserData = #'TR-user-data'{dialoguePortion = DialoguePortion,
+			componentPortion = Components},
 	TrParms = #'TR-CONTINUE'{qos = QOS,
-			transactionID = State#state.localTID,
-			userData = UserData},
+			transactionID = LocalTID, userData = UserData},
 	%% TR-CONTINUE indication CSL <- TSL
-	gen_fsm:send_event(resolve_dha(State), {'TR', 'CONTINUE', indication, TrParms}),
+	gen_fsm:send_event(DHA, {'TR', 'CONTINUE', indication, TrParms}),
 	{next_state, active, State};
 
 
@@ -314,14 +320,16 @@ active({'CONTINUE', transaction,
 %% End from remote
 active({'END', received,
 		#'N-UNITDATA'{sequenceControl = SequenceControl,
-		returnOption = ReturnOption, userData = End} = _SccpParms},
-		#state{localTID = TID} = State) ->
-	UserData = #'TR-user-data'{dialoguePortion = End#'End'.dialoguePortion,
-			componentPortion = End#'End'.components},
+		returnOption = ReturnOption,
+		userData = #'End'{dialoguePortion = DialoguePortion,
+		components = Components}} = _SccpParms},
+		#state{localTID = TID, dha = DHA} = State) ->
+	UserData = #'TR-user-data'{dialoguePortion = DialoguePortion,
+			componentPortion = Components},
 	TrParms = #'TR-END'{qos = {SequenceControl, ReturnOption},
 			transactionID = TID, userData = UserData},
 	%% TR-END indication CSL <- TSL
-	gen_fsm:send_event(resolve_dha(State), {'TR', 'END', indication, TrParms}),
+	gen_fsm:send_event(DHA, {'TR', 'END', indication, TrParms}),
 	{stop, {shutdown, TID}, State};
 
 %% End from TR-User (prearranged)
@@ -350,30 +358,30 @@ active({'END', transaction,
 active({'ABORT', received,
 		#'N-UNITDATA'{sequenceControl = SequenceControl,
 		returnOption = ReturnOption, userData = Abort} = _SccpParms},
-		#state{localTID = TID} = State) ->
+		#state{localTID = TID, dha = DHA} = State) ->
 	%% TR-U-ABORT?
 	case Abort#'Abort'.reason of
 		{'p-abortCause', Cause} ->  % No
 			TrParms = #'TR-P-ABORT'{qos = {SequenceControl, ReturnOption},
 					transactionID = TID, pAbort = Cause},
 			%% TR-P-ABORT indication CSL <- TSL
-			gen_fsm:send_event(resolve_dha(State), {'TR', 'P-ABORT', indication, TrParms});
+			gen_fsm:send_event(DHA, {'TR', 'P-ABORT', indication, TrParms});
 		{'u-abortCause', Cause} ->  % Yes
 			UserData = #'TR-user-data'{dialoguePortion = Cause},
 			TrParms = #'TR-U-ABORT'{qos = {SequenceControl, ReturnOption},
 					transactionID = TID, userData = UserData},
 			%% TR-U-ABORT indication CSL <- TSL
-			gen_fsm:send_event(resolve_dha(State), {'TR', 'U-ABORT', indication, TrParms})
+			gen_fsm:send_event(DHA, {'TR', 'U-ABORT', indication, TrParms})
 	end,
 	{stop, {shutdown, TID}, State};
 
 %% Local Abort 
 active({'local-abort', received, Cause},
-		#state{localTID = TID} = State) ->
+		#state{localTID = TID, dha = DHA} = State) ->
 	TrParms = #'TR-P-ABORT'{qos = {false, false},
 			transactionID = State#state.localTID, pAbort= Cause},
 	%% TR-P-ABORT indication CSL <- TSL
-	gen_fsm:send_event(resolve_dha(State), {'TR', 'P-ABORT', indication, TrParms}),
+	gen_fsm:send_event(DHA, {'TR', 'P-ABORT', indication, TrParms}),
 	{stop, {shutdown, TID}, State};
 
 %% Abort from TR-User
@@ -413,12 +421,6 @@ terminate(_Reason, _StateName, _State) ->
 %% handle updating state data due to a code replacement
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
-
-resolve_dha(DlgId) when is_integer(DlgId) ->
-	[{DlgId, DHA}] = ets:lookup(tcap_dha, DlgId),
-	DHA;
-resolve_dha(#state{localTID = TID}) ->
-	resolve_dha(TID).
 
 % QoS from TR-* primitive to {SequenceControl, ReturnOpt}
 qos_from_tr_qos(undefined) ->
