@@ -1,10 +1,12 @@
 %%% tcap_app.erl
 %%%---------------------------------------------------------------------
-%%% @copyright 2004-2005 Motivity Telecom
-%%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
+%%% @copyright 2004-2005 Motivity Telecom Inc.,
+%%% 		2021 SigScale Global Inc.
+%%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @end
 %%%
 %%% Copyright (c) 2004-2005, Motivity Telecom
+%%% Copyright (c) 2021 SigScale Global Inc.
 %%% 
 %%% All rights reserved.
 %%% 
@@ -42,7 +44,8 @@
 %%%
 -module(tcap_app).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
--author('vances@motivity.ca').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
+-author('Vance Shipley <vances@sigscale.org>').
 
 %% export application behaviour callbacks
 -export([start/2, start_phase/3, prep_stop/1, stop/1, config_change/3]).

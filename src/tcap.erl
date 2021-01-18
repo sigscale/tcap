@@ -1,10 +1,12 @@
 %%% tcap.erl
 %%%---------------------------------------------------------------------
-%%% @copyright 2004-2005 Motivity Telecom
-%%% @author Vance Shipley <vances@motivity.ca> [http://www.motivity.ca]
+%%% @copyright 2004-2005 Motivity Telecom Inc.,
+%%% 		2021 SigScale Global Inc.
+%%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @end
 %%%
 %%% Copyright (c) 2004-2005, Motivity Telecom
+%%% Copyright (c) 2021 SigScale Global Inc.
 %%% 
 %%% All rights reserved.
 %%% 
@@ -43,7 +45,8 @@
 %%%
 -module(tcap).
 -copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
--author('vances@motivity.ca').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
+-author('Vance Shipley <vances@sigscale.org>').
 
 %% our published API functions
 -export([start/0, stop/0, start_tsl/4, stop_tsl/1]).

@@ -40,6 +40,7 @@
 %%%
 -module(tcap_example_adaptation).
 -author('vances@motivity.ca').
+-copyright('Copyright 2005 Motivity Telecom Inc.').
 
 -behaviour(tcap_tco_server).
 

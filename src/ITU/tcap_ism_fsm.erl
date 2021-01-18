@@ -44,7 +44,7 @@
 %%%
 -module(tcap_ism_fsm).
 -copyright('Copyright (c) 2010-2013 Harald Welte').
--author('laforge@gnumonks.org').
+-author('Harald Welte <laforge@gnumonks.org>').
 
 -behaviour(gen_fsm).
 

@@ -18,6 +18,7 @@
 %%%
 -module(tcap_api_SUITE).
 -copyright('Copyright (c) 2021 SigScale Global Inc.').
+-author('Vance Shipley <vances@sigscale.org>').
 
 %% common_test required callbacks
 -export([suite/0, sequences/0, all/0]).

@@ -43,7 +43,7 @@
 %%%
 -module(tcap_cco_server).
 -copyright('Copyright (c) 2010-2011 Harald Welte').
--author('laforge@gnumonks.org').
+-author('Harald Welte <laforge@gnumonks.org>').
 
 -behaviour(gen_server).
 

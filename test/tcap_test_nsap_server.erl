@@ -2,6 +2,9 @@
 %% tcap_test_nsap_server.erl
 %%
 -module(tcap_test_nsap_server).
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
+-author('Vance Shipley <vances@sigscale.org>').
+
 -behaviour(tcap_tco_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,

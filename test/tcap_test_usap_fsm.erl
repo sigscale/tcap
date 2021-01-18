@@ -1,6 +1,8 @@
 %% tcap_test_usap_fsm.erl
 %%
 -module(tcap_test_usap_fsm).
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
+-author('Vance Shipley <vances@sigscale.org>').
 
 -behaviour(gen_fsm).
 

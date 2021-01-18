@@ -1,12 +1,15 @@
 %%% tcap_tco_server.erl
 %%%---------------------------------------------------------------------
-%%% @copyright 2004-2005 Motivity Telecom, 2010-2011 Harald Welte
-%%% @author Vance Shipley <vances@motivity.ca>
+%%% @copyright 2004-2005 Motivity Telecom,
+%%% 		2010-2011 Harald Welte
+%%% 		2021 SigScale Global Inc.
+%%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @author Harald Welte <laforge@gnumonks.org>
 %%% @end
 %%%
 %%% Copyright (c) 2004-2005, Motivity Telecom
 %%% Copyright (c) 2010-2011, Harald Welte
+%%% Copyright (c) 2021 SigScale Global Inc.
 %%% 
 %%% All rights reserved.
 %%% 
@@ -149,7 +152,10 @@
 %%%
 -module(tcap_tco_server).
 -copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
--author('vances@motivity.ca').
+-copyright('Copyright (c) 2010-2011 Harald Welte').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
+-author('Vance Shipley <vances@sigscale.org>').
+-author('Harald Welte <laforge@gnumonks.org>').
 
 -behaviour(gen_server).
 

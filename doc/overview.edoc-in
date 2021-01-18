@@ -1,4 +1,6 @@
-@copyright 2004-2005 Motivity Telecom Inc.
+@copyright 2004-2005 Motivity Telecom Inc.,
+		2021 SigScale Global Inc.
+@author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 @version %VERSION%
 @title TCAP User's Guide
 @doc This application implements a protocol stack for SS7 TCAP.

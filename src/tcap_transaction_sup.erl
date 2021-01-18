@@ -20,6 +20,7 @@
 %%%
 -module(tcap_transaction_sup).
 -copyright('Copyright (c) 2021 SigScale Global Inc.').
+-author('Vance Shipley <vances@sigscale.org>').
 
 -behaviour(supervisor).
 

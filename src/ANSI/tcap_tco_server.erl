@@ -43,7 +43,7 @@
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
 -module(tcap_tco_server).
--copyright('Copyright (c) 2003-2005 Motivity Telecom Inc.').
+-copyright('Copyright (c) 2004-2005 Motivity Telecom Inc.').
 -author('vances@motivity.ca').
 
 -behaviour(gen_server).
