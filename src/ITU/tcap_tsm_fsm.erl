@@ -258,13 +258,6 @@ initiation_sent({'ABORT', received,
 	end,
 	{stop, {shutdown, TID}, State};
 
-%% Local Abort 
-initiation_sent({'local-abort', received, Cause},
-		#state{localTID = TID, dha = DHA} = State) ->
-	TrParms = #'TR-P-ABORT'{pAbort = Cause},
-	gen_fsm:send_event(DHA, {'TR', 'P-ABORT', indication, TrParms}),
-	{stop, {shutdown, TID}, State};
-
 %% End from TR-User
 initiation_sent({'END', transaction,
 		#'TR-END'{} = _EndParms},
@@ -373,15 +366,6 @@ active({'ABORT', received,
 			%% TR-U-ABORT indication CSL <- TSL
 			gen_fsm:send_event(DHA, {'TR', 'U-ABORT', indication, TrParms})
 	end,
-	{stop, {shutdown, TID}, State};
-
-%% Local Abort 
-active({'local-abort', received, Cause},
-		#state{localTID = TID, dha = DHA} = State) ->
-	TrParms = #'TR-P-ABORT'{qos = {false, false},
-			transactionID = State#state.localTID, pAbort= Cause},
-	%% TR-P-ABORT indication CSL <- TSL
-	gen_fsm:send_event(DHA, {'TR', 'P-ABORT', indication, TrParms}),
 	{stop, {shutdown, TID}, State};
 
 %% Abort from TR-User
