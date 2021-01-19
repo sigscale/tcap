@@ -107,7 +107,7 @@ handle_cast({'TC','U-CANCEL',request, Param}, State)
 	case NewComps of
 	    OldComps ->
 		% if not, check any active ISM, if yes, terminate ISM
-		NewISMs = terminate_active_ISM(State#state.ism,
+		NewISMs = terminate_active_ism(State#state.ism,
 						InvokeId),
 		NewState = State#state{ism = NewISMs};
 	    _ ->
@@ -118,11 +118,6 @@ handle_cast({'TC','U-CANCEL',request, Param}, State)
 % from DHA -> CCO: dialogue-terminated
 handle_cast('dialogue-terminated', State) ->
 	% discard components awaiting transmission
-	%	* automatically released
-	% if any ISM active, terminate ISM
-	%	* ISMs are linked, they should terminate
-	terminate_ISMs(State#state.ism),
-	% terminate
 	{stop, normal, State};
 
 % from TCL -> CHA (CCO): TC-RESULT-{L,NL}, U-ERROR
@@ -163,19 +158,19 @@ handle_cast({reject_component, Reject}, State) ->
 	{noreply, NewState};
 
 % DHA -> CHA (CCO)
-handle_cast('request-components', State = #state{components=CompIn}) ->
+handle_cast('request-components',
+		#state{dha = DHA, components = CompIn} = State) ->
 	% Figure A.6/Q.774 (4 of 4)
 	case CompIn of
 	    [] ->
 		% if no components, signal 'no-components' to DHA
-		gen_fsm:send_event(State#state.dha, 'no-component'),
+		gen_statem:cast(DHA, 'no-component'),
 		NewState = State;
 	    _ ->
 		% for each component
 		{CompOut, ISMs} = process_request_components(CompIn, State),
 		% signal 'requested-components' to DHA
-		gen_fsm:send_event(State#state.dha,
-				   {'requested-components', CompOut}),
+		gen_statem:cast(DHA, {'requested-components', CompOut}),
 		NewState = State#state{ism = State#state.ism ++ ISMs,
 					components = []}
 	end,
@@ -219,62 +214,51 @@ inv_id_to_uprim(undefined) ->
 inv_id_to_uprim(asn1_NOVALUE) ->
 	undefined.
 
+%% @hidden
 % Figure A.6/Q.774 (4 of 4)
-process_request_components(Components, State) when 
-			is_list(Components), is_record(State, state) ->
+process_request_components(Components, #state{} = State)
+		when is_list(Components) ->
 	process_request_components(Components, State, [], []).
-process_request_components([], _State, AsnComps, ISMs) ->
-	{lists:reverse(AsnComps), ISMs};
-process_request_components([Head|Tail], State, AsnComps, ISMs) when
-				is_record(Head, component),
-			        is_record(State, state)	->
-	#component{asn_ber = Asn, user_prim = Uprim} = Head,
-	#state{usap = Usap, dialogueID = DialogueId} = State,
-	case Uprim of
-	    #'TC-INVOKE'{class = Class, timeout = Tout,
-	    		 invokeID = InvId} ->
-		% if INVOKE component
-		% start ISM and store ISM
-		{ok, ISM} = tcap_invocation_sup:start_ism(Usap, DialogueId,
-							  InvId, self(), Class, Tout),
-		% signal 'operation-sent' to ISM
-		gen_fsm:send_event(ISM, 'operation-sent'),
-		NewISMs = [{InvId, ISM}|ISMs];
-	    _ ->
-		NewISMs = ISMs
-	end,
-	process_request_components(Tail, State, [Asn|AsnComps], NewISMs).
+%% @hidden
+process_request_components([], _State, Acc, ISMs) ->
+	{lists:reverse(Acc), ISMs};
+process_request_components([#component{asn_ber = ASN,
+		user_prim = #'TC-INVOKE'{class = Class, timeout = Timeout,
+		invokeID = InvokeId}} | T], #state{ism = ISM, usap = USAP,
+		dialogueID = DID} = State, Acc, ISMs) ->
+	% if INVOKE component
+	% start ISM and store ISM
+	{ok, ISM} = tcap_invocation_sup:start_ism(USAP,
+			DID, InvokeId, self(), Class, Timeout),
+	% signal 'operation-sent' to ISM
+	gen_statem:cast(ISM, 'operation-sent'),
+	NewISMs = [{InvokeId, ISM} | ISMs],
+	process_request_components(T, State, [ASN | Acc], NewISMs);
+process_request_components([#component{asn_ber = ASN} | T], State, Acc, ISMs) ->
+	process_request_components(T, State, [ASN | Acc], ISMs).
 
-% discard components of type INVOKE for matching InvokeID
-discard_inv_component(Components, InvId) when is_list(Components) ->
-	discard_inv_component(Components, InvId, []).
-discard_inv_component([], _InvId, CompOut) ->
-	lists:reverse(CompOut);
-discard_inv_component([Head|Tail], InvId, CompAcc) ->
-	#component{user_prim = Uprim} = Head,
-	case Uprim of
-	    #'TC-INVOKE'{invokeID = InvId} ->
-		CompOut = CompAcc;
-	    _ ->
-		CompOut = [Head|CompAcc]
-	end,
-	discard_inv_component(Tail, InvId, CompOut).
+%% @hidden
+% discard components of type INVOKE for matching InvokeId
+discard_inv_component(Components, InvokeId) when is_list(Components) ->
+	discard_inv_component(Components, InvokeId, []).
+discard_inv_component([], _InvokeId, Acc) ->
+	lists:reverse(Acc);
+discard_inv_component([#component{user_prim
+		= #'TC-INVOKE'{invokeID = InvokeId}} | T], InvokeId, Acc) ->
+	discard_inv_component(T, InvokeId, Acc);
+discard_inv_component([H | T], InvokeId, Acc) ->
+	discard_inv_component(T, InvokeId, [H | Acc]).
 
-% iterate over list of ISMs, terminate the one with matching InvId
-terminate_active_ISM(ISMs, InvId) ->
-	case lists:keyfind(InvId, 1, ISMs) of
-	    {InvId, ISM} ->
-		gen_fsm:send_event(ISM, terminate),
-		lists:keydelete(InvId, 1, ISMs);
-	    false ->
-		ISMs
+%% @hidden
+% iterate over list of ISMs, terminate the one with matching InvokeId
+terminate_active_ism(ISMs, InvokeId) ->
+	case lists:keytake(InvokeId, 1, ISMs) of
+		{value, {InvokeId, ISM}, NewISMs} ->
+			gen_statem:cast(ISM, terminate),
+			NewISMs;
+		false ->
+			ISMs
 	end.
-
-terminate_ISMs([]) ->
-	ok;
-terminate_ISMs([{_Id, ISM}|Tail]) ->
-	gen_fsm:send_event(ISM, terminate),
-	terminate_ISMs(Tail).
 
 undef2empty(undefined) ->
 	[];
@@ -375,28 +359,28 @@ process_rx_component(ISMs, Usap, DlgId, C={invoke, #'Invoke'{}}, Last) ->
 		ok
 	end,
 	Prim = asn_rec_to_uprim(C, DlgId, Last),
-	gen_fsm:send_event(Usap, {'TC','INVOKE',indication,Prim});
+	gen_statem:cast(Usap, {'TC','INVOKE',indication,Prim});
 process_rx_component(ISMs, _Usap, DlgId, C={reject, #'Reject'{problem=Problem}}, Last) ->
 	InvId = get_invoke_id_from_comp(C),
 	ISM = lists:keyfind(InvId, 1, ISMs),
 	case Problem of
 	    {invoke, _} ->
 		% FIXME: ISM active (No -> Inform TC-User)
-		gen_fsm:send_event(ISM, terminate);
+		gen_statem:cast(ISM, terminate);
 	    _ ->
 		ok
 	end,
 	% FIXME: decide on TC-U-REJECT or TC-R-REJECT
 	Prim = asn_rec_to_uprim(C, DlgId, Last),
 	{InvId, ISM} = lists:keyfind(InvId, 1, ISMs),
-	gen_fsm:send_event(ISM, Prim);
+	gen_statem:cast(ISM, Prim);
 process_rx_component(ISMs, _Usap, DlgId, Comp, Last) ->
 	% syntax error?
 	InvId = get_invoke_id_from_comp(Comp),
 	{InvId, ISM} = lists:keyfind(InvId, 1, ISMs),
 	% FIXME: ISM active (No -> 6)
 	Prim = asn_rec_to_uprim(Comp, DlgId, Last),
-	gen_fsm:send_event(ISM, Prim).
+	gen_statem:cast(ISM, Prim).
 
 add_components_to_state(State = #state{components=CompOld}, CompNew) when is_list(CompNew) ->
 	State#state{components = CompOld ++ CompNew};

@@ -31,7 +31,8 @@
 %% common_test test cases
 -export([receive_unidirectional/0, receive_unidirectional/1,
 		send_unidirectional/0, send_unidirectional/1,
-		send_begin/0, send_begin/1]).
+		send_begin_prearranged/0, send_begin_prearranged/1,
+		send_end_basic/0, send_end_basic/1]).
 
 -include("tcap.hrl").
 -include("sccp_primitive.hrl").
@@ -123,7 +124,8 @@ group(csl) ->
 %% @doc Define test case groups.
 %%
 groups() ->
-	TslCases = [send_unidirectional, receive_unidirectional, send_begin],
+	TslCases = [send_unidirectional, receive_unidirectional,
+			send_begin_prearranged, send_end_basic],
 	CslCases = [],
 	[{tsl, [], TslCases}, {csl, [], CslCases}].
 
@@ -216,7 +218,7 @@ receive_unidirectional(Config) ->
 			destAddress = SPAAddress, origAddress = SPBAddress,
 			componentsPresent = true} = TcUniParams.
 
-send_begin() ->
+send_begin_prearranged() ->
 	[{userdata,
 			[{number, "1.1.2.1.1 1)"},
 			{reference, "3.3.3.2.1/Q.774 and 3.3.3.2.3/Q.774"},
@@ -237,7 +239,7 @@ send_begin() ->
 					"5. Check C: Were tsl state machines associated with this "
 						"transaction left in the idle state at SP A?\n"}]}].
 
-send_begin(Config) ->
+send_begin_prearranged(Config) ->
 	TSL = ?config(tco_pid, Config),
 	TID = tcap_tco_server:new_tid(),
 	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
@@ -279,6 +281,80 @@ send_begin(Config) ->
 			ok
 	end.
 
+send_end_basic() ->
+	[{userdata,
+			[{number, "1.1.2.1.2.1 1)"},
+			{reference, "3.3.3.2.1/Q.774 and 3.3.3.2.3/Q.774"},
+			{title, "Valid function; Structured dialogue"},
+			{subtitle, "Clearing before subsequent Message; Valid clearing "
+					"from responding side; IUT Sending; Basic ending"},
+			{purpose, "To verify that signalling point A is able to receive a "
+					"Begin message and then terminate the transaction by the "
+					"\"basic end\" method"},
+			{conditions, "SP A (TSL) and SP B (TSL) are to be in the idle state"},
+			{description,
+					"1. Send a Begin message from SP B to SP A.\n"
+					"2. On receipt of BEGIN indication arrange for a TR-END "
+						"request primitive (basic) to be passed to the TSL at "
+						"SP A.\n"
+					"3. Check A: Was the begin message correctly received at "
+						"SP A and passed to the TR-User?\n"
+					"4. Check B: Was an end message correctly sent by SP A?\n"
+					"5. Check C: Was the DTID in the end message the same as "
+						"the otid in the begin message?\n"
+					"6. Check C: Were TSL state machines associated with this "
+						"transaction left in the idle state at SP A?"}]}].
+
+send_end_basic(Config) ->
+	TSL = ?config(tco_pid, Config),
+	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
+			linkedId = asn1_NOVALUE,
+			opcode = {local, 1},
+			argument = asn1_NOVALUE}},
+	{ok, ComponentPortion1} = 'TC':encode('Components', [Invoke]),
+	TID = tcap_tco_server:new_tid(),
+	Begin = {'begin', #'Begin'{otid = <<TID:32>>,
+			components = ComponentPortion1}},
+	{ok, SccpUserData} = 'TR':encode('TCMessage', Begin),
+	SPAParty = #party_address{pc = 6202, ssn = 146, ri = true},
+	SPBParty = #party_address{pc = 6210, ssn = 146, ri = true},
+	SPAAddress = sccp_codec:party_address(SPAParty),
+	SPBAddress = sccp_codec:party_address(SPBParty),
+	UnitData = #'N-UNITDATA'{calledAddress = SPAAddress,
+			callingAddress = SPBAddress,
+			sequenceControl = false,
+			returnOption = false,
+			userData = SccpUserData},
+	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
+	TcBeginParams = receive
+		{'TC', 'BEGIN', indication, #'TC-BEGIN'{} = BeginParams} ->
+			BeginParams
+	end,
+	#'TC-BEGIN'{dialogueID = LocalTID, qos = {false, false}, 
+			destAddress = SPAAddress, origAddress = SPBAddress,
+			componentsPresent = true} = TcBeginParams,
+	ReturnResult = {returnResult,
+			#'ReturnResult'{invokeId = {present, 1},
+			result = asn1_NOVALUE}},
+	{ok, ComponentPortion2} = 'TC':encode('Components', [ReturnResult]),
+	TrUserData1 = #'TR-user-data'{dialoguePortion = asn1_NOVALUE,
+			componentPortion = ComponentPortion2},
+	TrEndParams = #'TR-END'{qos = {false, false},
+			transactionID = LocalTID, userData = TrUserData1,
+			termination = basic},
+	gen_server:cast(TSL, {'TR', 'END', request, TrEndParams}),
+	SccpParams = receive
+Other -> erlang:display({?MODULE, ?LINE, Other});
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UnitData} ->
+			UnitData
+	end,
+	#'N-UNITDATA'{calledAddress = SPBAddress,
+			callingAddress = SPAAddress,
+			sequenceControl = false,
+			returnOption = false,
+			userData = SccpUserData} = SccpParams,
+	{ok, foo} = 'TR':decode('TCMessage', SccpParams).
+	
 %%---------------------------------------------------------------------
 %%  Internal functions
 %%---------------------------------------------------------------------

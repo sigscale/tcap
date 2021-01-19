@@ -313,7 +313,7 @@ handle_call({'TR', 'BEGIN', request,
 		{DHA, _} = _From, #state{tsm_sup = Sup, tsm = Map} = State) ->
 	case supervisor:start_child(Sup, [[self(), DHA, TransactionID], []]) of
 		{ok, TSM} ->
-			gen_fsm:send_event(TSM, {'BEGIN', transaction, BeginParams}),
+			gen_statem:cast(TSM, {'BEGIN', transaction, BeginParams}),
 			{reply, ok, State#state{tsm = Map#{TransactionID => TSM}}};
 		{error, Reason} ->
 			{stop, {error, Reason}, Reason, State}
@@ -375,7 +375,7 @@ handle_cast({'N', 'UNITDATA', indication,
 					TrParams = #'TR-UNI'{qos = {SequenceControl, ReturnOption},
 							destAddress = CalledAddress, origAddress = CallingAddress,
 							userData = UserData2},
-					gen_fsm:send_event(DHA, {'TR', 'UNI', indication, TrParams}),
+					gen_statem:cast(DHA, {'TR', 'UNI', indication, TrParams}),
 					{noreply, State#state{ext_state = ExtState2}};
 				{error, _Reason} ->
 %% @todo Handle error starting AEI.
@@ -394,7 +394,7 @@ handle_cast({'N', 'UNITDATA', indication,
 						{ok, TSM} ->
 							Begin2 = Begin1#'Begin'{otid = decode_tid(Otid)},
 							TsmParams = UdataParams#'N-UNITDATA'{userData = Begin2},
-							gen_fsm:send_event(TSM, {'BEGIN', received, TsmParams}),
+							gen_statem:cast(TSM, {'BEGIN', received, TsmParams}),
 							{noreply, NewState#state{tsm = Map#{TransactionID => TSM}}};
 						{error, Reason} ->
 							% TID = no TID
@@ -434,7 +434,7 @@ handle_cast({'N', 'UNITDATA', indication,
 					Continue2 = Continue1#'Continue'{otid = decode_tid(Otid),
 							dtid = decode_tid(Dtid)},
 					TsmParams = UdataParams#'N-UNITDATA'{userData = Continue2},
-					gen_fsm:send_event(TSM, {'CONTINUE', received, TsmParams}),
+					gen_statem:cast(TSM, {'CONTINUE', received, TsmParams}),
 					{noreply, State};
 				error ->
 % TODO Handle Continue with unknown transaction ID.
@@ -460,7 +460,7 @@ handle_cast({'N', 'UNITDATA', indication,
 					End2 = End1#'End'{dtid = decode_tid(Dtid)},
 					TsmParams = UdataParams#'N-UNITDATA'{userData = End2},
 					% END received TSM <- TCO
-					gen_fsm:send_event(TSM, {'END', received, TsmParams}),
+					gen_statem:cast(TSM, {'END', received, TsmParams}),
 					{noreply, State};
 				error ->
 					% Discard received message
@@ -479,7 +479,7 @@ handle_cast({'N', 'UNITDATA', indication,
 				{ok, TSM} ->
 					TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
 					% Abort received TSM <- TCO
-					gen_fsm:send_event(TSM, {'ABORT', received, TsmParams}),
+					gen_statem:cast(TSM, {'ABORT', received, TsmParams}),
 					{noreply, State};
 				error ->
 					% Discard received message
@@ -510,7 +510,7 @@ handle_cast({'N', 'UNITDATA', indication,
 handle_cast({'N', 'NOTICE', indication,
 		#'N-NOTICE'{userData = UserData, callingAddress = CallingAddress,
 		calledAddress = CalledAddress, reason = Reason} = _NoticeParams},
-		State) ->
+		#state{tsm = Map} = State) ->
 	TransactionID  = case 'TR':decode('TCMessage', UserData) of
 		{ok, {'begin', TPDU}} ->
 			case 'TR':decode('Begin', TPDU) of
@@ -529,13 +529,19 @@ handle_cast({'N', 'NOTICE', indication,
 		_ ->
 			undefined
 	end,
-	% TR-NOTICE indication CSL <- TSL
-	% reference: Figure A.3/Q.774 (sheet 2 of 4)
-	TrParams = #'TR-NOTICE'{transactionID = TransactionID,
-			origAddress = CallingAddress, destAddress = CalledAddress,
-			reportCause = Reason},
-	% gen_fsm:send_event(DHA, {'TR', 'NOTICE', indication, TcParams}),
-	{noreply, State};
+	case maps:find(TransactionID, Map) of
+		{ok, TSM} ->
+			% TR-NOTICE indication CSL <- TSL
+			% reference: Figure A.3/Q.774 (sheet 2 of 4)
+			TrParams = #'TR-NOTICE'{transactionID = TransactionID,
+					origAddress = CallingAddress, destAddress = CalledAddress,
+					reportCause = Reason},
+			gen_statem:cast(TSM, {'NOTICE', received, TrParams}),
+			{noreply, State};
+		error ->
+			% @todo: Handle unknown TID
+			{noreply, State}
+	end;
 %%
 %% service primitive requests from the TR-User
 %% reference: Figure A.3/Q.774 (sheets 2&3 of 4)
@@ -567,7 +573,7 @@ handle_cast({'TR', 'CONTINUE', request,
 		#state{tsm = Map} = State) ->
 	case maps:find(TransactionID, Map) of
 		{ok, TSM} ->
-			gen_fsm:send_event(TSM, {'CONTINUE', transaction, ContParams}),
+			gen_statem:cast(TSM, {'CONTINUE', transaction, ContParams}),
 			{noreply, State};
 		error ->
 			% @todo: Handle unknown TID
@@ -578,7 +584,7 @@ handle_cast({'TR', 'END', request,
 		#state{tsm = Map} = State) ->
 	case maps:find(TransactionID, Map) of
 		{ok, TSM} ->
-			gen_fsm:send_event(TSM, {'END', transaction, EndParams}),
+			gen_statem:cast(TSM, {'END', transaction, EndParams}),
 			{noreply, State};
 		error ->
 			% @todo: Handle unknown TID
@@ -589,7 +595,7 @@ handle_cast({'TR', 'U-ABORT', request,
 		#state{tsm = Map} = State) ->
 	case maps:find(TransactionID, Map) of
 		{ok, TSM} ->
-			gen_fsm:send_event(TSM, {'ABORT', transaction, AbortParams}),
+			gen_statem:cast(TSM, {'ABORT', transaction, AbortParams}),
 			{noreply, State};
 		error ->
 			% @todo: Handle unknown TID

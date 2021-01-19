@@ -4,22 +4,24 @@
 -copyright('Copyright (c) 2021 SigScale Global Inc.').
 -author('Vance Shipley <vances@sigscale.org>').
 
--behaviour(gen_fsm).
+-behaviour(gen_statem).
 
--export([init/1, idle/2, handle_event/3, handle_sync_event/4]).
+-export([callback_mode/0, init/1, idle/3, handle_event/4]).
 
 -record(statedata, {ct :: pid()}).
+
+callback_mode() ->
+	[state_functions].
 
 init([CT]) ->
 	{ok, idle, #statedata{ct = CT}}.
 
-idle(Event, #statedata{ct = CT} = StateData) ->
+idle(cast, Event, #statedata{ct = CT} = Data) ->
 	CT ! Event,
-	{next_state, idle, StateData}.
+	keep_state_and_data;
+idle(info, _, _Data) ->
+	keep_state_and_data.
 
-handle_event(_Event, StateName, StateData) ->
-	{next_state, StateName, StateData}.
-
-handle_sync_event(_Event, _From, StateName, StateData) ->
-	{next_state, StateName, StateData}.
+handle_event(_EventType, _EventContent, _State, _Data) ->
+	keep_state_and_data.
 

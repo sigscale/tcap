@@ -190,7 +190,7 @@ open(TSL, TCU) ->
 %% 	{@link open/2. open/2}.
 %%
 close(DHA) when is_pid(DHA) ->
-	gen_fsm:stop(DHA).
+	gen_statem:stop(DHA).
 
 %%----------------------------------------------------------------------
 %%  Internal functions

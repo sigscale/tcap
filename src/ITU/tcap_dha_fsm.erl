@@ -1,5 +1,5 @@
 %%% tcap_dha_fsm.erl
-%%%---------------------------------------------------------------------
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @copyright 2004-2005 Motivity Telecom,
 %%% 		2010-2012 Harald Welte,
 %%% 		2021 SigScale Global Inc.
@@ -39,10 +39,10 @@
 %%% (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
-%%%---------------------------------------------------------------------
-%%%
-%%% @doc Dialogue Handler (DHA) functional block within the component
-%%% 		sub-layer of ITU TCAP.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% @doc This {@link //stdlib/gen_statem. gen_statem} behaviour callback
+%%% 	module implements a Dialogue Handler (DHA) functional block within
+%%% 	the component sub-layer of ITU TCAP.
 %%%
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
@@ -53,17 +53,18 @@
 -author('Vance Shipley <vances@sigscale.org>').
 -author('Harald Welte <laforge@gnumonks.org>').
 
--behaviour(gen_fsm).
+-behaviour(gen_statem).
 
-%% call backs needed for gen_fsm behaviour
--export([init/1, handle_info/3, handle_event/3, handle_sync_event/4,
-		terminate/3, code_change/4]).
+%% export the callbacks needed for gen_statem behaviour
+-export([init/1, handle_event/4, callback_mode/0,
+			terminate/3, code_change/4]).
+%% export the callbacks for gen_statem states.
+-export([idle/3, initiation_sent/3, active/3,
+		wait_for_uni_components/3, wait_for_begin_components/3,
+		initiation_received/3, wait_cont_components_ir/3,
+		wait_cont_components_active/3, wait_for_end_components/3]).
 
-%% transaction_fsm state callbacks 
--export([idle/2, wait_for_uni_components/2, wait_for_begin_components/2,
-		initiation_received/2, wait_cont_components_ir/2,
-		wait_cont_components_active/2, wait_for_end_components/2,
-		initiation_sent/2, active/2]).
+-type state() :: idle | initiation_sent | initiation_received | active.
 
 %% record definitions for TR-User primitives
 -include("tcap.hrl").
@@ -75,7 +76,7 @@
 -include("DialoguePDUs.hrl").
 
 %% the dialogue_fsm state data
--record(state,
+-record(statedata,
 		{usap :: pid(),
 		tco :: pid(),
 		cco :: pid(),
@@ -84,710 +85,881 @@
 		parms :: #'TR-UNI'{} | #'TR-BEGIN'{} | #'TR-CONTINUE'{}
 				| #'TR-END'{} | #'TR-U-ABORT'{},
 		appContextMode :: tuple()}).
--type state() :: #state{}.
+-type statedata() :: #statedata{}.
 
 %%----------------------------------------------------------------------
-%%  The gen_fsm call backs
+%%  The tcap_dha_fsm gen_statem call backs
 %%----------------------------------------------------------------------
 
-%% Start the Dialogue Handler (DHA) process
-%% reference: Figure A.5/Q.774 (sheet 1 of 11)
+-spec callback_mode() -> Result
+	when
+		Result :: gen_statem:callback_mode_result().
+%% @doc Set the callback mode of the callback module.
+%% @see //stdlib/gen_statem:callback_mode/0
+%% @private
+%%
+callback_mode() ->
+	[state_functions].
+
+-spec init(Args) -> Result
+	when
+		Args :: [term()],
+		Result :: {ok, State, Data} | {ok, State, Data, Actions}
+				| ignore | {stop, Reason},
+		State :: state(),
+		Data :: statedata(),
+		Actions :: Action | [Action],
+		Action :: gen_statem:action(),
+		Reason :: term().
+%% @doc Initialize the {@module} finite state machine.
+%%
+%% 	Initialize a Dialogue Handler (DHA) process.
+%%
+%% 	Reference: Figure A.5/Q.774 (sheet 1 of 11)
+%%
+%% @see //stdlib/gen_statem:init/1
+%% @private
 init([TCO, TCU]) ->
 	process_flag(trap_exit, true),
-	{ok, idle, #state{tco = TCO, usap = TCU}}.
+	{ok, idle, #statedata{tco = TCO, usap = TCU}}.
 
-%% reference: Figure A.5/Q.774 (sheet 1 of 11)
-%%% TC-UNI request from TCU
-idle({'TC', 'UNI', request, UniParms}, State) 
+-spec idle(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>idle</em> state.
+%% @private
+%
+% reference: Figure A.5/Q.774 (sheet 1 of 11)
+% TC-UNI request from TCU
+idle(cast, {'TC', 'UNI', request,
+		#'TC-UNI'{qos = QoS,
+		destAddress = DestAddress, origAddress = OrigAddress,
+		userInfo = UserInfo, appContextName = AppContextName} = UniParms},
+		#statedata{cco = CCO} = Data) 
 		when is_record(UniParms, 'TC-UNI') ->
 	%% Dialogue info included?
-	case UniParms#'TC-UNI'.userInfo of
+	DialoguePortion = case UserInfo of
 		undefined ->
-			DialoguePortion = undefined;
+			undefined;
 		UserInfo when is_binary(UserInfo) ->
 			%% Build AUDT apdu
-			DialoguePortion = 'UnidialoguePDUs':encode('AUDT-apdu',
-					#'AUDT-apdu'{'application-context-name' = UniParms#'TC-UNI'.appContextName,
+			'UnidialoguePDUs':encode('AUDT-apdu',
+					#'AUDT-apdu'{'application-context-name' = AppContextName,
 					'user-information' = UserInfo})
 	end,
-	TrParms = #'TR-UNI'{qos = UniParms#'TC-UNI'.qos,
-			destAddress = UniParms#'TC-UNI'.destAddress,
-			origAddress = UniParms#'TC-UNI'.origAddress,
-			userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)}},
-	NewState = State#state{parms = TrParms},
+	TrUserData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)},
+	TrParms = #'TR-UNI'{qos = QoS,
+			destAddress = DestAddress, origAddress = OrigAddress,
+			userData = TrUserData},
+	NewData = Data#statedata{parms = TrParms},
 	%% Request components to CHA
-	gen_server:cast(NewState#state.cco, 'request-components'),
+	gen_server:cast(CCO, 'request-components'),
 	%% Process components
-	{next_state, wait_for_uni_components, NewState};
-
-%% reference: Figure A.5/Q.774 (sheet 1 of 11)
-%%% TC-BEGIN request from TCU
-idle({'TC', 'BEGIN', request, BeginParms}, State) 
-		when is_record(BeginParms, 'TC-BEGIN') ->
+	{next_state, wait_for_uni_components, NewData};
+% reference: Figure A.5/Q.774 (sheet 1 of 11)
+% TC-BEGIN request from TCU
+idle(cast, {'TC', 'BEGIN', request,
+		#'TC-BEGIN'{dialogueID = DialogueID,
+		qos = QoS, appContextName = AppContextName,
+		destAddress = DestAddress, origAddress = OrigAddress,
+		userInfo = UserInfo} = _BeginParms},
+		#statedata{cco = CCO} = Data) -> 
 	%% Dialogue info included?
-	case BeginParms#'TC-BEGIN'.appContextName of
+	DialoguePortion = case AppContextName of
 		undefined ->
-			DialoguePortion = undefined;
-		ACtx ->
-			UserInfo = osmo_util:asn_val(BeginParms#'TC-BEGIN'.userInfo),
+			undefined;
+		AC ->
 			%% Set protocol version = 1
 			%% Build AARQ apdu
-			{ok, DialoguePortion} = 'DialoguePDUs':encode('AARQ-apdu',
+			{ok, DP} = 'DialoguePDUs':encode('AARQ-apdu',
 					#'AARQ-apdu'{'protocol-version' = [version1],
-					'application-context-name' = ACtx,
-					'user-information' = UserInfo})
+					'application-context-name' = AC,
+					'user-information' = UserInfo}),
+			DP	
 	end,
-	TrParms = #'TR-BEGIN'{qos = BeginParms#'TC-BEGIN'.qos,
-			destAddress = BeginParms#'TC-BEGIN'.destAddress,
-			origAddress = BeginParms#'TC-BEGIN'.origAddress,
-			transactionID = BeginParms#'TC-BEGIN'.dialogueID,
-			userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)}},
-	NewState = State#state{parms = TrParms, otid = BeginParms#'TC-BEGIN'.dialogueID,
+	TrUserData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)},
+	TrParms = #'TR-BEGIN'{qos = QoS,
+			destAddress = DestAddress, origAddress = OrigAddress,
+			transactionID = DialogueID, userData = TrUserData},
+	NewData = Data#statedata{parms = TrParms, otid = DialogueID,
 			%% Set application context mode
-			appContextMode = BeginParms#'TC-BEGIN'.appContextName},
+			appContextMode = AppContextName},
 	%% Request components to CHA
-	gen_server:cast(NewState#state.cco, 'request-components'),
+	gen_server:cast(CCO, 'request-components'),
 	%% Process components
-	{next_state, wait_for_begin_components, NewState};
-
-%% reference: Figure A.5/Q.774 (sheet 2 of 11)
-%%% TR-UNI indication from TSL
-idle({'TR', 'UNI', indication, UniParms}, State) when is_record(UniParms, 'TR-UNI') ->
+	{next_state, wait_for_begin_components, NewData};
+% reference: Figure A.5/Q.774 (sheet 2 of 11)
+% TR-UNI indication from TSL
+idle(cast, {'TR', 'UNI', indication,
+		#'TR-UNI'{qos = QoS, destAddress = DestAddress,
+		origAddress = OrigAddress, userData = UserData} = UniParms},
+		#statedata{usap = USAP, cco = CCO} = Data) ->
 	%% Extract dialogue portion
-	case extract_uni_dialogue_portion(UniParms#'TR-UNI'.userData) of
-		incorrect_dialogue_portion ->       %% Dialogue portion correct? (no)
+	case extract_uni_dialogue_portion(UserData) of
+		incorrect_dialogue_portion ->   %% Dialogue portion correct? (no)
 			%% Discard components
-			{stop, normal, State};
-		no_version1 ->                     %% Is version 1 supported? (no)
+			{stop, normal, Data};
+		no_version1 ->                  %% Is version 1 supported? (no)
 			%% Discard components
-			{stop, normal, State};
-		TcParms when is_record(TcParms, 'TC-UNI') ->
-			if
-				is_record(UniParms#'TR-UNI'.userData, 'TR-user-data'),
-						(UniParms#'TR-UNI'.userData)#'TR-user-data'.componentPortion /= asn1_NOVALUE ->
-					case 'TC':decode('Components', (UniParms#'TR-UNI'.userData)#'TR-user-data'.componentPortion) of
-						{ok, [] = Components} -> ComponentsPresent = false;
-						{ok, Components} -> ComponentsPresent = true
-					end;
-				true ->
-					Components = undefined,
-					ComponentsPresent = false
-			end,
+			{stop, normal, Data};
+		#'TC-UNI'{} = TcParms ->
+			{ComponentsPresent, Components} = get_components(UserData),
 			%% Assign dialogue ID
 			DialogueID = tcap_tco_server:new_tid(),
-			NewTcParms = TcParms#'TC-UNI'{qos = UniParms#'TR-UNI'.qos,
-					destAddress = UniParms#'TR-UNI'.destAddress,
-					origAddress = UniParms#'TR-UNI'.origAddress,
-					dialogueID = DialogueID,
-					componentsPresent = ComponentsPresent},
-			NewState = State#state{did = DialogueID, parms = UniParms},
+			NewTcParms = TcParms#'TC-UNI'{qos = QoS,
+					destAddress = DestAddress, origAddress = OrigAddress,
+					dialogueID = DialogueID, componentsPresent = ComponentsPresent},
+			NewData = Data#statedata{did = DialogueID, parms = UniParms},
 			%% Components to CHA
 			case ComponentsPresent of
 				true ->
-					gen_server:cast(NewState#state.cco, {components, Components});
+					gen_server:cast(CCO, {components, Components});
 				false ->
 					ok       % should never happen
 			end,
 			%% TC-UNI indication to TCU
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'UNI', indication, NewTcParms}),
+			gen_statem:cast(USAP, {'TC', 'UNI', indication, NewTcParms}),
 			%% Dialogue terminated to CHA
-			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
+			gen_server:cast(CCO, 'dialogue-terminated'),
 			%% Free dialogue ID
-			{stop, normal, NewState}
+			{stop, normal, NewData}
 	end;
-
-%% reference: Figure A.5/Q.774 (sheet 3 of 11)
-%%% TR-BEGIN indication from TSL
-idle({'TR', 'BEGIN', indication, BeginParms}, State) when is_record(BeginParms, 'TR-BEGIN') ->
+% reference: Figure A.5/Q.774 (sheet 3 of 11)
+% TR-BEGIN indication from TSL
+idle(cast, {'TR', 'BEGIN', indication,
+		#'TR-BEGIN'{transactionID = OTID, qos = QoS,
+		destAddress = DestAddress, origAddress = OrigAddress,
+		userData = UserData} = BeginParms},
+		#statedata{usap = USAP, tco = TCO, cco = CCO} = Data) ->
 	%% Extract dialogue portion
-	case extract_begin_dialogue_portion(BeginParms#'TR-BEGIN'.userData) of
-		incorrect_dialogue_portion ->       %% Dialogue portion correct? (no)
+	case extract_begin_dialogue_portion(UserData) of
+		incorrect_dialogue_portion ->    %% Dialogue portion correct? (no)
 			%% Build ABORT apdu
-			ABRT = 'DialoguePDUs':encode('ABRT-apdu', #'ABRT-apdu'{'abort-source' = 'dialogue-service-provider'}),
+			ABRT = 'DialoguePDUs':encode('ABRT-apdu',
+					#'ABRT-apdu'{'abort-source' = 'dialogue-service-provider'}),
 			%% Discard components
 			%% TR-U-ABORT request to TSL
-			TrParms = BeginParms#'TR-BEGIN'{userData = #'TR-user-data'{dialoguePortion = dialogue_ext(ABRT)}},
-			NewState = State#state{otid = BeginParms#'TR-BEGIN'.transactionID, parms = TrParms},
-			gen_server:cast(NewState#state.tco, {'TR', 'U-ABORT', request, TrParms}),
+			TrUserData = #'TR-user-data'{dialoguePortion = dialogue_ext(ABRT)},
+			TrParms = BeginParms#'TR-BEGIN'{userData = TrUserData},
+			NewData = Data#statedata{otid = OTID, parms = TrParms},
+			gen_server:cast(TCO, {'TR', 'U-ABORT', request, TrParms}),
 			%% Dialogue terminated to CHA
-			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
-			{stop, normal, NewState};
-		no_version1 ->                     %% Is version 1 supported? (no)
-			DialoguePortion = (BeginParms#'TR-BEGIN'.userData)#'TR-user-data'.dialoguePortion,
+			gen_server:cast(CCO, 'dialogue-terminated'),
+			{stop, normal, NewData};
+		no_version1 ->                  %% Is version 1 supported? (no)
+			DP = UserData#'TR-user-data'.dialoguePortion,
 			%% Build AARE apdu
-			AARE = 'DialoguePDUs':encode('AARE-apdu', #'AARE-apdu'{
-					'protocol-version' = [version1],
-					'application-context-name' = DialoguePortion#'AARQ-apdu'.'application-context-name',
+			AARE = 'DialoguePDUs':encode('AARE-apdu',
+					#'AARE-apdu'{'protocol-version' = [version1],
+					'application-context-name' = DP#'AARQ-apdu'.'application-context-name',
 					result = 'reject-permanent',
 					'result-source-diagnostic' = {'dialogue-service-provider', 'no-common-dialogue-portion'}}),
 			%% Discard components
 			%% TR-P-ABORT request to TSL
-			TrParms = {transactionID = BeginParms#'TR-P-ABORT'.transactionID, pAbort = AARE},
-			NewState = State#state{otid = BeginParms#'TR-BEGIN'.transactionID,
-					appContextMode = DialoguePortion#'AARQ-apdu'.'application-context-name',
+			TrParms = #'TR-P-ABORT'{transactionID = OTID, pAbort = AARE},
+			NewData = Data#statedata{otid = OTID,
+					appContextMode = DP#'AARQ-apdu'.'application-context-name',
 					parms = TrParms},
-			gen_server:cast(NewState#state.tco, {'TR', 'P-ABORT', request, TrParms}),
+			gen_server:cast(TCO, {'TR', 'P-ABORT', request, TrParms}),
 			%% Dialogue terminated to CHA
-			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
-			{stop, normal, NewState};
-		TcParms when is_record(TcParms, 'TC-BEGIN') ->
-			if
-				is_record(BeginParms#'TR-BEGIN'.userData, 'TR-user-data'),
-						(BeginParms#'TR-BEGIN'.userData)#'TR-user-data'.componentPortion /= asn1_NOVALUE ->
-					case 'TC':decode('Components', (BeginParms#'TR-BEGIN'.userData)#'TR-user-data'.componentPortion) of
-						{ok, [] = Components} -> ComponentsPresent = false;
-						{ok, Components} -> ComponentsPresent = true
-					end;
-				true ->
-					Components = undefined,
-					ComponentsPresent = false
-			end,
+			gen_server:cast(CCO, 'dialogue-terminated'),
+			{stop, normal, NewData};
+		#'TC-BEGIN'{} = TcParms ->
+			{ComponentsPresent, Components} = get_components(UserData),
 			%% Assign dialogue ID
 			DialogueID = tcap_tco_server:new_tid(),
-			NewTcParms = TcParms#'TC-BEGIN'{qos = BeginParms#'TR-BEGIN'.qos,
-					destAddress = BeginParms#'TR-BEGIN'.destAddress,
-					origAddress = BeginParms#'TR-BEGIN'.origAddress,
-					dialogueID = DialogueID,
-					componentsPresent = ComponentsPresent},
-			NewState = State#state{otid = BeginParms#'TR-BEGIN'.transactionID, did = DialogueID,
+			NewTcParms = TcParms#'TC-BEGIN'{qos = QoS,
+					destAddress = DestAddress, origAddress = OrigAddress,
+					dialogueID = DialogueID, componentsPresent = ComponentsPresent},
+			NewData = Data#statedata{otid = OTID, did = DialogueID,
 					parms = BeginParms, appContextMode = TcParms#'TC-BEGIN'.appContextName},
 			%% TC-BEGIN indication to TCU
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'BEGIN', indication, NewTcParms}),
+			gen_statem:cast(USAP, {'TC', 'BEGIN', indication, NewTcParms}),
 			%% Any components?
 			case ComponentsPresent of
 				true ->
 					%% Components to CHA
-					gen_server:cast(NewState#state.cco, {components, Components});
+					gen_server:cast(CCO, {components, Components});
 				false ->
 					ok
 			end,
-			{next_state, initiation_received, NewState}
-	end.
+			{next_state, initiation_received, NewData}
+	end;
+idle(info, _, _Data) ->
+	keep_state_and_data.
 
-
-%% reference: Figure A.5/Q.774 (sheet 5 of 11)
-%%% TC-CONTINUE request from TCU
-initiation_received({'TC', 'CONTINUE', request, ContParms}, State) when is_record(ContParms, 'TC-CONTINUE') ->
+-spec initiation_received(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>initiation_received</em> state.
+%% @private
+%
+% reference: Figure A.5/Q.774 (sheet 5 of 11)
+% TC-CONTINUE request from TCU
+initiation_received(cast, {'TC', 'CONTINUE', request,
+		#'TC-CONTINUE'{qos = QoS, origAddress = OrigAddress,
+		appContextName = AC, userInfo = UserInfo} = _ContParms},
+		#statedata{otid = OTID, cco = CCO} = Data) ->
 	%% Dialogue info included?
 	AARE = #'AARE-apdu'{'protocol-version' = [version1],
-			'application-context-name' = ContParms#'TC-CONTINUE'.appContextName,
+			'application-context-name' = AC,
 			result = accepted,
 			'result-source-diagnostic' = {'dialogue-service-user', null},
-			'user-information' = osmo_util:asn_val(ContParms#'TC-CONTINUE'.userInfo)},
-	{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
-	TrParms = #'TR-CONTINUE'{qos = ContParms#'TC-CONTINUE'.qos,
-				origAddress = ContParms#'TC-CONTINUE'.origAddress,
-				transactionID = State#state.otid,
-				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DlgPor)}},
-	NewState = State#state{parms = TrParms},
+			'user-information' = UserInfo},
+	{ok, DP} = 'DialoguePDUs':encode('AARE-apdu', AARE),
+	TrParms = #'TR-CONTINUE'{qos = QoS,
+				origAddress = OrigAddress, transactionID = OTID,
+				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DP)}},
+	NewData = Data#statedata{parms = TrParms},
 	%% Request components to CHA
-	gen_server:cast(NewState#state.cco, 'request-components'),
-	{next_state, wait_cont_components_ir, NewState};
-
-%% reference: Figure A.5/Q.774 (sheet 5 of 11)
-%%% TC-END request from TCU
-initiation_received({'TC', 'END', request, EndParms}, State) when is_record(EndParms, 'TC-END') ->
+	gen_server:cast(CCO, 'request-components'),
+	{next_state, wait_cont_components_ir, NewData};
+% reference: Figure A.5/Q.774 (sheet 5 of 11)
+% TC-END request from TCU
+initiation_received(cast, {'TC', 'END', request,
+		#'TC-END'{qos = QoS, appContextName = AC, userInfo = UserInfo,
+		termination = Termination} = EndParms},
+		#statedata{otid = OTID, tco = TCO, cco = CCO} = Data) ->
 	%% Prearranged end?
-	case EndParms#'TC-END'.termination of
+	case Termination of
 		prearranged ->
 			%% TR-END request to TSL
-			TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
-					transactionID = State#state.otid,
-					termination = EndParms#'TC-END'.termination},
-			NewState = State#state{parms = TrParms},
-			gen_server:cast(NewState#state.tco, {'TR', 'END', request, TrParms}),
+			TrParms = #'TR-END'{qos = QoS,
+					transactionID = OTID, termination = Termination},
+			NewData = Data#statedata{parms = TrParms},
+			gen_server:cast(TCO, {'TR', 'END', request, TrParms}),
 			%% Dialogue terminated to CHA
-			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
+			gen_server:cast(CCO, 'dialogue-terminated'),
 			%% Free dialogue ID
-			{stop, normal, NewState};
+			{stop, normal, NewData};
 		basic ->
 			AARE = #'AARE-apdu'{'protocol-version' = [version1],
-					'application-context-name' = EndParms#'TC-END'.appContextName,
-					result = accepted,
+					'application-context-name' = AC, result = accepted,
 					'result-source-diagnostic' = {'dialogue-service-user', null},
-					'user-information' = osmo_util:asn_val(EndParms#'TC-END'.userInfo)},
-			{ok, DlgPor} = 'DialoguePDUs':encode('AARE-apdu', AARE),
-			TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
-					transactionID = State#state.otid,
+					'user-information' = UserInfo},
+			{ok, DP} = 'DialoguePDUs':encode('AARE-apdu', AARE),
+			TrParms = #'TR-END'{qos = QoS, transactionID = OTID,
 					termination = EndParms#'TC-END'.termination,
-					userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DlgPor)}},
-			NewState = State#state{parms = TrParms},
+					userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DP)}},
+			NewData = Data#statedata{parms = TrParms},
 			%% Request components to CHA
-			gen_server:cast(NewState#state.cco, 'request-components'),
+			gen_server:cast(CCO, 'request-components'),
 			%% Process components
-			{next_state, wait_for_end_components, NewState}
+			{next_state, wait_for_end_components, NewData}
 	end;
-
-%% reference: Figure A.5/Q.774 (sheet 6 of 11)
-%%% TC-U-ABORT request from TCU
-initiation_received({'TC', 'U-ABORT', request, AbortParms}, State) when is_record(AbortParms, 'TC-U-ABORT'),
-		(AbortParms#'TC-U-ABORT'.abortReason == applicationContextNotSupported)
-		or (AbortParms#'TC-U-ABORT'.abortReason == dialogueRefused)
-		or (AbortParms#'TC-U-ABORT'.abortReason == userSpecified) ->
-	case State#state.appContextMode of
+% reference: Figure A.5/Q.774 (sheet 6 of 11)
+% TC-U-ABORT request from TCU
+initiation_received(cast, {'TC', 'U-ABORT', request,
+		#'TC-U-ABORT'{abortReason = AbortReason, qos = QoS,
+		appContextName = AC, userInfo = UserInfo} = _AbortParms},
+		#statedata{otid = OTID, tco = TCO, cco = CCO,
+		appContextMode = AppContextMode} = Data)
+		when AbortReason  == applicationContextNotSupported;
+		AbortReason == dialogueRefused; AbortReason == userSpecified ->
+	UserData = case AppContextMode of
 		%% Is application context mode set? (no)
 		undefined ->
-			UserData = #'TR-user-data'{};
+			#'TR-user-data'{};
 		%% Abort reason present and = AC-name not supported OR dialogue refused?
-		_AppContextName when AbortParms#'TC-U-ABORT'.abortReason == applicationContextNotSupported ->
+		_ when AbortReason == applicationContextNotSupported ->
 			%% Set protocol version = 1
 			%% Build AARE-pdu (rejected)
 			AARE = 'DialoguePDUs':encode('AARE-apdu',
 					#'AARE-apdu'{'protocol-version' = [version1],
-					'application-context-name' = AbortParms#'TC-U-ABORT'.appContextName,
+					'application-context-name' = AC,
 					result = 'reject-permanent',
-					'result-source-diagnostic' = {'dialogue-service-user', 'application-context-name-not-supported'}}),
-			UserData = #'TR-user-data'{dialoguePortion = dialogue_ext(AARE),
+					'result-source-diagnostic' = {'dialogue-service-user',
+					'application-context-name-not-supported'}}),
+			#'TR-user-data'{dialoguePortion = dialogue_ext(AARE),
 						   componentPortion = asn1_NOVALUE};
-		_AppContextName when AbortParms#'TC-U-ABORT'.abortReason == dialogueRefused ->
+		_ when AbortReason == dialogueRefused ->
 			%% Set protocol version = 1
 			%% Build AARE-pdu (rejected)
 			AARE = 'DialoguePDUs':encode('AARE-apdu',
 					#'AARE-apdu'{'protocol-version' = [version1],
-					'application-context-name' = AbortParms#'TC-U-ABORT'.appContextName,
+					'application-context-name' = AC,
 					result = 'reject-permanent',
 					'result-source-diagnostic' = {'dialogue-service-user', null}}),
-			UserData = #'TR-user-data'{dialoguePortion = dialogue_ext(AARE)};
-		_AppContextName when AbortParms#'TC-U-ABORT'.abortReason == userSpecified ->
+			#'TR-user-data'{dialoguePortion = dialogue_ext(AARE)};
+		_ when AbortReason == userSpecified ->
 			%% Build ABRT-apdu (abort source = dialogue-service-user)
 			ABRT = 'DialoguePDUs':encode('ABRT-apdu',
 					#'ABRT-apdu'{'abort-source' = 'dialogue-service-user',
-					'user-information' = AbortParms#'TC-U-ABORT'.userInfo}),
-			UserData = #'TR-user-data'{dialoguePortion = dialogue_ext(ABRT),
+					'user-information' = UserInfo}),
+			#'TR-user-data'{dialoguePortion = dialogue_ext(ABRT),
 						   componentPortion = asn1_NOVALUE}
 	end,
 	%% TR-U-ABORT request to TSL
-	TrParms = #'TR-U-ABORT'{qos = AbortParms#'TC-U-ABORT'.qos,
-			transactionID = State#state.otid,
-			userData = UserData},
-	NewState = State#state{parms = TrParms},
-	gen_server:cast(NewState#state.tco, {'TR', 'U-ABORT', request, TrParms}),
+	TrParms = #'TR-U-ABORT'{qos = QoS,
+			transactionID = OTID, userData = UserData},
+	NewData = Data#statedata{parms = TrParms},
+	gen_server:cast(TCO, {'TR', 'U-ABORT', request, TrParms}),
 	%% Dialogue terminated to CHA
-	gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
+	gen_server:cast(CCO, 'dialogue-terminated'),
 	%% Free dialogue ID
-	{stop, normal, NewState}.
+	{stop, normal, NewData};
+initiation_received(info, _, _Data) ->
+	keep_state_and_data.
 
-%% reference: Figure A.5/Q.774 (sheet 7 of 11)
-%%% TC-END request from TCU
-initiation_sent({'TC', 'END', request, EndParms}, State) when is_record(EndParms, 'TC-END'),
-		EndParms#'TC-END'.termination == prearranged ->   % termination must be prearranged
+-spec initiation_sent(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>initiation_sent</em> state.
+%% @private
+% reference: Figure A.5/Q.774 (sheet 7 of 11)
+%% TC-END request from TCU
+initiation_sent(cast, {'TC', 'END', request,
+		#'TC-END'{termination = prearranged, qos = QoS} = _EndParms},
+		#statedata{otid = OTID, tco = TCO, cco = CCO} = Data) ->
+	% termination must be prearranged
 	%% TR-END request to TSL
-	TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
-			transactionID = State#state.otid,
-			termination = EndParms#'TC-END'.termination},
-	NewState = State#state{parms = TrParms},
-	gen_server:cast(NewState#state.tco, {'TR', 'END', request, TrParms}),
+	TrParms = #'TR-END'{qos = QoS,
+			transactionID = OTID, termination = prearranged},
+	NewData = Data#statedata{parms = TrParms},
+	gen_server:cast(TCO, {'TR', 'END', request, TrParms}),
 	%% Dialogue terminated to CHA
-	gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
-	{stop, normal, NewState};
-
-%% reference: Figure A.5/Q.774 (sheet 7 of 11)
-%%% TC-U-ABORT request from TCU (local action)
-initiation_sent({'TC', 'U-ABORT', request, AbortParms}, State) when is_record(AbortParms, 'TC-U-ABORT') ->
+	gen_server:cast(CCO, 'dialogue-terminated'),
+	{stop, normal, NewData};
+% reference: Figure A.5/Q.774 (sheet 7 of 11)
+%% TC-U-ABORT request from TCU (local action)
+initiation_sent(cast, {'TC', 'U-ABORT', request,
+		#'TC-U-ABORT'{qos = QoS} = _AbortParms},
+		#statedata{otid = OTID, tco = TCO, cco = CCO} = Data) ->
 	%% TR-U-ABORT request to TSL
-	TrParms = #'TR-U-ABORT'{qos = AbortParms#'TC-U-ABORT'.qos, transactionID = State#state.otid},
-	NewState = State#state{parms = TrParms},
-	gen_server:cast(NewState#state.tco, {'TR', 'U-ABORT', request, TrParms}),
+	TrParms = #'TR-U-ABORT'{qos = QoS, transactionID = OTID},
+	NewData = Data#statedata{parms = TrParms},
+	gen_server:cast(TCO, {'TR', 'U-ABORT', request, TrParms}),
 	%% Dialogue terminated to CHA
-	gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
-	{stop, normal, NewState};
-
-%% reference: Figure A.5/Q.774 (sheet 7 of 11)
+	gen_server:cast(CCO, 'dialogue-terminated'),
+	{stop, normal, NewData};
+% reference: Figure A.5/Q.774 (sheet 7 of 11)
 %%% TR-END indication from TSL
-initiation_sent(W={'TR', 'END', indication, _EndParms}, State) ->
-	is_or_active(initiation_sent, W, State);
-
+initiation_sent(cast, {'TR', 'END', indication, _EndParms} = P, Data) ->
+	is_or_active(initiation_sent, P, Data);
 %% reference: Figure A.5/Q.774 (sheet 7 of 11)
 %% NOTE:  currently the TCO short circuits this function and sends directly to TCU
-initiation_sent({'TR', 'NOTICE', indication, NoticeParms}, State) when is_record(NoticeParms, 'TR-NOTICE') ->
+initiation_sent(cast, {'TR', 'NOTICE', indication,
+		#'TR-NOTICE'{origAddress = OrigAddress, destAddress = DestAddress,
+		reportCause = ReportCause} = 	NoticeParms},
+		#statedata{usap = USAP, did = DID} = Data) ->
 	%% TC-NOTICE indication to TCU
-	TcParms = #'TC-NOTICE'{dialogueID = State#state.did,
-			origAddress = NoticeParms#'TR-NOTICE'.origAddress,
-			destAddress = NoticeParms#'TR-NOTICE'.destAddress,
-			reportCause = NoticeParms#'TR-NOTICE'.reportCause},
-	NewState = State#state{parms = NoticeParms},
-	gen_fsm:send_event(NewState#state.usap, {'TC', 'NOTICE', indication, TcParms}),
-	{next_state, initiation_sent, NewState};
-
+	TcParms = #'TC-NOTICE'{dialogueID = DID,
+			origAddress = OrigAddress, destAddress = DestAddress,
+			reportCause = ReportCause},
+	NewData = Data#statedata{parms = NoticeParms},
+	gen_statem:cast(USAP, {'TC', 'NOTICE', indication, TcParms}),
+	{next_state, initiation_sent, NewData};
 %% reference: Figure A.5/Q.774 (sheet 8 of 11)
 %% TR-CONTINUE indication from TSL
-initiation_sent(W={'TR', 'CONTINUE', indication, _ContParms}, State) ->
-	is_or_active(initiation_sent, W, State);
-
-
+initiation_sent(cast, {'TR', 'CONTINUE', indication, _ContParms} = P, Data) ->
+	is_or_active(initiation_sent, P, Data);
 %% reference: Figure A.5/Q.774 (sheet 8 of 11)
 %% TR-U-ABORT indication from TSL
-initiation_sent({'TR', 'U-ABORT', indication, AbortParms}, State) when is_record(AbortParms, 'TR-U-ABORT') ->
-	case catch begin
-		if
-			%% Is AC mode set? (no) Is Dialogue portion present? (no)
-			State#state.appContextMode == undefined and (not is_record(AbortParms#'TR-U-ABORT'.userData, 'TR-user-data')
-					or (AbortParms#'TR-U-ABORT'.userData)#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
-				throw(#'TC-U-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos, dialogueID = State#state.did});
-			%% Is AC mode set? (no) Is Dialogue portion present? (yes)
-			State#state.appContextMode == undefined, is_record(AbortParms#'TR-U-ABORT'.userData, 'TR-user-data'),
-					AbortParms#'TR-U-ABORT'.userData /= undefined ->
-				throw(#'TC-P-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos, 
-						dialogueID = State#state.did, pAbort = abnormalDialogue});
-			%% Is User Data included in primitive? (no)
-			not is_record(AbortParms#'TR-U-ABORT'.userData, 'TR-user-data');
-					(AbortParms#'TR-U-ABORT'.userData)#'TR-user-data'.dialoguePortion == asn1_NOVALUE ->
-				throw(#'TC-P-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos, 
-						dialogueID = State#state.did, pAbort = abnormalDialogue});
-			true -> ok
-		end,
-		%% Is PDU type = ABRT or AARE (rejected)?
-		case 'DialoguePDUs':decode('DialoguePDU', (AbortParms#'TR-U-ABORT'.userData)#'TR-user-data'.dialoguePortion) of
-			%% Is abstract syntax = dialogue-PDU AS? (no)
-      	{dialoguePDU, APDU}  when is_record(APDU, 'AARE-apdu'),
-					APDU#'AARE-apdu'.'application-context-name' /= State#state.appContextMode ->
-				#'TC-P-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos,
-						dialogueID = State#state.did,
-						pAbort = abnormalDialogue};
-			%% Is Abort source = user? (yes)
-      	{dialoguePDU, APDU}  when is_record(APDU, 'ABRT-apdu'),
-					element(1, APDU#'ABRT-apdu'.'abort-source') == 'dialogue-service-user' ->
-				#'TC-U-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos,
-						dialogueID = State#state.did,
-						abortReason = userSpecific,
-						userInfo = APDU#'ABRT-apdu'.'user-information'};
-			%% Is Associate source = user? (yes)
-      	{dialoguePDU, APDU}  when is_record(APDU, 'AARE-apdu'), APDU#'AARE-apdu'.'result-source-diagnostic'
-					== {'dialogue-service-user', 'application-context-name-not-supported'},
-					APDU#'AARE-apdu'.result == 'reject-permanent' ->
-				#'TC-U-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos,
-						dialogueID = State#state.did,
-						abortReason = applicationContextNotSupported,
-						appContextName = APDU#'AARE-apdu'.'application-context-name',
-						userInfo = APDU#'AARE-apdu'.'user-information'};
-      	{dialoguePDU, APDU}  when is_record(APDU, 'AARE-apdu'), 
-					element(1, APDU#'AARE-apdu'.'result-source-diagnostic') == 'dialogue-service-user',
-					APDU#'AARE-apdu'.result == 'reject-permanent' ->
-				#'TC-U-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos,
-						dialogueID = State#state.did,
-						abortReason = dialogueRefused,
-						appContextName = APDU#'AARE-apdu'.'application-context-name',
-						userInfo = APDU#'AARE-apdu'.'user-information'};
-			%% Is AARE (no common dialogue portion)?
-      	{dialoguePDU, APDU}  when is_record(APDU, 'AARE-apdu'),
-					APDU#'AARE-apdu'.'result-source-diagnostic' == {'dialogue-service-provider', 'no-common-dialogue-portion'} ->
-				#'TC-P-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos,
-						dialogueID = State#state.did,
-						pAbort = noCommonDialoguePortion};
-			_ ->
-				#'TC-P-ABORT'{qos = AbortParms#'TR-U-ABORT'.qos,
-						dialogueID = State#state.did,
-						pAbort = abnormalDialogue}
-		end
-	end of
-		TcParms when is_record(TcParms, 'TC-U-ABORT') ->
-			NewState = State#state{parms = AbortParms},
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'U-ABORT', indication, TcParms});
-		TcParms when is_record(TcParms, 'TC-P-ABORT') ->
-			NewState = State#state{parms = AbortParms},
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'P-ABORT', indication, TcParms})
-	end,
-	%% Dialogue terminated to CHA
-	gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
-	%% Free dialogue ID
-	{stop, normal, NewState};
+initiation_sent(cast, {'TR', 'U-ABORT', indication, _} = P, Data) ->
+	handle_abort(P, Data);
+initiation_sent(cast, {'TR', 'P-ABORT', indication, _} = P, Data) ->
+	handle_abort(P, Data);
+initiation_sent(info, _, _Data) ->
+	keep_state_and_data.
 
-%% reference: Figure A.5/Q.774 (sheet 8 of 11)
-%% TR-P-ABORT indication from TSL
-initiation_sent({'TR', 'P-ABORT', indication, AbortParms}, State) when is_record(AbortParms, 'TR-P-ABORT') ->
-	TcParms = #'TC-P-ABORT'{qos = AbortParms#'TR-P-ABORT'.qos,
-			dialogueID = State#state.did,
-			pAbort = AbortParms#'TR-P-ABORT'.pAbort},
-	NewState = State#state{parms = AbortParms},
-	%% TC-P-ABORT indication to TCU
-	gen_fsm:send_event(NewState#state.usap, {'TC', 'P-ABORT', indication, TcParms}),
-	%% Dialogue terminated to CHA
-	gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
-	%% Free dialogue ID
-	{stop, normal, NewState}.
-
-
+-spec active(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>active</em> state.
+%% @private
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
 %% TC-CONTINUE request from TCU
-active({'TC', 'CONTINUE', request, ContParms}, State) when is_record(ContParms, 'TC-CONTINUE') ->
-	TrParms = #'TR-CONTINUE'{qos = ContParms#'TC-CONTINUE'.qos,
-				origAddress = ContParms#'TC-CONTINUE'.origAddress,
-				transactionID = ContParms#'TC-CONTINUE'.dialogueID,
-				userData = #'TR-user-data'{dialoguePortion = ContParms#'TC-CONTINUE'.userInfo}},
-	NewState = State#state{parms = TrParms},
+active(cast, {'TC', 'CONTINUE', request,
+		#'TC-CONTINUE'{dialogueID = DID, qos = QoS,
+		origAddress = OrigAddress, userInfo = UserInfo} = _ContParms},
+		#statedata{cco = CCO, did = DID} = Data) ->
+	TrParms = #'TR-CONTINUE'{qos = QoS,
+				origAddress = OrigAddress, transactionID = DID,
+				userData = #'TR-user-data'{dialoguePortion = UserInfo}},
+	NewData = Data#statedata{parms = TrParms},
 	%% Request component to CHA
-	gen_server:cast(NewState#state.cco, 'request-components'),
+	gen_server:cast(CCO, 'request-components'),
 	%% Process components
-	{next_state, wait_cont_components_active, NewState};
-
+	{next_state, wait_cont_components_active, NewData};
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
 %% TC-END request from TCU
-active({'TC', 'END', request, EndParms}, State) when is_record(EndParms, 'TC-END') ->
-	TrParms = #'TR-END'{qos = EndParms#'TC-END'.qos,
-			transactionID = State#state.otid,
-			userData = #'TR-user-data'{dialoguePortion = EndParms#'TC-END'.userInfo},
-			termination = EndParms#'TC-END'.termination},
-	NewState = State#state{parms = TrParms},
+active(cast, {'TC', 'END', request,
+		#'TC-END'{qos = QoS, userInfo = UserInfo,
+		termination = Termination} = _EndParms},
+		#statedata{tco = TCO, cco = CCO, otid = OTID} = Data) ->
+	TrParms = #'TR-END'{qos = QoS, transactionID = OTID,
+			userData = #'TR-user-data'{dialoguePortion = UserInfo},
+			termination = Termination},
+	NewData = Data#statedata{parms = TrParms},
 	%% Prearranged end?
-	case EndParms#'TC-END'.termination of
+	case Termination of
 		prearranged ->
 			%% TR-END request to TSL
-			gen_server:cast(NewState#state.tco, {'TR', 'END', request, TrParms}),
+			gen_server:cast(TCO, {'TR', 'END', request, TrParms}),
 			%% Dialogue terminated to CHA
-			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
+			gen_server:cast(CCO, 'dialogue-terminated'),
 			%% Free dialogue ID
-			{stop, normal, NewState};
+			{stop, normal, NewData};
 		basic ->
 			%% Request component to CHA
-			gen_server:cast(State#state.cco, 'request-components'),
+			gen_server:cast(CCO, 'request-components'),
 			%% Process components
-			{next_state, wait_for_end_components, NewState}
+			{next_state, wait_for_end_components, NewData}
 	end;
-
 %% reference: Figuer A.5/Q774 (sheet 10 of 11)
 %% TR-END indication from TSL
-active(W={'TR', 'END', indication, _EndParms}, State) ->
-	is_or_active(active, W, State);
+active(cast, {'TR', 'END', indication, _EndParms} = P, Data) ->
+	is_or_active(active, P, Data);
 %% reference: Figure A.5/Q.774 (sheet 11 of 11)
 %% TR-CONTINUE indication from TSL
-active(W={'TR', 'CONTINUE', indication, _ContParms}, State) ->
-	is_or_active(active, W, State);
-%% TR-U-ABORT indication from TSL
-active({'TR', 'U-ABORT', indication, AbortParms}, State) when is_record(AbortParms, 'TR-U-ABORT') ->
-	initiation_sent({'TR', 'U-ABORT', indication, AbortParms}, State);
-%% TR-P-ABORT indication from TSL
-active({'TR', 'P-ABORT', indication, AbortParms}, State) when is_record(AbortParms, 'TR-P-ABORT') ->
-	initiation_sent({'TR', 'P-ABORT', indication, AbortParms}, State).
+active(cast, {'TR', 'CONTINUE', indication, _ContParms} = P, Data) ->
+	is_or_active(active, P, Data);
+active(cast, {'TR', 'U-ABORT', indication, _} = P, Data) ->
+	handle_abort(P, Data);
+active(cast, {'TR', 'P-ABORT', indication, _} = P, Data) ->
+	handle_abort(P, Data);
+active(info, _, _Data) ->
+	keep_state_and_data.
+
+-spec wait_for_uni_components(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>wait_for_uni_components</em> state.
+%% @private
+%% reference: Figure A.5 bis/Q.774
+%% reference: Figure A.5/Q.774 (sheet 2 of 11)
+wait_for_uni_components(cast, 'no-component', Data) ->
+	wait_for_uni_components1(Data);
+wait_for_uni_components(cast, {'requested-components', Components},
+		#statedata{parms = #'TR-UNI'{userData = UserData} = TrParms} = Data) ->
+	%% Assemble component portion
+	{ok, ComponentPortion} = 'TC':encode('Components', Components),
+	%% Assemble TSL user data
+	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
+	NewTrParms = TrParms#'TR-UNI'{userData = NewUserData},
+	wait_for_uni_components1(Data#statedata{parms = NewTrParms});
+wait_for_uni_components(info, _, _Data) ->
+	keep_state_and_data.
+%% @hidden
+wait_for_uni_components1(#statedata{tco = TCO,
+		cco = CCO, parms = TrParms} = Data) ->
+	%% TR-UNI request to TSL
+	gen_server:cast(TCO, {'TR', 'UNI', request, TrParms}),
+	%% Dialogue terminated to CHA
+	gen_server:cast(CCO, 'dialogue-terminated'),
+	%% Free dialogue ID
+	{stop, normal, Data}.
+	
+-spec wait_for_begin_components(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>wait_for_begin_components</em> state.
+%% @private
+%% reference: Figure A.5 bis/Q.774
+%% reference: Figure A.5/Q.774 (sheet 2 of 11)
+wait_for_begin_components(cast, 'no-component', Data) ->
+	wait_for_begin_components1(Data);
+wait_for_begin_components(cast, {'requested-components', Components},
+		#statedata{parms = #'TR-BEGIN'{userData = UserData} = TrParms} = Data) ->
+	%% Assemble component portion
+	{ok, ComponentPortion} = 'TC':encode('Components', Components),
+	%% Assemble TSL user data
+	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
+	NewTrParms = TrParms#'TR-BEGIN'{userData = NewUserData},
+	wait_for_begin_components1(Data#statedata{parms = NewTrParms});
+wait_for_begin_components(info, _, _Data) ->
+	keep_state_and_data.
+%% @hidden
+wait_for_begin_components1(#statedata{tco = TCO, parms = TrParms} = Data) ->
+	%% We don't Assign local transaction ID, as we simply re-use the DialougeID!
+	%% TR-BEGIN request to TSL
+	case gen_server:call(TCO, {'TR', 'BEGIN', request, TrParms}) of
+		ok ->
+			{next_state, initiation_sent, Data};
+		{error, Reason} ->
+			{stop, Reason, Data}
+	end.
+	
+-spec wait_cont_components_ir(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>wait_cont_components_ir</em> state.
+%% @private
+%% reference: Figure A.5 bis/Q.774
+%% reference: Figure A.5/Q.774 (sheet 5 of 11)
+wait_cont_components_ir(cast, 'no-component', Data) ->
+	wait_cont_components_ir1(Data);
+wait_cont_components_ir(cast, {'requested-components', Components},
+		#statedata{parms = #'TR-CONTINUE'{userData = UserData} = TrParms} = Data) ->
+	%% Assemble component portion
+	{ok, ComponentPortion} = 'TC':encode('Components', Components),
+	%% Assemble TSL user data
+	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
+	NewTrParms = TrParms#'TR-CONTINUE'{userData = NewUserData},
+	wait_cont_components_ir1(Data#statedata{parms = NewTrParms});
+wait_cont_components_ir(info, _, _Data) ->
+	keep_state_and_data.
+%% @hidden
+wait_cont_components_ir1(#statedata{tco = TCO, parms = TrParms} = Data) ->
+	%% TR-CONTINUE request to TSL
+	gen_server:cast(TCO, {'TR', 'CONTINUE', request, TrParms}),
+	{next_state, active, Data}.
+	
+-spec wait_cont_components_active(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>wait_cont_components_active</em> state.
+%% @private
+%% reference: Figure A.5 bis/Q.774
+%% reference: Figure A.5/Q.774 (sheet 9 of 11)
+wait_cont_components_active(cast, 'no-component', Data) ->
+	wait_cont_components_active1(Data);
+wait_cont_components_active(cast, {'requested-components', Components},
+		#statedata{parms = #'TR-CONTINUE'{userData = UserData} = TrParms} = Data) ->
+	%% Assemble component portion
+	{ok, ComponentPortion} = 'TC':encode('Components', Components),
+	%% Assemble TSL user data
+	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
+	NewTrParms = TrParms#'TR-CONTINUE'{userData = NewUserData},
+	wait_cont_components_active1(Data#statedata{parms = NewTrParms});
+wait_cont_components_active(info, _, _Data) ->
+	keep_state_and_data.
+%% @hidden
+wait_cont_components_active1(#statedata{tco = TCO, parms = TrParms} = Data) ->
+	%% TR-CONTINUE request to TSL
+	gen_server:cast(TCO, {'TR', 'CONTINUE', request, TrParms}),
+	{next_state, active, Data}.
+	
+-spec wait_for_end_components(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>wait_for_end_components</em> state.
+%% @private
+%% reference: Figure A.5 bis/Q.774
+%% reference: Figure A.5/Q.774 (sheet 5 of 11)
+%% reference: Figure A.5/Q.774 (sheet 9 of 11)
+wait_for_end_components(cast, 'no-component', Data) ->
+	wait_for_end_components1(Data);
+wait_for_end_components(cast, {'requested-components', Components},
+		#statedata{parms = #'TR-END'{userData = UserData} = TrParms} = Data) ->
+	%% Assemble component portion
+	{ok, ComponentPortion} = 'TC':encode('Components', Components),
+	%% Assemble TSL user data
+	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
+	NewTrParms = TrParms#'TR-END'{userData = NewUserData},
+	wait_for_end_components1(Data#statedata{parms = NewTrParms});
+wait_for_end_components(info, _, _Data) ->
+	keep_state_and_data.
+%% @hidden
+wait_for_end_components1(#statedata{tco = TCO,
+		cco = CCO, parms = TrParms} = Data) ->
+	%% TR-END request to TSL
+	gen_server:cast(TCO, {'TR', 'END', request, TrParms}),
+	%% Dialogue terminated to CHA
+	gen_server:cast(CCO, 'dialogue-terminated'),
+	%% Free dialogue ID
+	{stop, normal, Data}.
+
+-spec handle_event(EventType, EventContent, State, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		State :: state(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(State).
+%% @doc Handles events received in any state.
+%% @private
+%%
+handle_event(_EventType, _EventContent, _State, _Data) ->
+	keep_state_and_data.
+
+-spec terminate(Reason, State, Data) -> any()
+	when
+		Reason :: normal | shutdown | {shutdown, term()} | term(),
+		State :: state(),
+		Data ::  statedata().
+%% @doc Cleanup and exit.
+%% @see //stdlib/gen_statem:terminate/3
+%% @private
+%%
+terminate(_Reason, _State, _Data) ->
+	ok.
+
+-spec code_change(OldVsn, OldState, OldData, Extra) -> Result
+	when
+		OldVsn :: Version | {down, Version},
+		Version ::  term(),
+		OldState :: state(),
+		OldData :: statedata(),
+		Extra :: term(),
+		Result :: {ok, NewData, NewData} |  Reason,
+		NewData :: state(),
+		NewData :: statedata(),
+		Reason :: term().
+%% @doc Update internal state data during a release upgrade&#047;downgrade.
+%% @see //stdlib/gen_statem:code_change/3
+%% @private
+%%
+code_change(_OldVsn, OldState, OldData, _Extra) ->
+	{ok, OldState, OldData}.
+
+%%----------------------------------------------------------------------
+%%  internal functions
+%%----------------------------------------------------------------------
 
 %% reference: Figure A.5/Q.774 (sheet 8 of 11)
 %% reference: Figure A.5/Q.774 (sheet 11 of 11)
 %% TR-CONTINUE indication from TSL
-is_or_active(StateName, {'TR', 'CONTINUE', indication, ContParms}, State)
-						when is_record(ContParms, 'TR-CONTINUE') ->
-	if
-		is_record(ContParms#'TR-CONTINUE'.userData, 'TR-user-data'),
-				(ContParms#'TR-CONTINUE'.userData)#'TR-user-data'.componentPortion /= asn1_NOVALUE ->
-			case 'TC':decode('Components', (ContParms#'TR-CONTINUE'.userData)#'TR-user-data'.componentPortion) of
-				{ok, [] = Components} -> ComponentsPresent = false;
-				{ok, Components} -> ComponentsPresent = true
-			end;
-		true ->
-			Components = undefined,
-			ComponentsPresent = false
-	end,
+is_or_active(StateName, {'TR', 'CONTINUE', indication,
+		#'TR-CONTINUE'{transactionID = TID, origAddress = OrigAddress,
+		userData = UserData, qos = QoS} = ContParms},
+		#statedata{appContextMode = AppContextMode,
+		did = DID, usap = USAP, tco = TCO, cco = CCO} = Data) ->
+	{ComponentsPresent, Components} = get_components(UserData),
 	%% Dialogue portion included?
 	%% AC Mode set?
 	%% Extract dialogue portion
 	%% Dialogue portion correct?
-	case extract_dialogue_portion(ContParms#'TR-CONTINUE'.userData, State#state.appContextMode, StateName) of
+	case extract_dialogue_portion(UserData, AppContextMode, StateName) of
 		abort ->
 			%% Discard components
 			%% TC-P-ABORT indication to TCU
-			TcAParms = #'TC-P-ABORT'{qos = ContParms#'TR-CONTINUE'.qos,
-					dialogueID = State#state.did,
-					pAbort = abnormalDialogue},
-			NewState = State#state{parms = ContParms},
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'P-ABORT', indication, TcAParms}),
+			TcAParms = #'TC-P-ABORT'{qos = QoS,
+					dialogueID = DID, pAbort = abnormalDialogue},
+			gen_statem:cast(USAP, {'TC', 'P-ABORT', indication, TcAParms}),
 			%% Build ABRT apdu
 			ABRT = 'DialoguePDUs':encode('ABRT-apdu',
 					#'ABRT-apdu'{'abort-source' = 'dialogue-service-provider'}),
 			UserData = #'TR-user-data'{dialoguePortion = dialogue_ext(ABRT),
 						   componentPortion = asn1_NOVALUE},
 			%% TR-U-ABORT request to TSL
-			TrParms = #'TR-U-ABORT'{qos = ContParms#'TR-CONTINUE'.qos,
-						transactionID = ContParms#'TR-CONTINUE'.transactionID,
-						userData = UserData},
-			LastState = State#state{parms = ContParms},
-			gen_server:cast(LastState#state.tco, {'TR', 'U-ABORT', request, TrParms}),
+			TrParms = #'TR-U-ABORT'{qos = QoS,
+						transactionID = TID, userData = UserData},
+			NewData = Data#statedata{parms = ContParms},
+			gen_server:cast(TCO, {'TR', 'U-ABORT', request, TrParms}),
 			%% Dialogue terminated to CHA
-			gen_server:cast(LastState#state.cco, 'dialogue-terminated'),
+			gen_server:cast(CCO, 'dialogue-terminated'),
 			%% Free dialogue ID
-			{stop, normal, LastState};
+			{stop, normal, NewData};
 		AARE ->
 			%% TC-CONTINUE indication to TCU
-			TcParms = #'TC-CONTINUE'{qos = ContParms#'TR-CONTINUE'.qos,
-						origAddress = ContParms#'TR-CONTINUE'.origAddress,
-						appContextName = State#state.appContextMode,
-						dialogueID = State#state.did,
-      						userInfo = AARE,
-						componentsPresent = ComponentsPresent},
-			NewState = State#state{parms = ContParms},
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'CONTINUE', indication, TcParms}),
+			TcParms = #'TC-CONTINUE'{qos = QoS, origAddress = OrigAddress,
+						appContextName = AppContextMode, dialogueID = DID,
+      				userInfo = AARE, componentsPresent = ComponentsPresent},
+			NewData = Data#statedata{parms = ContParms},
+			gen_statem:cast(USAP, {'TC', 'CONTINUE', indication, TcParms}),
 			%% Any components?
 			case ComponentsPresent of
 				true ->
 					%% Components to CHA
-					gen_server:cast(NewState#state.cco, {components, Components});
+					gen_server:cast(CCO, {components, Components}),
+					{next_state, active, NewData};
 				false ->
-					ok
-			end,
-			{next_state, active, NewState}
+					{next_state, active, NewData}
+			end
 	end;
-
 %% reference: Figure A.5/Q.774 (sheet 7 of 11)
 %%% TR-END indication from TSL
-is_or_active(StateName, {'TR', 'END', indication, EndParms}, State) when is_record(EndParms, 'TR-END') ->
-	if
-		is_record(EndParms#'TR-END'.userData, 'TR-user-data'),
-				(EndParms#'TR-END'.userData)#'TR-user-data'.componentPortion /= asn1_NOVALUE ->
-			case 'TC':decode('Components', (EndParms#'TR-END'.userData)#'TR-user-data'.componentPortion) of
-				{ok, [] = Components} -> ComponentsPresent = false;
-				{ok, Components} -> ComponentsPresent = true
-			end;
-		true ->
-			Components = undefined,
-			ComponentsPresent = false
-	end,
+is_or_active(StateName, {'TR', 'END', indication,
+		#'TR-END'{qos = QoS, userData = UserData,
+		termination = Termination} = EndParms},
+		#statedata{appContextMode = AppContextMode,
+		did = DID, usap = USAP, cco = CCO} = Data) ->
+	{ComponentsPresent, Components} = get_components(UserData),
 	%% Dialogue portion included?
 	%% AC Mode set?
 	%% Extract dialogue portion
 	%% Dialogue portion correct?
-	case extract_dialogue_portion(EndParms#'TR-END'.userData, State#state.appContextMode, StateName) of
+	case extract_dialogue_portion(UserData, AppContextMode, StateName) of
 		abort ->
 			%% Discard components
 			%% TC-P-ABORT indication to TCU
-			TcParms = #'TC-P-ABORT'{qos = EndParms#'TR-END'.qos,
-					dialogueID = State#state.did,
-					pAbort = abnormalDialogue},
-			NewState = State#state{parms = EndParms},
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'P-ABORT', indication, TcParms}),
+			TcParms = #'TC-P-ABORT'{qos = QoS,
+					dialogueID = DID, pAbort = abnormalDialogue},
+			NewData = Data#statedata{parms = EndParms},
+			gen_statem:cast(USAP, {'TC', 'P-ABORT', indication, TcParms}),
 			%% Dialogue terminated to CHA
-			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
+			gen_server:cast(CCO, 'dialogue-terminated'),
 			%% Free dialogue ID
-			{stop, normal, NewState};
+			{stop, normal, NewData};
 		AARE ->
 			%% TC-END indication to TCU
-			TcParms = #'TC-END'{qos = EndParms#'TR-END'.qos,
-					dialogueID = State#state.did,
-					appContextName = State#state.appContextMode,
+			TcParms = #'TC-END'{qos = QoS, dialogueID = DID,
+					appContextName = AppContextMode,
 					componentsPresent = ComponentsPresent,
-					userInfo = AARE,
-					termination = EndParms#'TR-END'.termination},
-			NewState = State#state{parms = EndParms},
-			gen_fsm:send_event(NewState#state.usap, {'TC', 'END', indication, TcParms}),
+					userInfo = AARE, termination = Termination},
+			NewData = Data#statedata{parms = EndParms},
+			gen_statem:cast(USAP, {'TC', 'END', indication, TcParms}),
 			%% Any components?
 			case ComponentsPresent of
 				true ->
 					%% Components to CHA
-					gen_server:cast(NewState#state.cco, {components, Components});
+					gen_server:cast(CCO, {components, Components});
 				false ->
 					ok
 			end,
 			%% Dialogue terminated to CHA
-			gen_server:cast(NewState#state.cco, 'dialogue-terminated'),
+			gen_server:cast(CCO, 'dialogue-terminated'),
 			%% Free dialogue ID
-			{stop, normal, NewState}
+			{stop, normal, NewData}
 	end.
 
-
-%% reference: Figure A.5 bis/Q.774
-%% reference: Figure A.5/Q.774 (sheet 2 of 11)
-wait_for_uni_components('no-component', State) ->
-	wait_for_uni_components1(State);
-wait_for_uni_components({'requested-components', Components}, State) ->
-	%% Assemble component portion
-	{ok, ComponentPortion} = 'TC':encode('Components', Components),
-	%% Assemble TSL user data
-	UserData = (State#state.parms)#'TR-UNI'.userData,
-	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
-	TrParms = (State#state.parms)#'TR-UNI'{userData = NewUserData},
-	wait_for_uni_components1(State#state{parms = TrParms}).
-wait_for_uni_components1(State) ->
-	%% TR-UNI request to TSL
-	gen_server:cast(State#state.tco, {'TR', 'UNI', request, State#state.parms}),
+%% TR-U-ABORT indication from TSL
+%% @private
+handle_abort({'TR', 'U-ABORT', indication,
+		#'TR-U-ABORT'{qos = QoS, userData = UserData} = AbortParms},
+		#statedata{usap = USAP, cco = CCO, did = DID,
+		appContextMode = undefined} = Data)
+		when (not is_record(UserData, 'TR-user-data')
+		or UserData#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
+	%% Is AC mode set? (no) Is Dialogue portion present? (no)
+	TcParms = #'TC-U-ABORT'{qos = QoS, dialogueID = DID},
+	NewData = Data#statedata{parms = AbortParms},
+	gen_statem:cast(USAP, {'TC', 'U-ABORT', indication, TcParms}),
 	%% Dialogue terminated to CHA
-	gen_server:cast(State#state.cco, 'dialogue-terminated'),
+	gen_server:cast(CCO, 'dialogue-terminated'),
 	%% Free dialogue ID
-	{stop, normal, State}.
-	
-%% reference: Figure A.5 bis/Q.774
-%% reference: Figure A.5/Q.774 (sheet 2 of 11)
-wait_for_begin_components('no-component', State) ->
-	wait_for_begin_components1(State);
-wait_for_begin_components({'requested-components', Components}, State) ->
-	%% Assemble component portion
-	{ok, ComponentPortion} = 'TC':encode('Components', Components),
-	%% Assemble TSL user data
-	UserData = (State#state.parms)#'TR-BEGIN'.userData,
-	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
-	TrParms = (State#state.parms)#'TR-BEGIN'{userData = NewUserData},
-	wait_for_begin_components1(State#state{parms = TrParms}).
-wait_for_begin_components1(#state{tco = TCO, parms = TrParms} = State) ->
-	%% We don't Assign local transaction ID, as we simply re-use the DialougeID!
-	%% TR-BEGIN request to TSL
-	case gen_server:call(TCO, {'TR', 'BEGIN', request, TrParms}) of
-		ok ->
-			{next_state, initiation_sent, State};
-		{error, Reason} ->
-			{stop, Reason, State}
-	end.
-	
-%% reference: Figure A.5 bis/Q.774
-%% reference: Figure A.5/Q.774 (sheet 5 of 11)
-wait_cont_components_ir('no-component', State) ->
-	wait_cont_components_ir1(State);
-wait_cont_components_ir({'requested-components', Components}, State) ->
-	%% Assemble component portion
-	{ok, ComponentPortion} = 'TC':encode('Components', Components),
-	%% Assemble TSL user data
-	UserData = (State#state.parms)#'TR-CONTINUE'.userData,
-	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
-	TrParms = (State#state.parms)#'TR-CONTINUE'{userData = NewUserData},
-	wait_cont_components_ir1(State#state{parms = TrParms}).
-wait_cont_components_ir1(State) ->
-	%% TR-CONTINUE request to TSL
-	gen_server:cast(State#state.tco, {'TR', 'CONTINUE', request, State#state.parms}),
-	{next_state, active, State}.
-	
-%% reference: Figure A.5 bis/Q.774
-%% reference: Figure A.5/Q.774 (sheet 9 of 11)
-wait_cont_components_active('no-component', State) ->
-	wait_cont_components_active1(State);
-wait_cont_components_active({'requested-components', Components}, State) ->
-	%% Assemble component portion
-	{ok, ComponentPortion} = 'TC':encode('Components', Components),
-	%% Assemble TSL user data
-	UserData = (State#state.parms)#'TR-CONTINUE'.userData,
-	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
-	TrParms = (State#state.parms)#'TR-CONTINUE'{userData = NewUserData},
-	wait_cont_components_active1(State#state{parms = TrParms}).
-wait_cont_components_active1(State) ->
-	%% TR-CONTINUE request to TSL
-	gen_server:cast(State#state.tco, {'TR', 'CONTINUE', request, State#state.parms}),
-	{next_state, active, State}.
-	
-%% reference: Figure A.5 bis/Q.774
-%% reference: Figure A.5/Q.774 (sheet 5 of 11)
-%% reference: Figure A.5/Q.774 (sheet 9 of 11)
-wait_for_end_components('no-component', State) ->
-	wait_for_end_components1(State);
-wait_for_end_components({'requested-components', Components}, State) ->
-	%% Assemble component portion
-	{ok, ComponentPortion} = 'TC':encode('Components', Components),
-	%% Assemble TSL user data
-	UserData = (State#state.parms)#'TR-END'.userData,
-	NewUserData = UserData#'TR-user-data'{componentPortion = ComponentPortion},
-	TrParms = (State#state.parms)#'TR-END'{userData = NewUserData},
-	wait_for_end_components1(State#state{parms = TrParms}).
-wait_for_end_components1(State) ->
-	%% TR-END request to TSL
-	gen_server:cast(State#state.tco, {'TR', 'END', request, State#state.parms}),
+	{stop, normal, NewData};
+handle_abort({'TR', 'U-ABORT', indication,
+		#'TR-U-ABORT'{qos = QoS,
+		userData = #'TR-user-data'{dialoguePortion = DP}} = AbortParms},
+		#statedata{usap = USAP, cco = CCO, did = DID,
+		appContextMode = undefined} = Data) when DP /= asn1_NOVALUE ->
+	%% Is AC mode set? (no) Is Dialogue portion present? (yes)
+	TcParms = #'TC-P-ABORT'{qos = QoS, dialogueID = DID,
+			pAbort = abnormalDialogue},
+	NewData = Data#statedata{parms = AbortParms},
+	gen_statem:cast(USAP, {'TC', 'P-ABORT', indication, TcParms}),
 	%% Dialogue terminated to CHA
-	gen_server:cast(State#state.cco, 'dialogue-terminated'),
+	gen_server:cast(CCO, 'dialogue-terminated'),
 	%% Free dialogue ID
-	{stop, normal, State}.
+	{stop, normal, NewData};
+handle_abort({'TR', 'U-ABORT', indication,
+		#'TR-U-ABORT'{qos = QoS, userData = UserData} = AbortParms},
+		#statedata{usap = USAP, cco = CCO, did = DID} = Data)
+		when not is_record(UserData, 'TR-user-data') ->
+	%% Is User Data included in primitive? (no)
+	TcParms = #'TC-P-ABORT'{qos = QoS, dialogueID = DID,
+			pAbort = abnormalDialogue},
+	NewData = Data#statedata{parms = AbortParms},
+	gen_statem:cast(USAP, {'TC', 'P-ABORT', indication, TcParms}),
+	%% Dialogue terminated to CHA
+	gen_server:cast(CCO, 'dialogue-terminated'),
+	%% Free dialogue ID
+	{stop, normal, NewData};
+handle_abort({'TR', 'U-ABORT', indication,
+		#'TR-U-ABORT'{qos = QoS,
+		userData = #'TR-user-data'{dialoguePortion = DP}} = AbortParms},
+		#statedata{usap = USAP, cco = CCO, did = DID,
+		appContextMode = AppContextMode} = Data) ->
+		%% Is PDU type = ABRT or AARE (rejected)?
+	TcParms = case 'DialoguePDUs':decode('DialoguePDU', DP) of
+		{dialoguePDU, #'AARE-apdu'{'application-context-name' = AC}}
+				when AC /= AppContextMode ->
+			%% Is abstract syntax = dialogue-PDU AS? (no)
+			#'TC-P-ABORT'{qos = QoS, dialogueID = DID, pAbort = abnormalDialogue};
+		{dialoguePDU, #'ABRT-apdu'{'abort-source' = AbortSource,
+				'user-information' = UserInfo}}
+				when element(1, AbortSource) == 'dialogue-service-user' ->
+			%% Is Abort source = user? (yes)
+			#'TC-U-ABORT'{qos = QoS, dialogueID = DID,
+					abortReason = userSpecific, userInfo = UserInfo};
+		{dialoguePDU, #'AARE-apdu'{result = 'reject-permanent',
+				'result-source-diagnostic' = {'dialogue-service-user',
+				'application-context-name-not-supported'},
+				'application-context-name' = AC,
+				'user-information' = UserInfo}} ->
+			%% Is Associate source = user? (yes)
+			#'TC-U-ABORT'{qos = QoS, dialogueID = DID,
+					abortReason = applicationContextNotSupported,
+					appContextName = AC, userInfo = UserInfo};
+		{dialoguePDU, #'AARE-apdu'{result = 'reject-permanent',
+				'result-source-diagnostic' = RSD,
+				'application-context-name' = AC},
+				'user-information' = UserInfo} when
+				element(1, RSD) == 'dialogue-service-user' ->
+			#'TC-U-ABORT'{qos = QoS, dialogueID = DID,
+					abortReason = dialogueRefused,
+					appContextName = AC, userInfo = UserInfo};
+		{dialoguePDU,
+				#'AARE-apdu'{'result-source-diagnostic'
+				= {'dialogue-service-provider', 'no-common-dialogue-portion'}}} ->
+			%% Is AARE (no common dialogue portion)?
+			#'TC-P-ABORT'{qos = QoS, dialogueID = DID,
+					pAbort = noCommonDialoguePortion};
+		_ ->
+			#'TC-P-ABORT'{qos = QoS, dialogueID = DID,
+					pAbort = abnormalDialogue}
+	end,
+	case TcParms of
+		#'TC-U-ABORT'{} ->
+			gen_statem:cast(USAP, {'TC', 'U-ABORT', indication, TcParms});
+		#'TC-P-ABORT'{} ->
+			gen_statem:cast(USAP, {'TC', 'P-ABORT', indication, TcParms})
+	end,
+	NewData = Data#statedata{parms = AbortParms},
+	%% Dialogue terminated to CHA
+	gen_server:cast(CCO, 'dialogue-terminated'),
+	%% Free dialogue ID
+	{stop, normal, NewData};
+%% reference: Figure A.5/Q.774 (sheet 8 of 11)
+%% TR-P-ABORT indication from TSL
+handle_abort({'TR', 'P-ABORT', indication,
+		#'TR-P-ABORT'{qos = QoS, pAbort = PAbort} = AbortParms},
+		#statedata{usap = USAP, cco = CCO, did = DID} = Data) ->
+	TcParms = #'TC-P-ABORT'{qos = QoS, dialogueID = DID, pAbort = PAbort},
+	NewData = Data#statedata{parms = AbortParms},
+	%% TC-P-ABORT indication to TCU
+	gen_statem:cast(USAP, {'TC', 'P-ABORT', indication, TcParms}),
+	%% Dialogue terminated to CHA
+	gen_server:cast(CCO, 'dialogue-terminated'),
+	%% Free dialogue ID
+	{stop, normal, NewData}.
 
+-spec extract_uni_dialogue_portion(UserData) -> Result
+	when
+		UserData :: #'TR-user-data'{} | undefined,
+		Result :: #'TC-UNI'{} | no_version1 | incorrect_dialogue_portion.
+%% @hidden
 %% Dialogue portion included? (yes)
-extract_uni_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'),
-		UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE ->
+extract_uni_dialogue_portion(#'TR-user-data'{dialoguePortion = DP})
+		when DP /= asn1_NOVALUE ->
 	%% Dialogue portion correct?
-	case 'UnidialoguePDUs':decode('UnidialoguePDU', UserData#'TR-user-data'.dialoguePortion) of
-		{unidialoguePDU, AUDT} when is_record(AUDT, 'AUDT-apdu') ->
+	case 'UnidialoguePDUs':decode('UnidialoguePDU', DP) of
+		{unidialoguePDU, #'AUDT-apdu'{'protocol-version' = Version,
+				'application-context-name' = AC,
+				'user-information' = UserInfo}} ->
 			%% Is version 1 supported?
-			case lists:member(version1, AUDT#'AUDT-apdu'.'protocol-version') of
+			case lists:member(version1, Version) of
 				true ->
-					#'TC-UNI'{appContextName = AUDT#'AUDT-apdu'.'application-context-name',
-							userInfo = AUDT#'AUDT-apdu'.'user-information'};
+					#'TC-UNI'{appContextName = AC, userInfo = UserInfo};
 				false ->
 					no_version1
 			end;
@@ -797,23 +969,24 @@ extract_uni_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'),
 %% Dialogue portion included? (no)
 extract_uni_dialogue_portion(_DialoguePortion) ->
 	#'TC-UNI'{}.
-
 	
+%% @hidden
 %% Dialogue portion included? (yes)
-extract_begin_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'),
-		UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE ->
+extract_begin_dialogue_portion(#'TR-user-data'{dialoguePortion = DP})
+		when DP /= asn1_NOVALUE ->
 	%% Extract dialogue portion
-	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
-	% some implementations seem to be broken and not send the 'symtax' part?!?
-	{'EXTERNAL', _, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
-	case 'DialoguePDUs':decode('DialoguePDU', DlgPDU) of
-		{ok, {dialogueRequest, AARQ}} when is_record(AARQ, 'AARQ-apdu') ->
+	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, PDU} = DP,
+	% some implementations seem to be broken and not send the 'syntax' part?!?
+	{'EXTERNAL', _, _, PDU} = DP,
+	case 'DialoguePDUs':decode('DialoguePDU', PDU) of
+		{ok, {dialogueRequest, #'AARQ-apdu'{'protocol-version' = Version,
+				'application-context-name' = AC,
+				'user-information' = UserInfo}}} ->
 			%% Is version 1 supported?
-			case lists:member(version1, AARQ#'AARQ-apdu'.'protocol-version') of
+			case lists:member(version1, Version) of
 				true ->
 					%% Set application context mode
-					#'TC-BEGIN'{appContextName = AARQ#'AARQ-apdu'.'application-context-name',
-							userInfo = AARQ#'AARQ-apdu'.'user-information'};
+					#'TC-BEGIN'{appContextName = AC, userInfo = UserInfo};
 				false ->
 					no_version1
 			end;
@@ -824,62 +997,84 @@ extract_begin_dialogue_portion(UserData) when is_record(UserData, 'TR-user-data'
 extract_begin_dialogue_portion(_DialoguePortion) ->
 	#'TC-BEGIN'{}.
 
+-spec extract_dialogue_portion(UserData, AppContextName, StateName) -> Result
+	when
+		UserData :: #'TR-user-data'{} | undefined,
+		AppContextName :: tuple() | undefined,
+		StateName :: initiation_sent | active,
+		Result :: #'AARE-apdu'{} | abort | undefined.
+%% @hidden
 % ANY: if AC is undefined and dialogue portion present -> abort
-extract_dialogue_portion(UserData, undefined, _Any) when is_record(UserData, 'TR-user-data') and
-		(UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE) ->
-		%% Dialogue portion included? (yes)  AC mode set? (no)
+extract_dialogue_portion(#'TR-user-data'{dialoguePortion = DP},
+		undefined, _) when DP /= asn1_NOVALUE ->
+	%% Dialogue portion included? (yes)  AC mode set? (no)
 	abort;
 % IS: if dialogue portion is not present but App context name is set -> abort
-extract_dialogue_portion(UserData, _AppContextName, initiation_sent)
-	when not is_record(UserData, 'TR-user-data') or
-		(UserData#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
-		%% Dialogue portion included? (no)  AC mode set? (yes)
+extract_dialogue_portion(#'TR-user-data'{dialoguePortion = asn1_NOVALUE},
+		AppContextName, initiation_sent) when AppContextName /= undefined ->
+	%% Dialogue portion included? (no)  AC mode set? (yes)
+	abort;
+extract_dialogue_portion(UserData, AppContextName, initiation_sent)
+		when not is_record(UserData, 'TR-user-data'),
+		AppContextName /= undefined ->
+	%% Dialogue portion included? (no)  AC mode set? (yes)
 	abort;
 % ACTIVE: if dialogue portion is not present but App context name is set -> empty
-extract_dialogue_portion(UserData, _AppContextName, active)
-	when not is_record(UserData, 'TR-user-data') or
-		(UserData#'TR-user-data'.dialoguePortion == asn1_NOVALUE) ->
-		%% Dialogue portion included? (no)  AC mode set? (yes)
+extract_dialogue_portion(#'TR-user-data'{dialoguePortion = asn1_NOVALUE},
+		AppContextName, active) when AppContextName /= undefined ->
+	%% Dialogue portion included? (no)  AC mode set? (yes)
+	undefined;
+extract_dialogue_portion(UserData, AppContextName, active)
+		when not is_record(UserData, 'TR-user-data'),
+		AppContextName /= undefined ->
+	%% Dialogue portion included? (no)  AC mode set? (yes)
 	undefined;
 % ANY: if dialogue portion is present and AppContext name is set -> decode dialogue and proceed
-extract_dialogue_portion(UserData, _AppContextName, _Any) when is_record(UserData, 'TR-user-data') and
-		(UserData#'TR-user-data'.dialoguePortion /= asn1_NOVALUE) ->
+extract_dialogue_portion(#'TR-user-data'{dialoguePortion = DP},
+		AppContextName, _) when DP /= asn1_NOVALUE,
+		AppContextName /= undefined ->
 	%% Extract dialogue portion
-	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
-	% some implementations seem to be broken and not send the 'symtax' part?!?
-	{'EXTERNAL', _, _, DlgPDU} = UserData#'TR-user-data'.dialoguePortion,
-	case 'DialoguePDUs':decode('DialoguePDU', DlgPDU) of
-		{ok, {dialogueResponse, AARE}} when is_record(AARE, 'AARE-apdu') ->
+	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, PDU} = DP
+	% some implementations seem to be broken and not send the 'syntax' part?!?
+	{'EXTERNAL', _, _, PDU} = DP,
+	case 'DialoguePDUs':decode('DialoguePDU', PDU) of
+		{ok, {dialogueResponse, #'AARE-apdu'{} = AARE}} ->
 			AARE;	%% Dialogue portion correct? (yes)
 		_ ->
 			abort	%% Dialogue portion correct? (no)
 	end.
 
-%% handle any other message
-handle_info(Info, _StateName, State) ->
-	{stop, Info, State}.
-
-%% handle an event sent using gen:fsm_send_all_state_event/2
-handle_event(Event, _StateName, StateData) ->
-	{stop, Event, StateData}.
-
-handle_sync_event(Event, _From, _StateName, StateData)  ->
-	{stop, Event, StateData}.
-
-%% handle a shutdown request
-terminate(_Reason, _StateName, _State) ->
-	ok.
-
-%% handle updating state data due to a code replacement
-code_change(_OldVsn, StateName, State, _Extra) ->
-	{ok, StateName, State}.
-
-% Wrap encoded DialoguePortion in EXTERNAL ASN.1 data type
+-spec dialogue_ext(DialoguePortion) -> Result
+	when
+		DialoguePortion :: binary() | undefined | asn1_NOVALUE,
+		Result :: #'EXTERNAL'{} | asn1_NOVALUE.
+%% @doc Wrap encoded DialoguePortion in EXTERNAL ASN.1 data type.
+%% @hidden
 dialogue_ext(undefined) ->
 	asn1_NOVALUE;
 dialogue_ext(asn1_NOVALUE) ->
 	asn1_NOVALUE;
-dialogue_ext(DlgEnc) ->
+dialogue_ext(DialoguePortion) ->
 	#'EXTERNAL'{'direct-reference' = {0,0,17,773,1,1,1},
 		    'indirect-reference' = asn1_NOVALUE,
-		    'encoding' = {'single-ASN1-type', DlgEnc}}.
+		    'encoding' = {'single-ASN1-type', DialoguePortion}}.
+
+-spec get_components(UserData) -> Result
+	when
+		UserData :: #'TR-user-data'{} | undefined,
+		Result :: {ComponentsPresent, Components},
+		ComponentsPresent :: boolean(),
+		Components :: list() | undefined.
+%% @hidden
+get_components(#'TR-user-data'{componentPortion = asn1_NOVALUE} = _UserData) ->
+	{false, undefined};
+get_components(#'TR-user-data'{componentPortion = CP}) ->
+	case 'TC':decode('Components', CP) of
+		{ok, []} ->
+			{false, []};
+		{ok, Components} ->
+			{true, Components}
+	end;
+get_components(_UserData) ->
+	{false, undefined}.
+

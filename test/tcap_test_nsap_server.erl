@@ -34,7 +34,7 @@ send_primitive(Primitive, #state{ct = CT} = _State) ->
 	CT ! Primitive.
 
 start_aei(DialoguePortion, #state{ct = CT} = State) ->
-	{ok, TCU} = gen_fsm:start_link(tcap_test_usap_fsm, [CT], []),
+	{ok, TCU} = gen_statem:start_link(tcap_test_usap_fsm, [CT], []),
 	{ok, DHA, CCO} = tcap:open(self(), TCU),
 	NewState = State#state{dha = DHA, cco = CCO, tcu = TCU},
 	{ok, DHA, CCO, TCU, NewState}.

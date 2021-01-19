@@ -1,10 +1,13 @@
 %%% tcap_ism_fsm.erl
-%%%---------------------------------------------------------------------
-%%% @copyright 2010-2013 Harald Welte
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% @copyright 2010-2013 Harald Welte,
+%%% 	 	2021 SigScale Global Inc.
 %%% @author Harald Welte <laforge@gnumonks.org>
+%%% @author Vance Shipley <vances@sigscale.org>
 %%% @end
 %%%
 %%% Copyright (c) 2010-2013, Harald Welte <laforge@gnumonks.org>
+%%% Copyright (c) 2021 SigScale Global Inc.
 %%% 
 %%% All rights reserved.
 %%% 
@@ -34,213 +37,316 @@
 %%% (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
-%%%---------------------------------------------------------------------
-%%%
-%%% @doc Invocation State Machine (ISM) functional block within the
-%%% 		component sub-layer of ITU TCAP.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% @doc This {@link //stdlib/gen_statem. gen_statem} behaviour callback
+%%% 	module implements an Invocation State Machine (ISM) functional
+%%% 	block within the component sub-layer of ITU TCAP.
 %%%
 %%% @reference ANSI T1.114.4 Transaction Capabilities Procedures 
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%
 -module(tcap_ism_fsm).
 -copyright('Copyright (c) 2010-2013 Harald Welte').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
 -author('Harald Welte <laforge@gnumonks.org>').
+-author('Vance Shipley <vances@sigscale.org>').
 
--behaviour(gen_fsm).
+-behaviour(gen_statem).
 
-%% call backs needed for gen_fsm behaviour
--export([init/1, handle_event/3, handle_info/3, terminate/3, code_change/4]).
-
-%% invocation_fsm state callbacks 
--export([start_link/5]).
-
--export([idle/2, op_sent_cl1/2, op_sent_cl2/2, op_sent_cl3/2,
-	 op_sent_cl4/2, wait_for_reject/2]).
+%% export the callbacks needed for gen_statem behaviour
+-export([init/1, handle_event/4, callback_mode/0,
+			terminate/3, code_change/4]).
+%% export the callbacks for gen_statem states.
+-export([idle/3, sent_class_1/3, sent_class_2/3, sent_class_3/3,
+	 sent_class_4/3, wait_for_reject/3]).
 
 %% record definitions for TC-User primitives
 -include("tcap.hrl").
-%% record definitions for TCAP messages
-%-include("TCAPMessages.hrl").
+
+-type state() :: idle | sent_class_1 | sent_class_2
+		| sent_class_3 | sent_class_4 | wait_for_reject.
 
 %% the invocation_fsm state data
--record(state, {
-	usap,		% Pid of the TC-User
-	dialogueId,
-	invokeId,
-	cco,		% Pid of the CCO
-	op_class,	% operation class (1..4)
-	inv_timeout,	% milliseconds
-	inv_timer,	% timer()
-	rej_timer	% timer()
-}).
+-record(statedata,
+	{usap :: pid(),
+	dialogueId :: 0..4294967295,
+	invokeId :: 0..255,
+	cco :: pid(),
+	op_class :: 1..4,
+	invoke_timeout :: non_neg_integer(),
+	reject_timeout = 1000 :: non_neg_integer()}).
+-type statedata() :: #statedata{}.
 
-% value in milliseconds, spec doesn't say how long...
--define(REJECT_TIMER, 1 * 1000).
+%%----------------------------------------------------------------------
+%%  The tcap_tsm_fsm gen_statem callbacks
+%%----------------------------------------------------------------------
 
-start_link(Usap, DialogueId, InvokeId, OpClass, InvTimeout) ->
-	ProcName = list_to_atom("ism_fsm_" ++ integer_to_list(DialogueId)
-				++ "_" ++ integer_to_list(InvokeId)),
-	ArgL = [Usap, DialogueId, InvokeId, self(), OpClass, InvTimeout],
-	gen_fsm:start_link({local, ProcName}, ?MODULE, ArgL, [{debug, [trace]}]).
+-spec callback_mode() -> Result
+	when
+		Result :: gen_statem:callback_mode_result().
+%% @doc Set the callback mode of the callback module.
+%% @see //stdlib/gen_statem:callback_mode/0
+%% @private
+%%
+callback_mode() ->
+	[state_functions].
 
-% DHA needs to tell us: USAP, DialogueID, InvokeID, CCO-PID, OpClass, InvTimer
+-spec init(Args) -> Result
+	when
+		Args :: [term()],
+		Result :: {ok, State, Data} | {ok, State, Data, Actions}
+				| ignore | {stop, Reason},
+		State :: state(),
+		Data :: statedata(),
+		Actions :: Action | [Action],
+		Action :: gen_statem:action(),
+		Reason :: term().
+%% @doc Initialize the {@module} finite state machine.
+%%
+%% 	Initialize a Invocation State Machine (TSM) process.
+%%
+%% 	Reference: Figure A.7/Q.774 (sheet 1 of 6)
+%%
+%% @see //stdlib/gen_statem:init/1
+%% @private
 init([Usap, DialogueId, InvokeId, CcoPid, OpClass, InvTimeout]) ->
-	% we need to trap EXIT signals, as otherwise we might be terminated by
-	% the dialogue END before we have delivered the components to the TC-User.
 	process_flag(trap_exit, true),
-	State = #state{usap = Usap, dialogueId = DialogueId,
+	Data = #statedata{usap = Usap, dialogueId = DialogueId,
 			invokeId = InvokeId, cco = CcoPid,
-			op_class = OpClass, inv_timeout = InvTimeout},
-	{ok, idle, State}.
+			op_class = OpClass, invoke_timeout = InvTimeout},
+	{ok, idle, Data}.
 
-%%----------------------------------------------------------------------
-%%  The gen_fsm call backs
-%%----------------------------------------------------------------------
-
-%% Start the Invocation State Machine (ISM) process
-%% reference: Figure A.7/Q.774 (sheet 1 of 6)
-
+-spec idle(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>idle</em> state.
+%% @private
 % CCO -> ISM: Operation sent
-idle('operation-sent', State) ->
-	% start invocation timer
-	Tinv = timer:apply_after(State#state.inv_timeout, gen_fsm,
-				 send_all_state_event,
-				 [self(), {timer_expired, invoke}]),
-	case State#state.op_class of
-		1 ->
-			StateName = op_sent_cl1;
-		2 ->
-			StateName = op_sent_cl2;
-		3 ->
-			StateName = op_sent_cl3;
-		4 ->
-			StateName = op_sent_cl4
-	end,
-	{next_state, StateName, State#state{inv_timer = Tinv}}.
+idle(cast, 'operation-sent', #statedata{op_class = 1,
+		invoke_timeout = Time} = Data) ->
+	Actions = [{timeout, Time, invoke}],
+	{next_state, sent_class_1, Data, Actions};
+idle(cast, 'operation-sent', #statedata{op_class = 2,
+		invoke_timeout = Time} = Data) ->
+	Actions = [{timeout, Time, invoke}],
+	{next_state, sent_class_2, Data, Actions};
+idle(cast, 'operation-sent', #statedata{op_class = 3,
+		invoke_timeout = Time} = Data) ->
+	Actions = [{timeout, Time, invoke}],
+	{next_state, sent_class_3, Data, Actions};
+idle(cast, 'operation-sent', #statedata{op_class = 4,
+		invoke_timeout = Time} = Data) ->
+	Actions = [{timeout, Time, invoke}],
+	{next_state, sent_class_4, Data, Actions};
+idle(info, _, _Data) ->
+	keep_state_and_data.
 
-op_sent_cl1(P=#'TC-RESULT-L'{}, State) ->
+-spec sent_class_1(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>sent_class_1</em> state.
+%% @private
+sent_class_1(cast, #'TC-RESULT-L'{} = TcParms,
+		#statedata{usap = USAP, reject_timeout = Time} = Data) ->
 	% Figure A.7/Q.774 (2 of 6)
 	% TC-RESULT-L.ind to user
-	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-L', indication, P}),
-	% stop invocation timer
-	timer:cancel(State#state.inv_timer),
+	gen_statem:cast(USAP, {'TC', 'RESULT-L', indication, TcParms}),
 	% start reject timer
-	Trej = start_reject_timer(),
-	{next_state, wait_for_reject, State#state{rej_timer = Trej}};
-op_sent_cl1(P=#'TC-U-ERROR'{}, State) ->
+	Actions = [{timeout, Time, reject}],
+	{next_state, wait_for_reject, Data, Actions};
+sent_class_1(cast, #'TC-U-ERROR'{} = TcParms,
+		#statedata{usap = USAP, reject_timeout = Time} = Data) ->
 	% Figure A.7/Q.774 (2 of 6)
 	% TC-U-ERROR.ind to user
-	gen_fsm:send_event(State#state.usap, {'TC', 'U-ERROR', indication, P}),
-	% stop invocation timer
-	timer:cancel(State#state.inv_timer),
+	gen_statem:cast(USAP, {'TC', 'U-ERROR', indication, TcParms}),
 	% start reject timer
-	Trej = start_reject_timer(),
-	{next_state, wait_for_reject, State#state{rej_timer = Trej}};
-op_sent_cl1(P=#'TC-RESULT-NL'{}, State) ->
+	Actions = [{timeout, Time, reject}],
+	{next_state, wait_for_reject, Data, Actions};
+sent_class_1(cast, #'TC-RESULT-NL'{} = TcParms,
+		#statedata{usap = USAP} = Data) ->
 	% Figure A.7/Q.774 (2 of 6)
 	% TC-RESULT-NL.ind to user
-	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-NL', indication, P}),
-	{next_state, op_sent_cl1, State};
-op_sent_cl1('terminate', State) ->
-	% stop invocation timer
-	timer:cancel(State#state.inv_timer),
-	{stop, normal, State}.
+	gen_statem:cast(USAP, {'TC', 'RESULT-NL', indication, TcParms}),
+	{next_state, sent_class_1, Data};
+sent_class_1(timeout, invoke, #statedata{usap = USAP,
+		dialogueId = DID, invokeId = IID} = Data) ->
+	% invocation timer expiry
+	% TC-L-CANCEL.ind to user
+	TcParms = #'TC-L-CANCEL'{dialogueID = DID, invokeID = IID},
+	gen_statem:cast(USAP, {'TC', 'L-CANCEL', indication, TcParms}),
+	{stop, normal, Data};
+sent_class_1(cast, 'terminate', Data) ->
+	{stop, normal, Data};
+sent_class_1(info, _, _Data) ->
+	keep_state_and_data.
 
-wait_for_reject('terminate', State) ->
-	% stop reject timer
-	timer:cancel(State#state.rej_timer),
-	{stop, normal, State};
-wait_for_reject({timer_expired, reject}, State) ->
-	% reject timer expiry
-	% terminate
-	{stop, normal, State}.
-
-op_sent_cl2(P=#'TC-U-ERROR'{}, State) ->
+-spec sent_class_2(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>sent_class_2</em> state.
+%% @private
+sent_class_2(cast, #'TC-U-ERROR'{} = TcParms,
+		#statedata{usap = USAP, reject_timeout = Time} = Data) ->
 	% TC-U-ERROR.ind to user
-	gen_fsm:send_event(State#state.usap, {'TC', 'U-ERROR', indication, P}),
-	% stop invocation timer
-	timer:cancel(State#state.inv_timer),
+	gen_statem:cast(USAP, {'TC', 'U-ERROR', indication, TcParms}),
 	% start reject timer
-	Trej = start_reject_timer(),
-	{next_state, wait_for_reject, State#state{rej_timer = Trej}};
-op_sent_cl2(Op, State) when
-			is_record(Op, 'TC-RESULT-L');
-			is_record(Op, 'TC-RESULT-NL') ->
+	Actions = [{timeout, Time, reject}],
+	{next_state, wait_for_reject, Data, Actions};
+sent_class_2(cast, Op, #statedata{cco = CCO} = Data)
+		when is_record(Op, 'TC-RESULT-L');
+		is_record(Op, 'TC-RESULT-NL') ->
 	% Generate REJ component to CCO
 	Problem = {'ReturnResultProblem', resultResponseUnexpected},
-	Reject = #'TC-R-REJECT'{dialogueID = State#state.dialogueId,
-				invokeID = State#state.invokeId,
+	Reject = #'TC-R-REJECT'{dialogueID = Data#statedata.dialogueId,
+				invokeID = Data#statedata.invokeId,
 				problemCode = Problem},
-	gen_server:cast(State#state.cco, {reject_component, Reject}),
-	% stop invocation timer
-	timer:cancel(State#state.inv_timer),
+	gen_server:cast(CCO, {reject_component, Reject}),
 	% terminate
-	{stop, normal, State};
-op_sent_cl2('terminate', State) ->
+	{stop, normal, Data};
+sent_class_2(timeout, invoke, #statedata{usap = USAP,
+		dialogueId = DID, invokeId = IID} = Data) ->
+	% invocation timer expiry
+	% TC-L-CANCEL.ind to user
+	TcParms = #'TC-L-CANCEL'{dialogueID = DID, invokeID = IID},
+	gen_statem:cast(USAP, {'TC', 'L-CANCEL', indication, TcParms}),
+	{stop, normal, Data};
+sent_class_2(cast, 'terminate', Data) ->
 	% terminate
-	{stop, normal, State}.
+	{stop, normal, Data};
+sent_class_2(info, _, _Data) ->
+	keep_state_and_data.
 
-op_sent_cl3(P=#'TC-RESULT-L'{}, State) ->
+-spec sent_class_3(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>sent_class_3</em> state.
+%% @private
+sent_class_3(cast, #'TC-RESULT-L'{} = TcParms,
+		#statedata{usap = USAP, reject_timeout = Time} = Data) ->
 	% Figure A.7/Q.774 (5 of 6)
 	% TC-RESULT-L.ind to user
-	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-L', indication, P}),
-	% stop invocation timer
-	timer:cancel(State#state.inv_timer),
+	gen_statem:cast(USAP, {'TC', 'RESULT-L', indication, TcParms}),
 	% start reject timer
-	Trej = start_reject_timer(),
-	{next_state, wait_for_reject, State#state{rej_timer = Trej}};
-op_sent_cl3(P=#'TC-RESULT-NL'{}, State) ->
+	Actions = [{timeout, Time, reject}],
+	{next_state, wait_for_reject, Data, Actions};
+sent_class_3(cast, #'TC-RESULT-NL'{} = TcParms,
+		#statedata{usap = USAP} = Data) ->
 	% TC-RESULT-NL.ind to user
-	gen_fsm:send_event(State#state.usap, {'TC', 'RESULT-NL', indication, P}),
-	{next_state, op_sent_cl3, State};
-op_sent_cl3('terminate', State) ->
-	% stop invocation timter
-	timer:cancel(State#state.inv_timer),
+	gen_statem:cast(USAP, {'TC', 'RESULT-NL', indication, TcParms}),
+	{next_state, sent_class_3, Data};
+sent_class_3(timeout, invoke, #statedata{usap = USAP,
+		dialogueId = DID, invokeId = IID} = Data) ->
+	% invocation timer expiry
+	% TC-L-CANCEL.ind to user
+	TcParms = #'TC-L-CANCEL'{dialogueID = DID, invokeID = IID},
+	gen_statem:cast(USAP, {'TC', 'L-CANCEL', indication, TcParms}),
+	{stop, normal, Data};
+sent_class_3(cast, 'terminate', Data) ->
 	% terminate
-	{stop, normal, State}.
+	{stop, normal, Data};
+sent_class_3(info, _, _Data) ->
+	keep_state_and_data.
 
-op_sent_cl4('terminate', State) ->
+-spec sent_class_4(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>sent_class_4</em> state.
+%% @private
+sent_class_4(cast, 'terminate', Data) ->
 	% terminate
-	{stop, normal, State};
-op_sent_cl4(Op, State) ->
+	{stop, normal, Data};
+sent_class_4(cast, _Op, #statedata{cco = CCO} = Data) ->
 	% Figure A.7/Q.774 (6 of 6)
 	% generate REJ component to CCO
 	Problem = {'ReturnResultProblem', resultResponseUnexpected},
-	Reject = #'TC-R-REJECT'{dialogueID = State#state.dialogueId,
-				invokeID = State#state.invokeId,
+	Reject = #'TC-R-REJECT'{dialogueID = Data#statedata.dialogueId,
+				invokeID = Data#statedata.invokeId,
 				problemCode = Problem},
-	gen_server:cast(State#state.cco, {reject_component, Reject}),
-	% stop invocation timer
-	timer:cancel(State#state.inv_timer),
+	gen_server:cast(CCO, {reject_component, Reject}),
 	% terminate
-	{stop, normal, State}.
-
-handle_event({timer_expired, invoke}, _StateName, State) ->
+	{stop, normal, Data};
+sent_class_4(timeout, invoke, #statedata{usap = USAP,
+		dialogueId = DID, invokeId = IID} = Data) ->
 	% invocation timer expiry
-	#state{dialogueId = DlgId, invokeId = InvId} = State,
 	% TC-L-CANCEL.ind to user
-	P = #'TC-L-CANCEL'{dialogueID = DlgId, invokeID = InvId},
-	gen_fsm:send_event(State#state.usap, {'TC', 'L-CANCEL', indication, P}),
-	{stop, normal, State}.
+	TcParms = #'TC-L-CANCEL'{dialogueID = DID, invokeID = IID},
+	gen_statem:cast(USAP, {'TC', 'L-CANCEL', indication, TcParms}),
+	{stop, normal, Data};
+sent_class_4(info, _, _Data) ->
+	keep_state_and_data.
 
-%% handle any other message
-handle_info(Info, StateName, State) ->
-	error_logger:format("~w (~w) received unexpected message: ~w~n", [?MODULE, self(), Info]),
-	{next_state, StateName, State}.
+-spec wait_for_reject(EventType, EventContent, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(state()).
+%% @doc Handles events received in the <em>wait_for_reject</em> state.
+%% @private
+wait_for_reject(cast, 'terminate', Data) ->
+	{stop, normal, Data};
+wait_for_reject(timeout, reject, Data) ->
+	% reject timer expiry
+	% terminate
+	{stop, normal, Data};
+wait_for_reject(info, _, _Data) ->
+	keep_state_and_data.
 
-%% handle a shutdown request
-terminate(Reason, StateName, State) ->
-	timer:cancel(State#state.inv_timer),
-	timer:cancel(State#state.rej_timer),
-	error_logger:format("~w (~w) terminating Reason: ~w in state ~w~n",
-			    [?MODULE, self(), Reason, StateName]).
+-spec handle_event(EventType, EventContent, State, Data) -> Result
+	when
+		EventType :: gen_statem:event_type(),
+		EventContent :: term(),
+		State :: state(),
+		Data :: statedata(),
+		Result :: gen_statem:event_handler_result(State).
+%% @doc Handles events received in any state.
+%% @private
+%%
+handle_event(_EventType, _EventContent, _State, _Data) ->
+	keep_state_and_data.
 
-%% handle updating state data due to a code replacement
-code_change(_OldVsn, StateName, State, _Extra) ->
-	{ok, StateName, State}.
+-spec terminate(Reason, State, Data) -> any()
+	when
+		Reason :: normal | shutdown | {shutdown, term()} | term(),
+		State :: state(),
+		Data ::  statedata().
+%% @doc Cleanup and exit.
+%% @see //stdlib/gen_statem:terminate/3
+%% @private
+%%
+terminate(_Reason, _State, _Data) ->
+	ok.
 
+-spec code_change(OldVsn, OldState, OldData, Extra) -> Result
+	when
+		OldVsn :: Version | {down, Version},
+		Version ::  term(),
+		OldState :: state(),
+		OldData :: statedata(),
+		Extra :: term(),
+		Result :: {ok, NewState, NewData} |  Reason,
+		NewState :: state(),
+		NewData :: statedata(),
+		Reason :: term().
+%% @doc Update internal state data during a release upgrade&#047;downgrade.
+%% @see //stdlib/gen_statem:code_change/3
+%% @private
+%%
+code_change(_OldVsn, OldState, OldData, _Extra) ->
+	{ok, OldState, OldData}.
 
-start_reject_timer() ->
-	timer:apply_after(?REJECT_TIMER, gen_fsm,
-			  send_event,
-			  [self(), {timer_expired, reject}]).
