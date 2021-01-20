@@ -158,28 +158,23 @@ handle_cast({reject_component, Reject}, State) ->
 	{noreply, NewState};
 
 % DHA -> CHA (CCO)
+% Figure A.6/Q.774 (4 of 4)
 handle_cast('request-components',
-		#state{dha = DHA, components = CompIn} = State) ->
-	% Figure A.6/Q.774 (4 of 4)
-	case CompIn of
-	    [] ->
-		% if no components, signal 'no-components' to DHA
-		gen_statem:cast(DHA, 'no-component'),
-		NewState = State;
-	    _ ->
-		% for each component
-		{CompOut, ISMs} = process_request_components(CompIn, State),
-		% signal 'requested-components' to DHA
-		gen_statem:cast(DHA, {'requested-components', CompOut}),
-		NewState = State#state{ism = State#state.ism ++ ISMs,
-					components = []}
-	end,
+		#state{dha = DHA, components = []} = State) ->
+	% if no components, signal 'no-components' to DHA
+	gen_statem:cast(DHA, 'no-component'),
+	{noreply, State};
+handle_cast('request-components',
+		#state{dha = DHA, components = Components1} = State) ->
+	gen_statem:cast(DHA, 'no-component'),
+	% for each component
+	{Components2, ISMs} = process_request_components(Components1, State),
+	% signal 'requested-components' to DHA
+	gen_statem:cast(DHA, {'requested-components', Components2}),
+	NewState = State#state{ism = State#state.ism ++ ISMs, components = []},
 	{noreply, NewState};
-
-%% unrecognized casts
 handle_cast(Other, State) ->
-	error_logger:error_report([{unknown_cast, Other}]),
-	{noreply, State}.
+	{stop, Other, State}.
 
 
 %% trapped exit signals
