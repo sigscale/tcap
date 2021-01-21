@@ -29,7 +29,7 @@
 %% common_test optional callbacks
 -export([groups/0, group/1]).
 %% common_test test cases
--export([receive_unidirectional/0, receive_unidirectional/1,
+-export([recv_unidirectional/0, recv_unidirectional/1,
 		send_unidirectional/0, send_unidirectional/1,
 		send_begin_prearranged/0, send_begin_prearranged/1,
 		send_end_basic/0, send_end_basic/1]).
@@ -125,7 +125,7 @@ group(csl) ->
 %% @doc Define test case groups.
 %%
 groups() ->
-	TslCases = [send_unidirectional, receive_unidirectional,
+	TslCases = [send_unidirectional, recv_unidirectional,
 			send_begin_prearranged, send_end_basic],
 	CslCases = [],
 	[{tsl, [], TslCases}, {csl, [], CslCases}].
@@ -164,7 +164,7 @@ send_unidirectional(Config) ->
 			sequenceControl = false, returnOption = false,
 			userData = _} = SccpParams.
 
-receive_unidirectional() ->
+recv_unidirectional() ->
 	[{userdata,
 			[{number, "1.1.1.2"},
 			{reference, "3.3.3.1.2/Q.774"},
@@ -177,7 +177,7 @@ receive_unidirectional() ->
 					"2. Check A: Was the Unidirectional message correctly received at SP A?\n"
 					"3. Check B: Was the TSL state machine associated with this transaction left in the idle state at SP A?"}]}].
 
-receive_unidirectional(Config) ->
+recv_unidirectional(Config) ->
 	TSL = ?config(tco_pid, Config),
 	ComponentPortion = invoke(),
 	Unidirectional = {unidirectional,
