@@ -80,7 +80,6 @@
 		{usap :: pid(),
 		tco :: pid(),
 		cco :: pid(),
-		otid :: 0..4294967295,
 		did :: 0..4294967295,
 		parms :: #'TR-UNI'{} | #'TR-BEGIN'{} | #'TR-CONTINUE'{}
 				| #'TR-END'{} | #'TR-U-ABORT'{},
@@ -162,7 +161,7 @@ idle(cast, {'TC', 'UNI', request,
 % reference: Figure A.5/Q.774 (sheet 1 of 11)
 % TC-BEGIN request from TCU
 idle(cast, {'TC', 'BEGIN', request,
-		#'TC-BEGIN'{dialogueID = DialogueID,
+		#'TC-BEGIN'{dialogueID = DID,
 		qos = QoS, appContextName = AppContextName,
 		destAddress = DestAddress, origAddress = OrigAddress,
 		userInfo = UserInfo} = _BeginParms},
@@ -183,8 +182,8 @@ idle(cast, {'TC', 'BEGIN', request,
 	TrUserData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)},
 	TrParms = #'TR-BEGIN'{qos = QoS,
 			destAddress = DestAddress, origAddress = OrigAddress,
-			transactionID = DialogueID, userData = TrUserData},
-	NewData = Data#statedata{parms = TrParms, otid = DialogueID,
+			transactionID = DID, userData = TrUserData},
+	NewData = Data#statedata{parms = TrParms, did = DID,
 			%% Set application context mode
 			appContextMode = AppContextName},
 	%% Request components to CHA
@@ -208,11 +207,11 @@ idle(cast, {'TR', 'UNI', indication,
 		#'TC-UNI'{} = TcParms ->
 			{ComponentsPresent, Components} = get_components(UserData),
 			%% Assign dialogue ID
-			DialogueID = tcap_tco_server:new_tid(),
+			DID = tcap_tco_server:new_tid(),
 			NewTcParms = TcParms#'TC-UNI'{qos = QoS,
 					destAddress = DestAddress, origAddress = OrigAddress,
-					dialogueID = DialogueID, componentsPresent = ComponentsPresent},
-			NewData = Data#statedata{did = DialogueID, parms = UniParms},
+					dialogueID = DID, componentsPresent = ComponentsPresent},
+			NewData = Data#statedata{did = DID, parms = UniParms},
 			%% Components to CHA
 			case ComponentsPresent of
 				true ->
@@ -230,7 +229,7 @@ idle(cast, {'TR', 'UNI', indication,
 % reference: Figure A.5/Q.774 (sheet 3 of 11)
 % TR-BEGIN indication from TSL
 idle(cast, {'TR', 'BEGIN', indication,
-		#'TR-BEGIN'{transactionID = OTID, qos = QoS,
+		#'TR-BEGIN'{transactionID = DID, qos = QoS,
 		destAddress = DestAddress, origAddress = OrigAddress,
 		userData = UserData} = BeginParms},
 		#statedata{usap = USAP, tco = TCO, cco = CCO} = Data) ->
@@ -244,7 +243,7 @@ idle(cast, {'TR', 'BEGIN', indication,
 			%% TR-U-ABORT request to TSL
 			TrUserData = #'TR-user-data'{dialoguePortion = dialogue_ext(ABRT)},
 			TrParms = BeginParms#'TR-BEGIN'{userData = TrUserData},
-			NewData = Data#statedata{otid = OTID, parms = TrParms},
+			NewData = Data#statedata{did = DID, parms = TrParms},
 			gen_server:cast(TCO, {'TR', 'U-ABORT', request, TrParms}),
 			%% Dialogue terminated to CHA
 			gen_server:cast(CCO, 'dialogue-terminated'),
@@ -259,8 +258,8 @@ idle(cast, {'TR', 'BEGIN', indication,
 					'result-source-diagnostic' = {'dialogue-service-provider', 'no-common-dialogue-portion'}}),
 			%% Discard components
 			%% TR-P-ABORT request to TSL
-			TrParms = #'TR-P-ABORT'{transactionID = OTID, pAbort = AARE},
-			NewData = Data#statedata{otid = OTID,
+			TrParms = #'TR-P-ABORT'{transactionID = DID, pAbort = AARE},
+			NewData = Data#statedata{did = DID,
 					appContextMode = DP#'AARQ-apdu'.'application-context-name',
 					parms = TrParms},
 			gen_server:cast(TCO, {'TR', 'P-ABORT', request, TrParms}),
@@ -270,11 +269,10 @@ idle(cast, {'TR', 'BEGIN', indication,
 		#'TC-BEGIN'{} = TcParms ->
 			{ComponentsPresent, Components} = get_components(UserData),
 			%% Assign dialogue ID
-			DialogueID = tcap_tco_server:new_tid(),
 			NewTcParms = TcParms#'TC-BEGIN'{qos = QoS,
 					destAddress = DestAddress, origAddress = OrigAddress,
-					dialogueID = DialogueID, componentsPresent = ComponentsPresent},
-			NewData = Data#statedata{otid = OTID, did = DialogueID,
+					dialogueID = DID, componentsPresent = ComponentsPresent},
+			NewData = Data#statedata{did = DID,
 					parms = BeginParms, appContextMode = TcParms#'TC-BEGIN'.appContextName},
 			%% TC-BEGIN indication to TCU
 			gen_statem:cast(USAP, {'TC', 'BEGIN', indication, NewTcParms}),
@@ -305,7 +303,7 @@ idle(info, _, _Data) ->
 initiation_received(cast, {'TC', 'CONTINUE', request,
 		#'TC-CONTINUE'{qos = QoS, origAddress = OrigAddress,
 		appContextName = AC, userInfo = UserInfo} = _ContParms},
-		#statedata{otid = OTID, cco = CCO} = Data) ->
+		#statedata{did = DID, cco = CCO} = Data) ->
 	%% Dialogue info included?
 	AARE = #'AARE-apdu'{'protocol-version' = [version1],
 			'application-context-name' = AC,
@@ -314,7 +312,7 @@ initiation_received(cast, {'TC', 'CONTINUE', request,
 			'user-information' = UserInfo},
 	{ok, DP} = 'DialoguePDUs':encode('AARE-apdu', AARE),
 	TrParms = #'TR-CONTINUE'{qos = QoS,
-				origAddress = OrigAddress, transactionID = OTID,
+				origAddress = OrigAddress, transactionID = DID,
 				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DP)}},
 	NewData = Data#statedata{parms = TrParms},
 	%% Request components to CHA
@@ -325,13 +323,13 @@ initiation_received(cast, {'TC', 'CONTINUE', request,
 initiation_received(cast, {'TC', 'END', request,
 		#'TC-END'{qos = QoS, appContextName = AC, userInfo = UserInfo,
 		termination = Termination} = EndParms},
-		#statedata{otid = OTID, tco = TCO, cco = CCO} = Data) ->
+		#statedata{did = DID, tco = TCO, cco = CCO} = Data) ->
 	%% Prearranged end?
 	case Termination of
 		prearranged ->
 			%% TR-END request to TSL
 			TrParms = #'TR-END'{qos = QoS,
-					transactionID = OTID, termination = Termination},
+					transactionID = DID, termination = Termination},
 			NewData = Data#statedata{parms = TrParms},
 			gen_server:cast(TCO, {'TR', 'END', request, TrParms}),
 			%% Dialogue terminated to CHA
@@ -344,7 +342,7 @@ initiation_received(cast, {'TC', 'END', request,
 					'result-source-diagnostic' = {'dialogue-service-user', null},
 					'user-information' = UserInfo},
 			{ok, DP} = 'DialoguePDUs':encode('AARE-apdu', AARE),
-			TrParms = #'TR-END'{qos = QoS, transactionID = OTID,
+			TrParms = #'TR-END'{qos = QoS, transactionID = DID,
 					termination = EndParms#'TC-END'.termination,
 					userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DP)}},
 			NewData = Data#statedata{parms = TrParms},
@@ -358,7 +356,7 @@ initiation_received(cast, {'TC', 'END', request,
 initiation_received(cast, {'TC', 'U-ABORT', request,
 		#'TC-U-ABORT'{abortReason = AbortReason, qos = QoS,
 		appContextName = AC, userInfo = UserInfo} = _AbortParms},
-		#statedata{otid = OTID, tco = TCO, cco = CCO,
+		#statedata{did = DID, tco = TCO, cco = CCO,
 		appContextMode = AppContextMode} = Data)
 		when AbortReason  == applicationContextNotSupported;
 		AbortReason == dialogueRefused; AbortReason == userSpecified ->
@@ -397,7 +395,7 @@ initiation_received(cast, {'TC', 'U-ABORT', request,
 	end,
 	%% TR-U-ABORT request to TSL
 	TrParms = #'TR-U-ABORT'{qos = QoS,
-			transactionID = OTID, userData = UserData},
+			transactionID = DID, userData = UserData},
 	NewData = Data#statedata{parms = TrParms},
 	gen_server:cast(TCO, {'TR', 'U-ABORT', request, TrParms}),
 	%% Dialogue terminated to CHA
@@ -419,11 +417,11 @@ initiation_received(info, _, _Data) ->
 %% TC-END request from TCU
 initiation_sent(cast, {'TC', 'END', request,
 		#'TC-END'{termination = prearranged, qos = QoS} = _EndParms},
-		#statedata{otid = OTID, tco = TCO, cco = CCO} = Data) ->
+		#statedata{did = DID, tco = TCO, cco = CCO} = Data) ->
 	% termination must be prearranged
 	%% TR-END request to TSL
 	TrParms = #'TR-END'{qos = QoS,
-			transactionID = OTID, termination = prearranged},
+			transactionID = DID, termination = prearranged},
 	NewData = Data#statedata{parms = TrParms},
 	gen_server:cast(TCO, {'TR', 'END', request, TrParms}),
 	%% Dialogue terminated to CHA
@@ -433,9 +431,9 @@ initiation_sent(cast, {'TC', 'END', request,
 %% TC-U-ABORT request from TCU (local action)
 initiation_sent(cast, {'TC', 'U-ABORT', request,
 		#'TC-U-ABORT'{qos = QoS} = _AbortParms},
-		#statedata{otid = OTID, tco = TCO, cco = CCO} = Data) ->
+		#statedata{did = DID, tco = TCO, cco = CCO} = Data) ->
 	%% TR-U-ABORT request to TSL
-	TrParms = #'TR-U-ABORT'{qos = QoS, transactionID = OTID},
+	TrParms = #'TR-U-ABORT'{qos = QoS, transactionID = DID},
 	NewData = Data#statedata{parms = TrParms},
 	gen_server:cast(TCO, {'TR', 'U-ABORT', request, TrParms}),
 	%% Dialogue terminated to CHA
@@ -498,8 +496,8 @@ active(cast, {'TC', 'CONTINUE', request,
 active(cast, {'TC', 'END', request,
 		#'TC-END'{qos = QoS, userInfo = UserInfo,
 		termination = Termination} = _EndParms},
-		#statedata{tco = TCO, cco = CCO, otid = OTID} = Data) ->
-	TrParms = #'TR-END'{qos = QoS, transactionID = OTID,
+		#statedata{tco = TCO, cco = CCO, did = DID} = Data) ->
+	TrParms = #'TR-END'{qos = QoS, transactionID = DID,
 			userData = #'TR-user-data'{dialoguePortion = UserInfo},
 			termination = Termination},
 	NewData = Data#statedata{parms = TrParms},
