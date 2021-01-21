@@ -38,6 +38,7 @@
 -include("sccp_primitive.hrl").
 -include("TC.hrl").
 -include("TR.hrl").
+-include("TCAP-Examples.hrl").
 -include_lib("sccp/include/sccp.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -148,31 +149,19 @@ send_unidirectional() ->
 
 send_unidirectional(Config) ->
 	TSL = ?config(tco_pid, Config),
-	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
-			linkedId = asn1_NOVALUE,
-			opcode = {local, 1},
-			argument = asn1_NOVALUE}},
-	{ok, ComponentPortion} = 'TC':encode('Components', [Invoke]),
-	UserData = #'TR-user-data'{dialoguePortion = asn1_NOVALUE,
-			componentPortion = ComponentPortion},
+	ComponentPortion = invoke(),
+	UserData = #'TR-user-data'{componentPortion = ComponentPortion},
 	SequenceControl = false,
 	ReturnOption = false,
-	SPAParty = #party_address{pc = 6202, ssn = 146, ri = true},
-	SPBParty = #party_address{pc = 6210, ssn = 146, ri = true},
-	SPAAddress = sccp_codec:party_address(SPAParty),
-	SPBAddress = sccp_codec:party_address(SPBParty),
+	{SPA, SPB} = addresses(),
 	TrUniParms = #'TR-UNI'{qos = {SequenceControl, ReturnOption},
-			destAddress = SPBAddress, origAddress = SPAAddress,
-			userData = UserData},
+			destAddress = SPB, origAddress = SPA, userData = UserData},
 	gen_server:cast(TSL, {'TR', 'UNI', request, TrUniParms}),
 	SccpParams = receive
-		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UnitData} ->
-			UnitData
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD} -> UD
 	end,
-	#'N-UNITDATA'{calledAddress = SPBAddress,
-			callingAddress = SPAAddress,
-			sequenceControl = SequenceControl,
-			returnOption = ReturnOption,
+	#'N-UNITDATA'{calledAddress = SPB, callingAddress = SPA,
+			sequenceControl = false, returnOption = false,
 			userData = _} = SccpParams.
 
 receive_unidirectional() ->
@@ -190,32 +179,18 @@ receive_unidirectional() ->
 
 receive_unidirectional(Config) ->
 	TSL = ?config(tco_pid, Config),
-	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
-			linkedId = asn1_NOVALUE,
-			opcode = {local, 1},
-			argument = asn1_NOVALUE}},
-	{ok, ComponentPortion} = 'TC':encode('Components', [Invoke]),
+	ComponentPortion = invoke(),
 	Unidirectional = {unidirectional,
 			#'Unidirectional'{components = ComponentPortion}},
 	{ok, SccpUserData} = 'TR':encode('TCMessage', Unidirectional),
-	SPAParty = #party_address{pc = 6202, ssn = 146, ri = true},
-	SPBParty = #party_address{pc = 6210, ssn = 146, ri = true},
-	SPAAddress = sccp_codec:party_address(SPAParty),
-	SPBAddress = sccp_codec:party_address(SPBParty),
-	SequenceControl = false,
-	ReturnOption = false,
-	UnitData = #'N-UNITDATA'{calledAddress = SPAAddress,
-			callingAddress = SPBAddress,
-			sequenceControl = SequenceControl,
-			returnOption = ReturnOption,
-			userData = SccpUserData},
+	{SPA, SPB} = addresses(),
+	UnitData = unitdata(SPA, SPB, SccpUserData),
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
 	TcUniParams = receive
-		{'TC', 'UNI', indication, #'TC-UNI'{} = UniParams} ->
-			UniParams
+		{'TC', 'UNI', indication, #'TC-UNI'{} = UP} -> UP
 	end,
-	#'TC-UNI'{qos = {SequenceControl, ReturnOption},
-			destAddress = SPAAddress, origAddress = SPBAddress,
+	#'TC-UNI'{qos = {false, false},
+			destAddress = SPA, origAddress = SPB,
 			componentsPresent = true} = TcUniParams.
 
 send_begin_prearranged() ->
@@ -242,32 +217,21 @@ send_begin_prearranged() ->
 send_begin_prearranged(Config) ->
 	TSL = ?config(tco_pid, Config),
 	TID = tcap_tco_server:new_tid(),
-	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
-			linkedId = asn1_NOVALUE,
-			opcode = {local, 1},
-			argument = asn1_NOVALUE}},
-	{ok, ComponentPortion} = 'TC':encode('Components', [Invoke]),
-	UserData = #'TR-user-data'{dialoguePortion = asn1_NOVALUE,
-			componentPortion = ComponentPortion},
+	ComponentPortion = invoke(),
+	UserData = #'TR-user-data'{componentPortion = ComponentPortion},
 	SequenceControl = false,
 	ReturnOption = false,
-	SPAParty = #party_address{pc = 6202, ssn = 146, ri = true},
-	SPBParty = #party_address{pc = 6210, ssn = 146, ri = true},
-	SPAAddress = sccp_codec:party_address(SPAParty),
-	SPBAddress = sccp_codec:party_address(SPBParty),
+	{SPA, SPB} = addresses(),
 	TrBeginParms = #'TR-BEGIN'{transactionID = TID,
 			qos = {SequenceControl, ReturnOption},
-			destAddress = SPBAddress, origAddress = SPAAddress,
+			destAddress = SPB, origAddress = SPA,
 			userData = UserData},
 	ok = gen_server:call(TSL, {'TR', 'BEGIN', request, TrBeginParms}),
 	SccpParams = receive
-		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UnitData} ->
-			UnitData
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD} -> UD
 	end,
-	#'N-UNITDATA'{calledAddress = SPBAddress,
-			callingAddress = SPAAddress,
-			sequenceControl = SequenceControl,
-			returnOption = ReturnOption,
+	#'N-UNITDATA'{calledAddress = SPB, callingAddress = SPA,
+			sequenceControl = false, returnOption = false,
 			userData = _} = SccpParams,
 	TrEndParms = #'TR-END'{transactionID = TID,
 			qos = {SequenceControl, ReturnOption},
@@ -307,53 +271,34 @@ send_end_basic() ->
 
 send_end_basic(Config) ->
 	TSL = ?config(tco_pid, Config),
-	Invoke = {invoke, #'Invoke'{invokeId = {present, 1},
-			linkedId = asn1_NOVALUE,
-			opcode = {local, 1},
-			argument = asn1_NOVALUE}},
-	{ok, ComponentPortion1} = 'TC':encode('Components', [Invoke]),
+	ComponentPortion1 = invoke(),
 	TID = tcap_tco_server:new_tid(),
 	Begin = {'begin', #'Begin'{otid = <<TID:32>>,
 			components = ComponentPortion1}},
-	{ok, SccpUserData} = 'TR':encode('TCMessage', Begin),
-	SPAParty = #party_address{pc = 6202, ssn = 146, ri = true},
-	SPBParty = #party_address{pc = 6210, ssn = 146, ri = true},
-	SPAAddress = sccp_codec:party_address(SPAParty),
-	SPBAddress = sccp_codec:party_address(SPBParty),
-	UnitData = #'N-UNITDATA'{calledAddress = SPAAddress,
-			callingAddress = SPBAddress,
-			sequenceControl = false,
-			returnOption = false,
-			userData = SccpUserData},
+	{ok, SccpUserData1} = 'TR':encode('TCMessage', Begin),
+	{SPA, SPB} = addresses(),
+	UnitData = unitdata(SPA, SPB, SccpUserData1),
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
 	TcBeginParams = receive
-		{'TC', 'BEGIN', indication, #'TC-BEGIN'{} = BeginParams} ->
-			BeginParams
+		{'TC', 'BEGIN', indication, #'TC-BEGIN'{} = BP} -> BP
 	end,
-	#'TC-BEGIN'{dialogueID = LocalTID, qos = {false, false}, 
-			destAddress = SPAAddress, origAddress = SPBAddress,
+	#'TC-BEGIN'{dialogueID = LocalTID, qos = {false, false},
+			destAddress = SPA, origAddress = SPB,
 			componentsPresent = true} = TcBeginParams,
-	ReturnResult = {returnResult,
-			#'ReturnResult'{invokeId = {present, 1},
-			result = asn1_NOVALUE}},
-	{ok, ComponentPortion2} = 'TC':encode('Components', [ReturnResult]),
-	TrUserData1 = #'TR-user-data'{dialoguePortion = asn1_NOVALUE,
-			componentPortion = ComponentPortion2},
+	ComponentPortion2 = return_result(),
+	TrUserData1 = #'TR-user-data'{componentPortion = ComponentPortion2},
 	TrEndParams = #'TR-END'{qos = {false, false},
 			transactionID = LocalTID, userData = TrUserData1,
 			termination = basic},
 	gen_server:cast(TSL, {'TR', 'END', request, TrEndParams}),
 	SccpParams = receive
-Other -> erlang:display({?MODULE, ?LINE, Other});
-		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UnitData} ->
-			UnitData
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD} -> UD
 	end,
-	#'N-UNITDATA'{calledAddress = SPBAddress,
-			callingAddress = SPAAddress,
-			sequenceControl = false,
-			returnOption = false,
-			userData = SccpUserData} = SccpParams,
-	{ok, foo} = 'TR':decode('TCMessage', SccpParams).
+	#'N-UNITDATA'{calledAddress = SPB, callingAddress = SPA,
+			sequenceControl = false, returnOption = false,
+			userData = SccpUserData2} = SccpParams,
+	{ok, {'end', End}} = 'TR':decode('TCMessage', SccpUserData2),
+	#'End'{dtid = <<TID:32>>} = End.
 	
 %%---------------------------------------------------------------------
 %%  Internal functions
@@ -413,4 +358,68 @@ get_group(TestCase, [{Group, _, TestCases} | T]) ->
 	end;
 get_group(_, []) ->
 	none.
+
+-spec addresses() -> {SPAAddress, SPBAddress}
+	when
+		SPAAddress :: binary(),
+		SPBAddress :: binary().
+%% @doc Encode SPA and SPB SCCP addresses.
+addresses() ->
+	SPAParty = #party_address{pc = 6202, ssn = 146, ri = true},
+	SPBParty = #party_address{pc = 6210, ssn = 146, ri = true},
+	SPAAddress = sccp_codec:party_address(SPAParty),
+	SPBAddress = sccp_codec:party_address(SPBParty),
+	{SPAAddress, SPBAddress}.
+
+-spec unitdata(CalledAddress, CallingAddress, UserData) -> Result
+	when
+		CalledAddress :: binary(),
+		CallingAddress :: binary(),
+		UserData :: binary(),
+		Result :: #'N-UNITDATA'{}.
+%% @doc Return an SCCP unit data record.
+unitdata(CalledAddress, CallingAddress, UserData) ->
+	#'N-UNITDATA'{calledAddress = CalledAddress,
+			callingAddress = CallingAddress,
+			sequenceControl = false, returnOption = false,
+			userData = UserData}.
+
+-spec invoke() -> binary().
+%% @doc Encode an `invoke' component.
+%%
+%% 	Based on the `provideRoutingInformation'
+%% 	operation described in Q.775 TCAP-Examples.
+%%
+invoke() ->
+	InvokeId = {present, 1},
+	OpCode = {local, 1},
+	CalledNumber = #'IsdnNumber'{typeOfAddress = international,
+			digits = "14165551234"},
+	RequestArgument = #'RequestArgument'{calledNumber = CalledNumber},
+	{ok, Argument} = 'TCAP-Examples':encode('RequestArgument', RequestArgument),
+	Invoke = #'Invoke'{invokeId = InvokeId,
+			linkedId = asn1_NOVALUE, % @todo
+			opcode = OpCode, argument = Argument},
+	Component = {invoke, Invoke},
+	{ok, ComponentPortion} = 'TC':encode('Components', [Component]),
+	ComponentPortion.
+
+-spec return_result() -> binary().
+%% @doc Encode a `returnResult' component.
+%%
+%% 	Based on the `provideRoutingInformation'
+%% 	operation described in Q.775 TCAP-Examples.
+%%
+return_result() ->
+	InvokeId = {present, 1},
+	OpCode = {local, 1},
+	RoutingNumber = #'IsdnNumber'{digits = "14165550000",
+			typeOfAddress = international},
+	RoutingInformation = {reroutingNumber, RoutingNumber},
+	{ok, Result} = 'TCAP-Examples':encode('RoutingInformation', RoutingInformation),
+	ReturnResultResult = #'ReturnResult_result'{opcode = OpCode, result = Result},
+	ReturnResult = #'ReturnResult'{invokeId = InvokeId, result = ReturnResultResult},
+	Component = {returnResult, ReturnResult},
+	{ok, ComponentPortion} = 'TC':encode('Components', [Component]),
+	ComponentPortion.
 
