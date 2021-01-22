@@ -383,6 +383,7 @@ handle_cast({'N', 'UNITDATA', indication,
 			end;
 		{ok, {'begin', #'Begin'{dialoguePortion = DialoguePortion,
 				otid = Otid} = Begin1}} ->
+			OTID = decode_tid(Otid),
 			case Module:start_aei(DialoguePortion, ExtState1) of
 				{ok, DHA, _CCO, _TCU, ExtState2}  ->
 					NewState = State#state{ext_state = ExtState2},
@@ -392,13 +393,13 @@ handle_cast({'N', 'UNITDATA', indication,
 					% Is TID = no TID?
 					case supervisor:start_child(TsmSup, ChildSpec) of
 						{ok, TSM} ->
-							Begin2 = Begin1#'Begin'{otid = decode_tid(Otid)},
+							Begin2 = Begin1#'Begin'{otid = OTID},
 							TsmParams = UdataParams#'N-UNITDATA'{userData = Begin2},
 							gen_statem:cast(TSM, {'BEGIN', received, TsmParams}),
 							{noreply, NewState#state{tsm = Map#{TransactionID => TSM}}};
 						{error, Reason} ->
 							% TID = no TID
-							Abort = {abort, #'Abort'{dtid = encode_tid(Otid),
+							Abort = {abort, #'Abort'{dtid = OTID,
 									reason = {'p-abortCause', resourceLimitation}}},
 							{ok, EncAbort} = 'TR':encode('TCMessage', Abort),
 							SccpParams = #'N-UNITDATA'{calledAddress = CallingAddress,
@@ -410,7 +411,7 @@ handle_cast({'N', 'UNITDATA', indication,
 					end;
 				{error, Reason} ->
 					% TID = no TID
-					Abort = {abort, #'Abort'{dtid = encode_tid(Otid),
+					Abort = {abort, #'Abort'{dtid = Otid,
 							reason = {'p-abortCause', resourceLimitation}}},
 					{ok, EncAbort} = 'TR':encode('TCMessage', Abort),
 					SccpParams = #'N-UNITDATA'{calledAddress = CallingAddress,
@@ -429,10 +430,12 @@ handle_cast({'N', 'UNITDATA', indication,
 			{noreply, State};
 		{ok, {continue, #'Continue'{otid = Otid, dtid = Dtid} = Continue1}} ->
 			% DTID assigned?
-			case maps:find(Dtid, Map) of
+			OTID = decode_tid(Otid),
+			DTID = decode_tid(Dtid),
+			case maps:find(DTID, Map) of
 				{ok, TSM} ->
-					Continue2 = Continue1#'Continue'{otid = decode_tid(Otid),
-							dtid = decode_tid(Dtid)},
+					Continue2 = Continue1#'Continue'{otid = OTID,
+							dtid = DTID},
 					TsmParams = UdataParams#'N-UNITDATA'{userData = Continue2},
 					gen_statem:cast(TSM, {'CONTINUE', received, TsmParams}),
 					{noreply, State};
@@ -455,9 +458,10 @@ handle_cast({'N', 'UNITDATA', indication,
 			{noreply, State};
 		{ok, {'end', #'End'{dtid = Dtid} = End1}} ->
 			% DTID assigned?
-			case maps:find(Dtid, Map) of
+			DTID = decode_tid(Dtid),
+			case maps:find(DTID, Map) of
 				{ok, TSM} ->
-					End2 = End1#'End'{dtid = decode_tid(Dtid)},
+					End2 = End1#'End'{dtid = DTID},
 					TsmParams = UdataParams#'N-UNITDATA'{userData = End2},
 					% END received TSM <- TCO
 					gen_statem:cast(TSM, {'END', received, TsmParams}),
@@ -475,7 +479,8 @@ handle_cast({'N', 'UNITDATA', indication,
 			{noreply, State};
 		{ok, {abort, #'Abort'{dtid = Dtid} = TPDU}} ->
 			% DTID assigned?
-			case maps:find(Dtid, Map) of
+			DTID = decode_tid(Dtid),
+			case maps:find(DTID, Map) of
 				{ok, TSM} ->
 					TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
 					% Abort received TSM <- TCO
@@ -514,15 +519,15 @@ handle_cast({'N', 'NOTICE', indication,
 	TransactionID  = case 'TR':decode('TCMessage', UserData) of
 		{ok, {'begin', TPDU}} ->
 			case 'TR':decode('Begin', TPDU) of
-				{ok, #'Begin'{otid = TID} = _Begin} ->
-					TID;
+				{ok, #'Begin'{otid = OTID} = _Begin} ->
+					decode_tid(OTID);
 				_ ->
 					undefined
 			end;
 		{ok, {continue, TPDU}} ->
 			case 'TR':decode('Continue', TPDU) of
-				{ok, #'Continue'{otid = TID} = _Continue} ->
-					TID;
+				{ok, #'Continue'{otid = OTID} = _Continue} ->
+					decode_tid(OTID);
 				_ ->
 					undefined
 			end;
