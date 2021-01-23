@@ -27,7 +27,7 @@
 -export([init_per_suite/1, end_per_suite/1]).
 -export([init_per_testcase/2, end_per_testcase/2]).
 %% common_test optional callbacks
--export([groups/0, group/1]).
+-export([init_per_group/2, end_per_group/2, groups/0, group/1]).
 %% common_test test cases
 -export([recv_unidirectional/0, recv_unidirectional/1,
 		send_unidirectional/0, send_unidirectional/1,
@@ -59,7 +59,8 @@ suite() ->
 %%
 init_per_suite(Config) ->
 	application:start(tcap),
-   Config.
+	{SPA, SPB} = addresses(),
+   [{spa, SPA}, {spb, SPB} | Config].
 
 -spec end_per_suite(Config :: [tuple()]) -> any().
 %% Cleanup after the whole suite.
@@ -67,12 +68,24 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
 	application:stop(tcap).
 
+-spec init_per_group(Group :: atom(), Config :: [tuple()]) -> Config :: [tuple()].
+%% Initiation before each test group.
+%%
+init_per_group(_Group, Config) ->
+	Config.
+
+-spec end_per_group(Group :: atom(), Config :: [tuple()]) -> any().
+%% Cleanup after each test group.
+%%
+end_per_group(_Group, _Config) ->
+	ok.
+
 -spec init_per_testcase(TestCase :: atom(), Config :: [tuple()]) -> Config :: [tuple()].
 %% Initiation before each test case.
 %%
 init_per_testcase(TestCase, Config) ->
 	describe(TestCase),
-	Module = tcap_test_nsap_server,
+	Module = tcap_test_tsl_server,
 	{ok, TSL} = tcap:start_tsl({local, Module}, Module, [self()], []),
 	unlink(TSL),
 	[{tco_pid, TSL} | Config].
@@ -148,15 +161,15 @@ send_unidirectional() ->
 					"3. Check B: Was the TSL state machine associated with this transaction left in the idle state at SP A?"}]}].
 
 send_unidirectional(Config) ->
-	TSL = ?config(tco_pid, Config),
+	SPA = ?config(spa, Config),
+	SPB = ?config(spb, Config),
 	ComponentPortion = invoke(),
 	UserData = #'TR-user-data'{componentPortion = ComponentPortion},
 	SequenceControl = false,
 	ReturnOption = false,
-	{SPA, SPB} = addresses(),
 	TrUniParms = #'TR-UNI'{qos = {SequenceControl, ReturnOption},
 			destAddress = SPB, origAddress = SPA, userData = UserData},
-	gen_server:cast(TSL, {'TR', 'UNI', request, TrUniParms}),
+	tr_send({'TR', 'UNI', request, TrUniParms}, Config),
 	SccpParams = receive
 		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD} -> UD
 	end,
@@ -178,20 +191,17 @@ recv_unidirectional() ->
 					"3. Check B: Was the TSL state machine associated with this transaction left in the idle state at SP A?"}]}].
 
 recv_unidirectional(Config) ->
-	TSL = ?config(tco_pid, Config),
+	SPA = ?config(spa, Config),
+	SPB = ?config(spb, Config),
 	ComponentPortion = invoke(),
-	Unidirectional = {unidirectional,
-			#'Unidirectional'{components = ComponentPortion}},
-	{ok, SccpUserData} = 'TR':encode('TCMessage', Unidirectional),
-	{SPA, SPB} = addresses(),
-	UnitData = unitdata(SPA, SPB, SccpUserData),
-	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
-	TcUniParams = receive
-		{'TC', 'UNI', indication, #'TC-UNI'{} = UP} -> UP
+	Unidirectional = #'Unidirectional'{components = ComponentPortion},
+	sccp_send(SPA, SPB, Unidirectional, Config),
+	TrUniParams = receive
+		{'TR', 'UNI', indication, #'TR-UNI'{} = UP} -> UP
 	end,
-	#'TC-UNI'{qos = {false, false},
+	#'TR-UNI'{qos = {false, false},
 			destAddress = SPA, origAddress = SPB,
-			componentsPresent = true} = TcUniParams.
+			userData = _} = TrUniParams.
 
 send_begin_prearranged() ->
 	[{userdata,
@@ -215,18 +225,18 @@ send_begin_prearranged() ->
 						"transaction left in the idle state at SP A?\n"}]}].
 
 send_begin_prearranged(Config) ->
-	TSL = ?config(tco_pid, Config),
+	SPA = ?config(spa, Config),
+	SPB = ?config(spb, Config),
 	TID = tcap_tco_server:new_tid(),
 	ComponentPortion = invoke(),
 	UserData = #'TR-user-data'{componentPortion = ComponentPortion},
 	SequenceControl = false,
 	ReturnOption = false,
-	{SPA, SPB} = addresses(),
 	TrBeginParms = #'TR-BEGIN'{transactionID = TID,
 			qos = {SequenceControl, ReturnOption},
 			destAddress = SPB, origAddress = SPA,
 			userData = UserData},
-	ok = gen_server:call(TSL, {'TR', 'BEGIN', request, TrBeginParms}),
+	Config1 = tr_send({'TR', 'BEGIN', request, TrBeginParms}, Config),
 	SccpParams = receive
 		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD} -> UD
 	end,
@@ -236,7 +246,7 @@ send_begin_prearranged(Config) ->
 	TrEndParms = #'TR-END'{transactionID = TID,
 			qos = {SequenceControl, ReturnOption},
 			termination = prearranged},
-	gen_server:cast(TSL, {'TR', 'END', request, TrEndParms}),
+	tr_send({'TR', 'END', request, TrEndParms}, Config1),
 	receive
 		{'N', 'UNITDATA', request, _} ->
 			ct:fail(end_sent)
@@ -270,27 +280,24 @@ send_end_basic() ->
 						"transaction left in the idle state at SP A?"}]}].
 
 send_end_basic(Config) ->
-	TSL = ?config(tco_pid, Config),
+	SPA = ?config(spa, Config),
+	SPB = ?config(spb, Config),
 	ComponentPortion1 = invoke(),
 	TID = tcap_tco_server:new_tid(),
-	Begin = {'begin', #'Begin'{otid = <<TID:32>>,
-			components = ComponentPortion1}},
-	{ok, SccpUserData1} = 'TR':encode('TCMessage', Begin),
-	{SPA, SPB} = addresses(),
-	UnitData = unitdata(SPA, SPB, SccpUserData1),
-	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
-	TcBeginParams = receive
-		{'TC', 'BEGIN', indication, #'TC-BEGIN'{} = BP} -> BP
+	Begin = #'Begin'{otid = <<TID:32>>, components = ComponentPortion1},
+	Config1 = sccp_send(SPA, SPB, Begin, Config),
+	TrBeginParams = receive
+		{'TR', 'BEGIN', indication, #'TR-BEGIN'{} = BP} -> BP
 	end,
-	#'TC-BEGIN'{dialogueID = LocalTID, qos = {false, false},
+	#'TR-BEGIN'{transactionID = LocalTID, qos = {false, false},
 			destAddress = SPA, origAddress = SPB,
-			componentsPresent = true} = TcBeginParams,
+			userData = _} = TrBeginParams,
 	ComponentPortion2 = return_result(),
 	TrUserData1 = #'TR-user-data'{componentPortion = ComponentPortion2},
 	TrEndParams = #'TR-END'{qos = {false, false},
 			transactionID = LocalTID, userData = TrUserData1,
 			termination = basic},
-	gen_server:cast(TSL, {'TR', 'END', request, TrEndParams}),
+	tr_send({'TR', 'END', request, TrEndParams}, Config1),
 	SccpParams = receive
 		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD} -> UD
 	end,
@@ -384,6 +391,52 @@ unitdata(CalledAddress, CallingAddress, UserData) ->
 			sequenceControl = false, returnOption = false,
 			userData = UserData}.
 
+-spec sccp_send(CalledAddress, CallingAddress, TCMessage, Config) -> Config
+	when
+		CalledAddress :: binary(),
+		CallingAddress :: binary(),
+		TCMessage :: #'Unidirectional'{} | #'Begin'{}
+				| #'Continue'{} | #'End'{},
+		Config :: [tuple()].
+%% @doc Send SCCP data to TCO.
+%%
+%% 	If a new dialogue is required get the TC-User.
+%%
+sccp_send(CalledAddress, CallingAddress,
+		#'Unidirectional'{} = TCMessage, Config) ->
+	TSL = ?config(tco_pid, Config),
+	{ok, SccpUserData} = 'TR':encode('TCMessage', {unidirectional, TCMessage}),
+	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
+	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
+	receive
+		{tcap_test_tsl_fsm, TCU} ->
+			[{tcu_pid, TCU} | Config]
+	end;
+sccp_send(CalledAddress, CallingAddress,
+		#'Begin'{} = TCMessage, Config) ->
+	TSL = ?config(tco_pid, Config),
+	{ok, SccpUserData} = 'TR':encode('TCMessage', {'begin', TCMessage}),
+	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
+	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
+	receive
+		{tcap_test_tsl_fsm, TCU} ->
+			[{tcu_pid, TCU} | Config]
+	end;
+sccp_send(CalledAddress, CallingAddress,
+		#'Continue'{} = TCMessage, Config) ->
+	TSL = ?config(tco_pid, Config),
+	{ok, SccpUserData} = 'TR':encode('TCMessage', {continue, TCMessage}),
+	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
+	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
+	Config;
+sccp_send(CalledAddress, CallingAddress,
+		#'End'{} = TCMessage, Config) ->
+	TSL = ?config(tco_pid, Config),
+	{ok, SccpUserData} = 'TR':encode('TCMessage', {'end', TCMessage}),
+	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
+	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
+	Config.
+
 -spec invoke() -> binary().
 %% @doc Encode an `invoke' component.
 %%
@@ -422,4 +475,29 @@ return_result() ->
 	Component = {returnResult, ReturnResult},
 	{ok, ComponentPortion} = 'TC':encode('Components', [Component]),
 	ComponentPortion.
+
+-spec tr_send(Primitive, Config) -> Config
+	when
+		Primitive :: {'TR', Name, request, Parameters},
+		Name :: 'UNI' | 'BEGIN' | 'CONTINUE' | 'END' | 'U-ABORT',
+		Parameters :: #'TR-UNI'{} | #'TR-BEGIN'{} | #'TR-CONTINUE'{}
+				| #'TR-END'{} | #'TR-U-ABORT'{},
+		Config :: [tuple()].
+%% @doc Request TR-User to send a primitive to TCO.
+%%
+%% 	Starts a TC-User if a new dialogue is required.
+%%
+tr_send({'TR', Name, request, _Parameters} = Primitive, Config)
+		when Name == 'UNI'; Name == 'BEGIN' ->
+	TCO = ?config(tco_pid, Config),
+	{ok, TCU} = gen_statem:start_link(tcap_test_tsl_fsm, [TCO, self()], []),
+	receive
+		{tcap_test_tsl_fsm, TCU} ->
+			gen_statem:cast(TCU, {tr_send, Primitive}),
+			[{tcu_pid, TCU} | Config]
+	end;
+tr_send({'TR', Name, request, _Parameters} = Primitive, Config)
+		when Name == 'CONTINUE'; Name == 'END' ->
+	TCU = ?config(tcu_pid, Config),
+	gen_statem:cast(TCU, {tr_send, Primitive}).
 
