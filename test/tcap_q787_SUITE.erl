@@ -32,7 +32,8 @@
 -export([recv_unidirectional/0, recv_unidirectional/1,
 		send_unidirectional/0, send_unidirectional/1,
 		send_begin_prearranged/0, send_begin_prearranged/1,
-		send_end_basic/0, send_end_basic/1]).
+		send_end_basic/0, send_end_basic/1,
+		recv_end_basic/0, recv_end_basic/1]).
 
 -include("tcap.hrl").
 -include("sccp_primitive.hrl").
@@ -139,7 +140,7 @@ group(csl) ->
 %%
 groups() ->
 	TslCases = [send_unidirectional, recv_unidirectional,
-			send_begin_prearranged, send_end_basic],
+			send_begin_prearranged, send_end_basic, recv_end_basic],
 	CslCases = [],
 	[{tsl, [], TslCases}, {csl, [], CslCases}].
 
@@ -306,7 +307,49 @@ send_end_basic(Config) ->
 			userData = SccpUserData2} = SccpParams,
 	{ok, {'end', End}} = 'TR':decode('TCMessage', SccpUserData2),
 	#'End'{dtid = <<TID:32>>} = End.
-	
+
+recv_end_basic() ->
+	[{userdata,
+			[{number, "1.1.2.1.2.2 3)"},
+			{reference, "3.3.3.2.1/Q.774 and 3.3.3.2.3/Q.774"},
+			{title, "Valid function; Structured dialogue"},
+			{subtitle, "Clearing before subsequent Message; "
+					"Valid clearing from responding side; "
+					"IUT receiving; Basic ending"},
+			{purpose, "To verify that the signalling point A is able to "
+					"terminate a transaction on reception of an END message"},
+			{conditions, "SP A (TSL) and SP B (TSL) are to be in the idle state"},
+			{description,
+					"1. Send a Begin message from SP A to SP B.\n"
+					"2. Arrange for SP B to send an End message to SP A.\n"
+					"3. Check A: Was the Begin message correctly sent from SP A?\n"
+					"4. Check B: Was the End message correctly received at SP A?\n"
+					"5. Check C: Were TSL state machines associated with this "
+						"transaction left in the idle state at SP A?"}]}].
+
+recv_end_basic(Config) ->
+	SPA = ?config(spa, Config),
+	SPB = ?config(spb, Config),
+	TID = tcap_tco_server:new_tid(),
+	ComponentPortion1 = invoke(),
+	UserData = #'TR-user-data'{componentPortion = ComponentPortion1},
+	TrBeginParms = #'TR-BEGIN'{transactionID = TID, qos = {false, false},
+			destAddress = SPB, origAddress = SPA, userData = UserData},
+	tr_send({'TR', 'BEGIN', request, TrBeginParms}, Config),
+	SccpParams = receive
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD} -> UD
+	end,
+	#'N-UNITDATA'{calledAddress = SPB, callingAddress = SPA,
+			sequenceControl = false, returnOption = false,
+			userData = _} = SccpParams,
+	ComponentPortion2 = return_result(),
+	End = #'End'{dtid = <<TID:32>>, components = ComponentPortion2},
+	sccp_send(SPA, SPB, End, Config),
+	TrEndParams = receive
+		{'TR', 'END', indication, #'TR-END'{} = EP} -> EP
+	end,
+	#'TR-END'{transactionID = TID} = TrEndParams.
+
 %%---------------------------------------------------------------------
 %%  Internal functions
 %%---------------------------------------------------------------------
