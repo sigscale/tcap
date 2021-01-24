@@ -33,7 +33,8 @@
 		send_unidirectional/0, send_unidirectional/1,
 		send_begin_prearranged/0, send_begin_prearranged/1,
 		send_end_basic/0, send_end_basic/1,
-		recv_end_basic/0, recv_end_basic/1]).
+		recv_end_basic/0, recv_end_basic/1,
+		recv_msg_established/0, recv_msg_established/1]).
 
 -include("tcap.hrl").
 -include("sccp_primitive.hrl").
@@ -140,7 +141,8 @@ group(csl) ->
 %%
 groups() ->
 	TslCases = [send_unidirectional, recv_unidirectional,
-			send_begin_prearranged, send_end_basic, recv_end_basic],
+			send_begin_prearranged, send_end_basic, recv_end_basic,
+			recv_msg_established],
 	CslCases = [],
 	[{tsl, [], TslCases}, {csl, [], CslCases}].
 
@@ -349,6 +351,72 @@ recv_end_basic(Config) ->
 		{'TR', 'END', indication, #'TR-END'{} = EP} -> EP
 	end,
 	#'TR-END'{transactionID = TID} = TrEndParams.
+
+recv_msg_established() ->
+	[{userdata,
+			[{number, "1.1.2.4.1"},
+			{reference, "3.2.1.3/Q.774"},
+			{title, "Valid function; Structured dialogue"},
+			{subtitle, "Message exchange after transaction established; "
+					"IUT initiating"},
+			{purpose, "To verify the correct message flow between SP A and SP B, "
+					"after transaction established (IUT initiating)"},
+			{conditions, "SP A (TSL) and SP B (TSL) are to be in the idle state"},
+			{description,
+					"1. Arrange for SP A to send a Begin message to SP B.\n"
+					"2. Arrange for SP B to send a Continue message to SP A.\n"
+					"3. Arrange for SP A to send a Continue message to SP B.\n"
+					"4. Arrange for SP B to send an END message to SP A.\n"
+					"5. Check A: Was the Begin message correctly sent from SP A?\n"
+					"6. Check B: Was the Continue message correctly received at SP A?\n"
+					"7. Check C: Was the Continue message correctly sent from SP A?\n"
+					"8. Check D: Was the End message correctly received at SP A?\n"
+					"9. Check E: Was the TSL state machine left in the idle state at SP A?\n"}]}].
+
+recv_msg_established(Config) ->
+	SPA = ?config(spa, Config),
+	SPB = ?config(spb, Config),
+	TIDA = tcap_tco_server:new_tid(),
+	ComponentPortion1 = invoke(),
+	UserData1 = #'TR-user-data'{componentPortion = ComponentPortion1},
+	TrBeginParms = #'TR-BEGIN'{transactionID = TIDA, qos = {false, false},
+			destAddress = SPB, origAddress = SPA, userData = UserData1},
+	Config1 = tr_send({'TR', 'BEGIN', request, TrBeginParms}, Config),
+	SccpParams1 = receive
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD1} -> UD1
+	end,
+	#'N-UNITDATA'{calledAddress = SPB, callingAddress = SPA,
+			sequenceControl = false, returnOption = false,
+			userData = _} = SccpParams1,
+	ComponentPortion2 = return_result(),
+	TIDB = tcap_tco_server:new_tid(),
+	Continue = #'Continue'{otid = <<TIDB:32>>, dtid = <<TIDA:32>>,
+			components = ComponentPortion2},
+	sccp_send(SPA, SPB, Continue, Config1),
+	TrContParams1 = receive
+		{'TR', 'CONTINUE', indication, #'TR-CONTINUE'{} = CP} -> CP
+	end,
+	#'TR-CONTINUE'{transactionID = TIDA,
+			qos = {false, false}} = TrContParams1,
+	ComponentPortion3 = invoke(),
+	UserData2 = #'TR-user-data'{componentPortion = ComponentPortion3},
+	TrContParams2 = #'TR-CONTINUE'{origAddress = SPA,
+			qos = {false, false}, transactionID = TIDA,
+			userData = UserData2},
+	tr_send({'TR', 'CONTINUE', request, TrContParams2}, Config1),
+	SccpParams2 = receive
+		{'N', 'UNITDATA', request, #'N-UNITDATA'{} = UD2} -> UD2
+	end,
+	#'N-UNITDATA'{calledAddress = SPB, callingAddress = SPA,
+			sequenceControl = false, returnOption = false,
+			userData = _} = SccpParams2,
+	ComponentPortion4 = return_result(),
+	End = #'End'{dtid = <<TIDA:32>>, components = ComponentPortion4},
+	sccp_send(SPA, SPB, End, Config1),
+	TrEndParams = receive
+		{'TR', 'END', indication, #'TR-END'{} = EP} -> EP
+	end,
+	#'TR-END'{transactionID = TIDA, qos = {false, false}} = TrEndParams.
 
 %%---------------------------------------------------------------------
 %%  Internal functions
