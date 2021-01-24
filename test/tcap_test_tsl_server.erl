@@ -55,30 +55,23 @@
 		tcu :: pid()}).
 
 init([CT]) ->
-erlang:display({?MODULE, ?LINE, CT}),
 	{ok, #state{ct = CT}}.
 
 handle_call(_Request, _From, State) ->
-erlang:display({?MODULE, ?LINE, _Request, _From, State}),
 	{noreply, State}.
 
 handle_cast(_Request, State) ->
-erlang:display({?MODULE, ?LINE, _Request, State}),
 	{noreply, State}.
 
 handle_info({'N', _, indication, _} = Primitive, State) ->
-erlang:display({?MODULE, ?LINE, Primitive, State}),
 	{primitive, Primitive, State};
 handle_info(_Info, State) ->
-erlang:display({?MODULE, ?LINE, _Info, State}),
 	{noreply, State}.
 
 send_primitive({'N', 'UNITDATA', request, _} = Primitive, #state{ct = CT} = _State) ->
-erlang:display({?MODULE, ?LINE, Primitive, _State}),
 	CT ! Primitive.
 
 start_aei(_DialoguePortion, #state{ct = CT} = State) ->
-erlang:display({?MODULE, ?LINE, _DialoguePortion, State}),
 	{ok, TCU} = gen_statem:start_link(tcap_test_tsl_fsm, [self(), CT], []),
 	NewState = State#state{tcu = TCU},
 	{ok, TCU, TCU, TCU, NewState}.
