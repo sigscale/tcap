@@ -61,7 +61,7 @@
 
 -record(state,
 		{usap :: pid(),
-		dialogueID :: 0..4294967295,
+		did :: 0..4294967295,
 		components = [] :: [{Primitive :: tuple(), ASN :: tuple()}],
 		dha :: pid(),
 		ism = #{} :: #{InvokeId :: -128..127 := (ISM :: pid())}}).
@@ -198,11 +198,181 @@ handle_cast({'TC','U-REJECT',request,
 	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
 % DHA -> CHA (CCO): Components received
-handle_cast({components, Components}, State) ->
+handle_cast({components, Components},
+		#state{usap = USAP, did = DID, ism = ISMs} = State) ->
 	% Figure A.6/Q.774 (2 of 4)
-	process_rx_components(State#state.ism, State#state.usap,
-			      State#state.dialogueID, Components),
-	{noreply, State};
+	Flast = fun([]) -> true; (_) -> false end,
+	F = fun F([{invoke, #'Invoke'{invokeId = InvokeId,
+					linkedId = asn1_NOVALUE, opcode = Operation,
+					argument = Argument}} | T]) ->
+				% Linked operation? (no)
+				Invoke = #'TC-INVOKE'{dialogueID = DID,
+						invokeID = invoke_id(InvokeId),
+						operation = operation(Operation),
+						parameters = argument(Argument),
+						lastComponent = Flast(T)},
+				gen_statem:cast(USAP,
+						{'TC', 'INVOKE', indication, Invoke}),
+				F(T);
+			F([{invoke, #'Invoke'{invokeId = InvokeId,
+					linkedId = LinkedId, opcode = Operation,
+					argument = Argument}} | T]) ->
+				% Linked operation? (yes)
+				ISM = maps:get(LinkedId, ISMs),
+				case sys:get_state(ISM) of
+					{StateName, _Data} when
+							% Linked ISM in operation sent state? (yes)
+							StateName == sent_class_1;
+							StateName == sent_class_2;
+							StateName == sent_class_3;
+							StateName == sent_class_4 ->
+						Invoke = #'TC-INVOKE'{dialogueID = DID,
+								invokeID = invoke_id(InvokeId),
+								linkedID = invoke_id(LinkedId),
+								operation = operation(Operation),
+								parameters = argument(Argument),
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'INVOKE', indication, Invoke}),
+						F(T);
+					{_, _Data} ->
+						% Linked ISM in operation sent state? (no)
+						% Assemble REJECT component
+						Reject = #'TC-L-REJECT'{dialogueID = DID,
+								invokeID = InvokeId,
+								problemCode = {invoke, unrecognizedLinkedId},
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'L-REJECT', indication, Reject}),
+						F(T)
+				end;
+			F([{returnResultNotLast, #'ReturnResult'{invokeId = InvokeId,
+					result = #'ReturnResult_result'{opcode = Operation,
+					result = ReturnResultResult}}} | T]) ->
+				% Is ISM active?
+				case maps:get(InvokeId, ISMs) of
+					{ok, ISM} ->
+						ReturnResult = #'TC-RESULT-NL'{dialogueID = DID,
+								invokeID = invoke_id(InvokeId),
+								operation = operation(Operation),
+								parameters = ReturnResultResult,
+								lastComponent = Flast(T)},
+						gen_statem:cast(ISM, ReturnResult);
+					error ->
+						% Assemble REJECT component
+						Reject = #'TC-L-REJECT'{dialogueID = DID,
+								invokeID = InvokeId,
+								problemCode = {invoke, unrecognizedInvokeId},
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'L-REJECT', indication, Reject})
+				end,
+				F(T);
+			F([{returnResultNotLast, #'ReturnResult'{invokeId = InvokeId,
+					result = asn1_NOVALUE}} | T]) ->
+				% Is ISM active?
+				case maps:get(InvokeId, ISMs) of
+					{ok, ISM} ->
+						ReturnResult = #'TC-RESULT-NL'{dialogueID = DID,
+								invokeID = invoke_id(InvokeId),
+								lastComponent = Flast(T)},
+						gen_statem:cast(ISM, ReturnResult);
+					error ->
+						% Assemble REJECT component
+						Reject = #'TC-L-REJECT'{dialogueID = DID,
+								invokeID = InvokeId,
+								problemCode = {invoke, unrecognizedInvokeId},
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'L-REJECT', indication, Reject})
+				end,
+				F(T);
+			F([{returnResult, #'ReturnResult'{invokeId = InvokeId,
+					result = asn1_NOVALUE}} | T]) ->
+				% Is ISM active?
+				case maps:get(InvokeId, ISMs) of
+					{ok, ISM} ->
+						ReturnResult = #'TC-RESULT-L'{dialogueID = DID,
+								invokeID = invoke_id(InvokeId),
+								lastComponent = Flast(T)},
+						gen_statem:cast(ISM, ReturnResult);
+					error ->
+						% Assemble REJECT component
+						Reject = #'TC-L-REJECT'{dialogueID = DID,
+								invokeID = InvokeId,
+								problemCode = {invoke, unrecognizedInvokeId},
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'L-REJECT', indication, Reject})
+				end,
+				F(T);
+			F([{returnResult, #'ReturnResult'{invokeId = InvokeId,
+					result = #'ReturnResult_result'{opcode = Operation,
+					result = ReturnResultResult}}} | T]) ->
+				% Is ISM active?
+				case maps:get(InvokeId, ISMs) of
+					{ok, ISM} ->
+						ReturnResult = #'TC-RESULT-L'{dialogueID = DID,
+								invokeID = invoke_id(InvokeId),
+								operation = operation(Operation),
+								parameters = ReturnResultResult,
+								lastComponent = Flast(T)},
+						gen_statem:cast(ISM, ReturnResult);
+					error ->
+						% Assemble REJECT component
+						Reject = #'TC-L-REJECT'{dialogueID = DID,
+								invokeID = InvokeId,
+								problemCode = {invoke, unrecognizedInvokeId},
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'L-REJECT', indication, Reject})
+				end,
+				F(T);
+			F([{returnError, #'ReturnError'{invokeId = InvokeId,
+					errcode = ErrorCode, parameter = Parameter}} | T]) ->
+				% Is ISM active?
+				case maps:get(InvokeId, ISMs) of
+					{ok, ISM} ->
+						ReturnError = #'TC-U-ERROR'{dialogueID = DID,
+								invokeID = invoke_id(InvokeId),
+								error = operation(ErrorCode),
+								parameters = argument(Parameter),
+								lastComponent = Flast(T)},
+						gen_statem:cast(ISM, ReturnError);
+					error ->
+						% Assemble REJECT component
+						Reject = #'TC-L-REJECT'{dialogueID = DID,
+								invokeID = InvokeId,
+								problemCode = {invoke, unrecognizedInvokeId},
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'L-REJECT', indication, Reject})
+				end,
+				F(T);
+			F([{reject, #'Reject'{invokeId = InvokeId,
+					problem = Problem}} | T]) ->
+				% Is ISM active?
+				case maps:get(InvokeId, ISMs) of
+					{ok, ISM} ->
+						Reject = #'TC-U-REJECT'{dialogueID = DID,
+								invokeID = invoke_id(InvokeId),
+								problemCode = Problem,
+								lastComponent = Flast(T)},
+						gen_statem:cast(ISM, Reject);
+					error ->
+						% Assemble REJECT component
+						Reject = #'TC-L-REJECT'{dialogueID = DID,
+								invokeID = InvokeId,
+								problemCode = {invoke, unrecognizedInvokeId},
+								lastComponent = Flast(T)},
+						gen_statem:cast(USAP,
+								{'TC', 'L-REJECT', indication, Reject})
+				end,
+				F(T);
+			F([]) ->
+				{noreply, State}
+	end,
+	F(Components);
 % ISM -> CCO: Generate REJ component
 handle_cast({reject_component, Reject},
 		#state{components = Components} = State) ->
@@ -220,7 +390,7 @@ handle_cast('request-components', State1) ->
 	% for each component
 	F = fun F(#state{components = [{#'TC-INVOKE'{class = Class,
 					timeout = Timeout, invokeID = InvokeId}, ASN} | T],
-					ism = ISMs, usap = USAP, dialogueID = DID} = State2, Acc) ->
+					ism = ISMs, usap = USAP, did = DID} = State2, Acc) ->
 				% if INVOKE component
 				% start ISM and store ISM
 				case tcap_invocation_sup:start_ism(USAP, DID,
@@ -265,7 +435,7 @@ handle_info({'EXIT', _Pid, Reason}, State) ->
 -spec terminate(Reason, State) -> any()
 	when
 		Reason :: normal | shutdown | {shutdown, term()} | term(),
-      State :: state().
+		State :: state().
 %% @see //stdlib/gen_server:terminate/3
 %% @private
 terminate(_Reason, _State) ->
@@ -326,107 +496,3 @@ argument(undefined = _Argument) ->
 argument(Argument) when is_list(Argument) ->
 	Argument.
 
-% Convert from asn1ct-generated record to the primitive records
-asn_rec_to_uprim({invoke, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Invoke') ->
-	#'TC-INVOKE'{dialogueID = DlgId,
-		     invokeID = invoke_id(AsnRec#'Invoke'.invokeId),
-		     linkedID = invoke_id(AsnRec#'Invoke'.linkedId),
-		     operation = AsnRec#'Invoke'.opcode,
-		     parameters = AsnRec#'Invoke'.argument,
-		     lastComponent = Last};
-asn_rec_to_uprim({returnResultNotLast, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnResult') ->
-	case AsnRec#'ReturnResult'.result of
-		#'ReturnResult_result'{opcode = Op, result = Result} ->
-			ok;
-		asn1_NOVALUE ->
-			Op = undefined,
-			Result = undefined
-	end,
-	#'TC-RESULT-NL'{dialogueID = DlgId,
-			invokeID = invoke_id(AsnRec#'ReturnResult'.invokeId),
-			operation = Op,
-			parameters = Result,
-			lastComponent = Last};
-asn_rec_to_uprim({returnResult, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnResult') ->
-	case AsnRec#'ReturnResult'.result of
-		#'ReturnResult_result'{opcode = Op, result = Result} ->
-			ok;
-		asn1_NOVALUE ->
-			Op = undefined,
-			Result = undefined
-	end,
-	#'TC-RESULT-L'{dialogueID = DlgId,
-			invokeID = invoke_id(AsnRec#'ReturnResult'.invokeId),
-			operation = Op,
-			parameters = Result,
-			lastComponent = Last};
-asn_rec_to_uprim({returnError, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnError') ->
-	#'TC-U-ERROR'{dialogueID = DlgId,
-		      invokeID = invoke_id(AsnRec#'ReturnError'.invokeId),
-		      error = AsnRec#'ReturnError'.errcode,
-		      parameters = AsnRec#'ReturnError'.parameter,
-		      lastComponent = Last};
-asn_rec_to_uprim({reject, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Reject') ->
-	#'TC-U-REJECT'{dialogueID = DlgId,
-			invokeID = invoke_id(AsnRec#'Reject'.invokeId),
-			problemCode = AsnRec#'Reject'.problem,
-			lastComponent = Last}.
-
-process_rx_components(ISMs, Usap, DlgId, [Head|[]]) ->
-	process_rx_component(ISMs, Usap, DlgId, Head, true),
-	ok;
-process_rx_components(ISMs, Usap, DlgId, [Head|Tail]) ->
-	process_rx_component(ISMs, Usap, DlgId, Head, false),
-	process_rx_components(ISMs, Usap, DlgId, Tail).
-
-process_rx_component(ISMs, Usap, DlgId, C={invoke, #'Invoke'{}}, Last) ->
-	InvokeId = get_invoke_id_from_comp(C),
-	{invoke, I} = C,
-	case I#'Invoke'.linkedId of
-	    asn1_NOVALUE ->
-		ok;
-	    Linked ->
-		% check if Linked ISM is in operation sent state
-		% FIXME
-		ok
-	end,
-	Prim = asn_rec_to_uprim(C, DlgId, Last),
-	gen_statem:cast(Usap, {'TC','INVOKE',indication,Prim});
-process_rx_component(ISMs, _Usap, DlgId, C={reject, #'Reject'{problem=Problem}}, Last) ->
-	InvokeId = get_invoke_id_from_comp(C),
-	ISM = lists:keyfind(InvokeId, 1, ISMs),
-	case Problem of
-	    {invoke, _} ->
-		% FIXME: ISM active (No -> Inform TC-User)
-		gen_statem:cast(ISM, terminate);
-	    _ ->
-		ok
-	end,
-	% FIXME: decide on TC-U-REJECT or TC-R-REJECT
-	Prim = asn_rec_to_uprim(C, DlgId, Last),
-	{InvokeId, ISM} = lists:keyfind(InvokeId, 1, ISMs),
-	gen_statem:cast(ISM, Prim);
-process_rx_component(ISMs, _Usap, DlgId, Comp, Last) ->
-	% syntax error?
-	InvokeId = get_invoke_id_from_comp(Comp),
-	{InvokeId, ISM} = lists:keyfind(InvokeId, 1, ISMs),
-	% FIXME: ISM active (No -> 6)
-	Prim = asn_rec_to_uprim(Comp, DlgId, Last),
-	gen_statem:cast(ISM, Prim).
-
-% get the invokeId from the given asn-record component tuple.
-get_invoke_id_from_comp({invoke,
-			 #'Invoke'{invokeId = InvokeId}}) ->
-	invoke_id(InvokeId);
-get_invoke_id_from_comp({returnResult,
-			 #'ReturnResult'{invokeId = InvokeId}}) ->
-	invoke_id(InvokeId);
-get_invoke_id_from_comp({returnResultNotLast,
-			 #'ReturnResult'{invokeId = InvokeId}}) ->
-	invoke_id(InvokeId);
-get_invoke_id_from_comp({returnError,
-			 #'ReturnError'{invokeId = InvokeId}}) ->
-	invoke_id(InvokeId);
-get_invoke_id_from_comp({reject,
-			 #'Reject'{invokeId = InvokeId}}) ->
-	invoke_id(InvokeId).
