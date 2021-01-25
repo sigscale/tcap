@@ -174,7 +174,7 @@ handle_cast({'TC', 'U-ERROR', request,
 		error = Error, parameters = Parameters} = Param},
 		#state{components = Components} = State) ->
 	ReturnError = #'ReturnError'{invokeId = invoke_id(InvokeId),
-			errcode = error(Error), parameter = argument(Parameters)},
+			errcode = operation(Error), parameter = argument(Parameters)},
 	% Figure A.6/Q.774 (1 of 4)
 	% assemble requested component
 	Component = #component{user_prim = Param,
