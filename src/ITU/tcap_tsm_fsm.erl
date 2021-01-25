@@ -338,7 +338,7 @@ active(cast, {'CONTINUE', received,
 		returnOption = ReturnOption,
 		userData = #'Continue'{dialoguePortion = DialoguePortion,
 		components = Components}} = _SccpParms},
-		#statedata{localTID = LocalTID, dha = DHA} = Data) ->
+		#statedata{localTID = LocalTID, dha = DHA} = _Data) ->
 	QOS = {SequenceControl, ReturnOption},
 	UserData = #'TR-user-data'{dialoguePortion = DialoguePortion,
 			componentPortion = Components},
