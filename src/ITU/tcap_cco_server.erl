@@ -8,18 +8,18 @@
 %%%
 %%% Copyright (c) 2010-2011, Harald Welte
 %%% Copyright (c) 2021 SigScale Global Inc.
-%%% 
+%%%
 %%% All rights reserved.
-%%% 
+%%%
 %%% Redistribution and use in source and binary forms, with or without
 %%% modification, are permitted provided that the following conditions
 %%% are met:
-%%% 
+%%%
 %%%    - Redistributions of source code must retain the above copyright
 %%%      notice, this list of conditions and the following disclaimer.
 %%%    - Redistributions in binary form must reproduce the above copyright
 %%%      notice, this list of conditions and the following disclaimer in
-%%%      the documentation and/or other materials provided with the 
+%%%      the documentation and/or other materials provided with the
 %%%      distribution.
 %%%    - Neither the name of Motivity Telecom nor the names of its
 %%%      contributors may be used to endorse or promote products derived
@@ -33,7 +33,7 @@
 %%% SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
 %%% LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 %%% DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-%%% THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+%%% THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 %%% (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
@@ -59,13 +59,12 @@
 -include("TR.hrl").
 -include("TC.hrl").
 
--record(component, {asn_ber, user_prim}).
 -record(state,
 		{usap :: pid(),
 		dialogueID :: 0..4294967295,
-		components = [] :: [#component{}],
+		components = [] :: [{Primitive :: tuple(), ASN :: tuple()}],
 		dha :: pid(),
-		ism = []}).
+		ism = #{} :: #{InvokeId :: -128..127 := (ISM :: pid())}}).
 -type state() :: #state{}.
 
 %%----------------------------------------------------------------------
@@ -123,8 +122,7 @@ handle_cast({'TC','INVOKE',request,
 			linkedId = invoke_id(LinkedId), opcode = operation(Operation),
 			argument = argument(Parameters)},
 	% assemble INVOKE component
-	Component = #component{user_prim = InvokeParam,
-			asn_ber = {invoke, Invoke}},
+	Component = {InvokeParam, {invoke, Invoke}},
 	% mark it as available
 	NewState = State#state{components = [Component | Components]},
 	% what to do with class and timeout?
@@ -132,16 +130,25 @@ handle_cast({'TC','INVOKE',request,
 % from TCU: TC-U-CANCEL.req
 handle_cast({'TC','U-CANCEL',request,
 		#'TC-U-CANCEL'{invokeID = InvokeId} = _Param},
-		#state{components = Components, ism = ISM} = State) ->
+		#state{components = Components, ism = ISMs} = State) ->
 	% if there are any INV componnents waiting, discard them
-	case discard_inv_component(Components, InvokeId) of
-		Components ->
-			% if not, check any active ISM, if yes, terminate ISM
-			NewISMs = terminate_active_ism(ISM, InvokeId),
-			{noreply, State#state{ism = NewISMs}};
-		NewComponents ->
-			{noreply, State#state{components = NewComponents}}
-	end;
+	F = fun F([{#'TC-INVOKE'{invokeID = ID}, _} | T], Acc)
+					when ID =:= InvokeId ->
+				NewComponents = lists:reverse(Acc) ++ T,
+				{noreply, State#state{components = NewComponents}};
+			F([H | T], Acc) ->
+				F(T, [H | Acc]);
+			F([], _Acc) ->
+				% if not, check any active ISM, if yes, terminate ISM
+				case maps:take(InvokeId, ISMs) of
+					{ISM, NewISMs} ->
+						gen_statem:cast(ISM, terminate),
+						{noreply, State#state{ism = NewISMs}};
+					error ->
+						{shutdown, ism_not_found, State}
+				end
+	end,
+	F(Components, []);
 % from TCL -> CHA (CCO): TC-RESULT-{L,NL}, U-ERROR
 handle_cast({'TC', 'RESULT-L', request,
 		#'TC-RESULT-L'{invokeID = InvokeId,
@@ -151,8 +158,7 @@ handle_cast({'TC', 'RESULT-L', request,
 					result = argument(Parameters)},
 	ReturnResult = #'ReturnResult'{invokeId = invoke_id(InvokeId),
 			result = ReturnResultResult},
-	Component = #component{user_prim = Param,
-			asn_ber = {returnResult, ReturnResult}},
+	Component = {Param, {returnResult, ReturnResult}},
 	% mark component available for this dialogue
 	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
@@ -164,8 +170,7 @@ handle_cast({'TC', 'RESULT-NL', request,
 					result = argument(Parameters)},
 	ReturnResult = #'ReturnResult'{invokeId = invoke_id(InvokeId),
 			result = ReturnResultResult},
-	Component = #component{user_prim = Param,
-			asn_ber = {returnResultNotLast, ReturnResult}},
+	Component = {Param, {returnResultNotLast, ReturnResult}},
 	% mark component available for this dialogue
 	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
@@ -177,8 +182,7 @@ handle_cast({'TC', 'U-ERROR', request,
 			errcode = operation(Error), parameter = argument(Parameters)},
 	% Figure A.6/Q.774 (1 of 4)
 	% assemble requested component
-	Component = #component{user_prim = Param,
-			asn_ber = {returnError, ReturnError}},
+	Component = {Param, {returnError, ReturnError}},
 	% mark component available for this dialogue
 	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
@@ -188,9 +192,8 @@ handle_cast({'TC','U-REJECT',request,
 		#state{components = Components} = State) ->
 	Reject = #'Reject'{invokeId = InvokeId, problem = Problem},
 	% assemble reject component
-	Component = #component{user_prim = Param,
-			asn_ber = {reject, Reject}}, %FIXME
-	% FIXME: if probelm type Result/Error, terminate ISM
+	Component = {Param, {reject, Reject}}, %FIXME
+	% FIXME: if problem type Result/Error, terminate ISM
 	% mark component available for this dialogue
 	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
@@ -203,7 +206,7 @@ handle_cast({components, Components}, State) ->
 % ISM -> CCO: Generate REJ component
 handle_cast({reject_component, Reject},
 		#state{components = Components} = State) ->
-	Component = #component{user_prim = Reject, asn_ber = 0}, %FIXME
+	Component = {Reject, 0}, %FIXME
 	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
 % DHA -> CHA (CCO)
@@ -213,14 +216,33 @@ handle_cast('request-components',
 	% if no components, signal 'no-components' to DHA
 	gen_statem:cast(DHA, 'no-component'),
 	{noreply, State};
-handle_cast('request-components',
-		#state{dha = DHA, components = Components1} = State) ->
+handle_cast('request-components', State1) ->
 	% for each component
-	{Components2, ISMs} = process_request_components(Components1, State),
-	% signal 'requested-components' to DHA
-	gen_statem:cast(DHA, {'requested-components', Components2}),
-	NewState = State#state{ism = State#state.ism ++ ISMs, components = []},
-	{noreply, NewState};
+	F = fun F(#state{components = [{#'TC-INVOKE'{class = Class,
+					timeout = Timeout, invokeID = InvokeId}, ASN} | T],
+					ism = ISMs, usap = USAP, dialogueID = DID} = State2, Acc) ->
+				% if INVOKE component
+				% start ISM and store ISM
+				case tcap_invocation_sup:start_ism(USAP, DID,
+						InvokeId, self(), Class, Timeout) of
+					{ok, ISM} ->
+						% signal 'operation-sent' to ISM
+						gen_statem:cast(ISM, 'operation-sent'),
+						NewISMs = ISMs#{InvokeId => ISM},
+						NewState = State2#state{components = T, ism = NewISMs},
+						F(NewState, [ASN | Acc]);
+					{error, Reason} ->
+						{stop, Reason, State2}
+				end;
+			F(#state{components = [{_, ASN} | T]} = State2, Acc) ->
+				F(State2#state{components = T}, [ASN | Acc]);
+			F(#state{components = [], dha = DHA} = State2, Acc) ->
+				% signal 'requested-components' to DHA
+				gen_statem:cast(DHA, {'requested-components', Acc}),
+				NewState = State2#state{components = []},
+				{noreply, NewState}
+	end,
+	F(State1, []);
 % from DHA -> CCO: dialogue-terminated
 handle_cast('dialogue-terminated', State) ->
 	% discard components awaiting transmission
@@ -303,52 +325,6 @@ argument(undefined = _Argument) ->
 	asn1_NOVALUE;
 argument(Argument) when is_list(Argument) ->
 	Argument.
-
-%% @hidden
-% Figure A.6/Q.774 (4 of 4)
-process_request_components(Components, #state{} = State)
-		when is_list(Components) ->
-	process_request_components(Components, State, [], []).
-%% @hidden
-process_request_components([], _State, Acc, ISMs) ->
-	{lists:reverse(Acc), ISMs};
-process_request_components([#component{asn_ber = ASN,
-		user_prim = #'TC-INVOKE'{class = Class, timeout = Timeout,
-		invokeID = InvokeId}} | T], #state{ism = ISM, usap = USAP,
-		dialogueID = DID} = State, Acc, ISMs) ->
-	% if INVOKE component
-	% start ISM and store ISM
-	{ok, ISM} = tcap_invocation_sup:start_ism(USAP,
-			DID, InvokeId, self(), Class, Timeout),
-	% signal 'operation-sent' to ISM
-	gen_statem:cast(ISM, 'operation-sent'),
-	NewISMs = [{InvokeId, ISM} | ISMs],
-	process_request_components(T, State, [ASN | Acc], NewISMs);
-process_request_components([#component{asn_ber = ASN} | T], State, Acc, ISMs) ->
-	process_request_components(T, State, [ASN | Acc], ISMs).
-
-%% @hidden
-% discard components of type INVOKE for matching InvokeId
-discard_inv_component(Components, InvokeId) when is_list(Components) ->
-	discard_inv_component(Components, InvokeId, []).
-discard_inv_component([], _InvokeId, Acc) ->
-	lists:reverse(Acc);
-discard_inv_component([#component{user_prim
-		= #'TC-INVOKE'{invokeID = InvokeId}} | T], InvokeId, Acc) ->
-	discard_inv_component(T, InvokeId, Acc);
-discard_inv_component([H | T], InvokeId, Acc) ->
-	discard_inv_component(T, InvokeId, [H | Acc]).
-
-%% @hidden
-% iterate over list of ISMs, terminate the one with matching InvokeId
-terminate_active_ism(ISMs, InvokeId) ->
-	case lists:keytake(InvokeId, 1, ISMs) of
-		{value, {InvokeId, ISM}, NewISMs} ->
-			gen_statem:cast(ISM, terminate),
-			NewISMs;
-		false ->
-			ISMs
-	end.
 
 % Convert from asn1ct-generated record to the primitive records
 asn_rec_to_uprim({invoke, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Invoke') ->
