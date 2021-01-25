@@ -43,8 +43,8 @@
 %%%  containing it's parameters.  Modules using these
 %%%  services utilize these records to format messages:
 %%%
-%%%  {'TC', 'BEGIN', request, Begin} when is_record(Begin, 'TC-BEGIN')
-%%%  {'TR', 'UNI', indication, Unidirectional} when is_record(Unidirectional, 'TR-UNI')
+%%%  {'TC', 'BEGIN', request, #'TC-BEGIN'{})
+%%%  {'TR', 'UNI', indication, #TR-UNI'{})
 %%%
 
 %%%
@@ -108,7 +108,7 @@
 %% reference: Table 10/Q.771 - Operation invocation primitives
 -record('TC-INVOKE',
 		{dialogueID :: 0..4294967295,
-		class,
+		class :: 1..4,
 		invokeID :: -128..127,
 		linkedID :: -128..127,
 		operation :: {local, integer()} | {global, tuple()},
