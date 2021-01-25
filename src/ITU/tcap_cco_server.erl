@@ -1,10 +1,13 @@
 %%% tcap_cco_server.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2010-2011 Harald Welte
+%%% 		2021 SigScale Global Inc.
 %%% @author Harald Welte <laforge@gnumonks.org>
+%%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @end
 %%%
 %%% Copyright (c) 2010-2011, Harald Welte
+%%% Copyright (c) 2021 SigScale Global Inc.
 %%% 
 %%% All rights reserved.
 %%% 
@@ -35,7 +38,6 @@
 %%% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%%
 %%%---------------------------------------------------------------------
-%%%
 %%% @doc TCAP Component Coordinator (CCO) functional block within the
 %%% 		component sub-layer of ITU TCAP.
 %%%
@@ -43,7 +45,9 @@
 %%%
 -module(tcap_cco_server).
 -copyright('Copyright (c) 2010-2011 Harald Welte').
+-copyright('Copyright (c) 2021 SigScale Global Inc.').
 -author('Harald Welte <laforge@gnumonks.org>').
+-author('Vance Shipley <vances@sigscale.org>').
 
 -behaviour(gen_server).
 
@@ -55,108 +59,153 @@
 -include("TR.hrl").
 -include("TC.hrl").
 
+-record(component, {asn_ber, user_prim}).
 -record(state,
 		{usap :: pid(),
 		dialogueID :: 0..4294967295,
-		components = [],
+		components = [] :: [#component{}],
 		dha :: pid(),
 		ism = []}).
-
--record(component, {asn_ber, user_prim}).
+-type state() :: #state{}.
 
 %%----------------------------------------------------------------------
 %%  The gen_server call backs
 %%----------------------------------------------------------------------
 
-%% initialize the server
+-spec init(Args) -> Result
+	when
+		Args :: [term()],
+		Result :: {ok, State :: state()}
+				| {ok, State :: state(), Timeout :: timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term()} | ignore.
+%% @see //stdlib/gen_server:init/1
+%% @private
 init([_TCO, TCU]) ->
 	process_flag(trap_exit, true),
 	{ok, #state{usap = TCU}}.
 
-%% set the DHA pid
-handle_call(set_dha, From, State) ->
-	{noreply, State#state{dha = From}};
+-spec handle_call(Request, From, State) -> Result
+	when
+		Request :: term(),
+		From :: {pid(), Tag :: any()},
+		State :: state(),
+		Result :: {reply, Reply :: term(), NewState :: state()}
+				| {reply, Reply :: term(), NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), Reply :: term(), NewState :: state()}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @see //stdlib/gen_server:handle_call/3
+%% @private
+handle_call(Request, _From, State) ->
+	{stop, Request, State}.
 
-%% shutdown the server
-handle_call(stop, _From, State) ->
-	{stop, shutdown, ok, State};
-
-%% unrecognized calls
-handle_call(Other, From, State) ->
-	error_logger:error_report([{unknown_call, Other}, {from, From}]),
-	{noreply, State}.
-
+-spec handle_cast(Request, State) -> Result
+	when
+		Request :: term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @doc Handle a request sent using {@link //stdlib/gen_server:cast/2.
+%% 	gen_server:cast/2} or {@link //stdlib/gen_server:abcast/2.
+%% 	gen_server:abcast/2,3}.
+%%
+%% @@see //stdlib/gen_server:handle_cast/2
+%% @private
+%% @end
 % from TCU: TC-INVOKE.req
-handle_cast({'TC','INVOKE',request, InvParam}, State)
-			when is_record(InvParam, 'TC-INVOKE') ->
+handle_cast({'TC','INVOKE',request,
+		#'TC-INVOKE'{invokeID = InvokeId, linkedID = LinkedId,
+		operation = Operation, parameters = Parameters} = InvokeParam},
+		#state{components = Components} = State) ->
+	Invoke = #'Invoke'{invokeId = invoke_id(InvokeId),
+			linkedId = invoke_id(LinkedId), opcode = operation(Operation),
+			argument = argument(Parameters)},
 	% assemble INVOKE component
-	AsnRosRec = uprim_to_asn_rec(InvParam),
-	Component = #component{user_prim = InvParam, asn_ber = AsnRosRec},
+	Component = #component{user_prim = InvokeParam,
+			asn_ber = {invoke, Invoke}},
 	% mark it as available
-	NewState = add_components_to_state(State, Component),
+	NewState = State#state{components = [Component | Components]},
 	% what to do with class and timeout?
 	{noreply, NewState};
-
 % from TCU: TC-U-CANCEL.req
-handle_cast({'TC','U-CANCEL',request, Param}, State)
-			when is_record(Param, 'TC-U-CANCEL') ->
-	InvokeId = Param#'TC-U-CANCEL'.invokeID,
-	OldComps = State#state.components,
+handle_cast({'TC','U-CANCEL',request,
+		#'TC-U-CANCEL'{invokeID = InvokeId} = _Param},
+		#state{components = Components, ism = ISM} = State) ->
 	% if there are any INV componnents waiting, discard them
-	NewComps = discard_inv_component(OldComps, InvokeId),
-	case NewComps of
-	    OldComps ->
-		% if not, check any active ISM, if yes, terminate ISM
-		NewISMs = terminate_active_ism(State#state.ism,
-						InvokeId),
-		NewState = State#state{ism = NewISMs};
-	    _ ->
-		NewState = State#state{components = NewComps}
-	end,
-	{noreply, NewState};
-
-% from DHA -> CCO: dialogue-terminated
-handle_cast('dialogue-terminated', State) ->
-	% discard components awaiting transmission
-	{stop, normal, State};
-
+	case discard_inv_component(Components, InvokeId) of
+		Components ->
+			% if not, check any active ISM, if yes, terminate ISM
+			NewISMs = terminate_active_ism(ISM, InvokeId),
+			{noreply, State#state{ism = NewISMs}};
+		NewComponents ->
+			{noreply, State#state{components = NewComponents}}
+	end;
 % from TCL -> CHA (CCO): TC-RESULT-{L,NL}, U-ERROR
-handle_cast({'TC', Req, request, Param}, State) when 
-				Req == 'RESULT-L';
-				Req == 'RESULT-NL';
-				Req == 'U-ERROR' ->
+handle_cast({'TC', 'RESULT-L', request,
+		#'TC-RESULT-L'{invokeID = InvokeId,
+		operation = Operation, parameters = Parameters} = Param},
+		#state{components = Components} = State) ->
+	ReturnResultResult = #'ReturnResult_result'{opcode = operation(Operation),
+					result = argument(Parameters)},
+	ReturnResult = #'ReturnResult'{invokeId = invoke_id(InvokeId),
+			result = ReturnResultResult},
+	Component = #component{user_prim = Param,
+			asn_ber = {returnResult, ReturnResult}},
+	% mark component available for this dialogue
+	NewState = State#state{components = [Component | Components]},
+	{noreply, NewState};
+handle_cast({'TC', 'RESULT-NL', request,
+		#'TC-RESULT-NL'{invokeID = InvokeId,
+		operation = Operation, parameters = Parameters} = Param},
+		#state{components = Components} = State) ->
+	ReturnResultResult = #'ReturnResult_result'{opcode = operation(Operation),
+					result = argument(Parameters)},
+	ReturnResult = #'ReturnResult'{invokeId = invoke_id(InvokeId),
+			result = ReturnResultResult},
+	Component = #component{user_prim = Param,
+			asn_ber = {returnResultNotLast, ReturnResult}},
+	% mark component available for this dialogue
+	NewState = State#state{components = [Component | Components]},
+	{noreply, NewState};
+handle_cast({'TC', 'U-ERROR', request,
+		#'TC-U-ERROR'{invokeID = InvokeId,
+		error = Error, parameters = Parameters} = Param},
+		#state{components = Components} = State) ->
+	ReturnError = #'ReturnError'{invokeId = invoke_id(InvokeId),
+			errcode = error(Error), parameter = argument(Parameters)},
 	% Figure A.6/Q.774 (1 of 4)
 	% assemble requested component
-	AsnRosRec = uprim_to_asn_rec(Param),
-	Component = #component{user_prim = Param, asn_ber = AsnRosRec}, %FIXME
+	Component = #component{user_prim = Param,
+			asn_ber = {returnError, ReturnError}},
 	% mark component available for this dialogue
-	NewState = add_components_to_state(State, Component),
+	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
-
 % TCL->CHA: TC-U-REJECT.req
-handle_cast({'TC','U-REJECT',request, Param}, State)
-			when is_record(Param, 'TC-U-REJECT') ->
+handle_cast({'TC','U-REJECT',request,
+		#'TC-U-REJECT'{invokeID = InvokeId, problemCode = Problem} = Param},
+		#state{components = Components} = State) ->
+	Reject = #'Reject'{invokeId = InvokeId, problem = Problem},
 	% assemble reject component
-	AsnRosRec = uprim_to_asn_rec(Param),
-	Component = #component{user_prim = Param, asn_ber = AsnRosRec}, %FIXME
+	Component = #component{user_prim = Param,
+			asn_ber = {reject, Reject}}, %FIXME
 	% FIXME: if probelm type Result/Error, terminate ISM
 	% mark component available for this dialogue
-	NewState = add_components_to_state(State, Component),
+	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
-
 % DHA -> CHA (CCO): Components received
 handle_cast({components, Components}, State) ->
 	% Figure A.6/Q.774 (2 of 4)
 	process_rx_components(State#state.ism, State#state.usap,
 			      State#state.dialogueID, Components),
 	{noreply, State};
-
 % ISM -> CCO: Generate REJ component
-handle_cast({reject_component, Reject}, State) ->
+handle_cast({reject_component, Reject},
+		#state{components = Components} = State) ->
 	Component = #component{user_prim = Reject, asn_ber = 0}, %FIXME
-	NewState = add_components_to_state(State, Component),
+	NewState = State#state{components = [Component | Components]},
 	{noreply, NewState};
-
 % DHA -> CHA (CCO)
 % Figure A.6/Q.774 (4 of 4)
 handle_cast('request-components',
@@ -166,48 +215,94 @@ handle_cast('request-components',
 	{noreply, State};
 handle_cast('request-components',
 		#state{dha = DHA, components = Components1} = State) ->
-	gen_statem:cast(DHA, 'no-component'),
 	% for each component
 	{Components2, ISMs} = process_request_components(Components1, State),
 	% signal 'requested-components' to DHA
 	gen_statem:cast(DHA, {'requested-components', Components2}),
 	NewState = State#state{ism = State#state.ism ++ ISMs, components = []},
 	{noreply, NewState};
-handle_cast(Other, State) ->
-	{stop, Other, State}.
+% from DHA -> CCO: dialogue-terminated
+handle_cast('dialogue-terminated', State) ->
+	% discard components awaiting transmission
+	{stop, normal, State}.
 
-
-%% trapped exit signals
+-spec handle_info(Info, State) -> Result
+	when
+		Info :: timeout | term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @doc Handle a received message.
+%%
+%% @@see //stdlib/gen_server:handle_info/2
+%% @private
 handle_info({'EXIT', _Pid, Reason}, State) ->
-	{stop, Reason, State};
+	{stop, Reason, State}.
 
-%% unknown messages
-handle_info(Unknown, State) ->
-	error_logger:error_msg("Received unknown message: ~p~n", [Unknown]),
-	{noreply, State}.
+-spec terminate(Reason, State) -> any()
+	when
+		Reason :: normal | shutdown | {shutdown, term()} | term(),
+      State :: state().
+%% @see //stdlib/gen_server:terminate/3
+%% @private
+terminate(_Reason, _State) ->
+	ok.
 
-%% someone wants us to shutdown and cleanup
-terminate(_Reason, _State) -> ok.
+-spec code_change(OldVersion, State, Extra) -> Result
+	when
+		OldVersion :: term() | {down, term()},
+		State :: state(),
+		Extra :: term(),
+		Result :: {ok, NewState :: state()} | {error, Reason :: term()}.
+%% @see //stdlib/gen_server:code_change/3
+%% @private
+code_change(_OldVersion, State, _Extra) ->
+	{ok, State}.
 
-%% upgrading the running code
-code_change(_, _, _) -> ok.
+%%----------------------------------------------------------------------
+%% internal functions
+%%----------------------------------------------------------------------
 
-%%%
-%%% internal functions
-%%%
-
-% convert invoke ID from user-input format to what ASN1RT expects
-inv_id_to_asn_rec(undefined) ->
+-spec invoke_id(InvokeId) -> InvokeId
+	when
+		InvokeId :: integer() | undefined | asn1_NOVALUE | {present, integer()}.
+%% @doc Invoke ID CODEC.
+%% @private
+invoke_id(undefined = _InvokeId) ->
 	asn1_NOVALUE;
-inv_id_to_asn_rec(Int) when is_integer(Int) ->
-	{present, Int}.
-
-inv_id_to_uprim({present, Inv}) ->
-	Inv;
-inv_id_to_uprim(undefined) ->
-	undefined;
-inv_id_to_uprim(asn1_NOVALUE) ->
+invoke_id(InvokeId) when is_integer(InvokeId) ->
+	{present, InvokeId};
+invoke_id({present, InvokeId}) when is_integer(InvokeId) ->
+	InvokeId;
+invoke_id(asn1_NOVALUE) ->
 	undefined.
+
+-spec operation(Operation) -> Operation
+	when
+		Operation :: {local, integer()} | {global, tuple()} | integer() | tuple().
+%% @doc Operation CODEC.
+%% @private
+operation({local, Operation}) when is_integer(Operation) ->
+	Operation;
+operation({global, Operation}) when is_tuple(Operation) ->
+	Operation;
+operation(Operation) when is_integer(Operation) ->
+	{local, Operation};
+operation(Operation) when is_tuple(Operation) ->
+	{global, Operation}.
+
+-spec argument(Argument) -> Argument
+	when
+		Argument :: asn1_NOVALUE | undefined.
+%% @doc Argument CODEC.
+%% @private
+argument(asn1_NOVALUE = _Argument) ->
+	undefined;
+argument(undefined = _Argument) ->
+	asn1_NOVALUE;
+argument(Argument) when is_list(Argument) ->
+	Argument.
 
 %% @hidden
 % Figure A.6/Q.774 (4 of 4)
@@ -255,44 +350,11 @@ terminate_active_ism(ISMs, InvokeId) ->
 			ISMs
 	end.
 
-undef2empty(undefined) ->
-	[];
-undef2empty(asn1_NOVALUE) ->
-	[];
-undef2empty(Foo) ->
-	Foo.
-
-% Convert from user-visible primitive records to asn1ct-generated record
-uprim_to_asn_rec(Uprim) when is_record(Uprim, 'TC-INVOKE') ->
-	{invoke, #'Invoke'{invokeId = inv_id_to_asn_rec(Uprim#'TC-INVOKE'.invokeID),
-		  linkedId = inv_id_to_asn_rec(Uprim#'TC-INVOKE'.linkedID),
-		  opcode = osmo_util:asn_val(Uprim#'TC-INVOKE'.operation),
-		  argument = undef2empty(Uprim#'TC-INVOKE'.parameters)}};
-uprim_to_asn_rec(#'TC-RESULT-NL'{invokeID = InvId, operation = Op,
-				 parameters = Params}) ->
-	ResRes = #'ReturnResult_result'{opcode = osmo_util:asn_val(Op),
-					result = osmo_util:asn_val(Params)},
-	{returnResultNotLast, #'ReturnResult'{invokeId = inv_id_to_asn_rec(InvId), result = ResRes}};
-uprim_to_asn_rec(#'TC-RESULT-L'{invokeID = InvId, operation = Op,
-				parameters = Params}) ->
-	ResRes = #'ReturnResult_result'{opcode = osmo_util:asn_val(Op),
-					result = osmo_util:asn_val(Params)},
-	{returnResult, #'ReturnResult'{invokeId = inv_id_to_asn_rec(InvId), result = ResRes}};
-uprim_to_asn_rec(#'TC-U-ERROR'{invokeID = InvId, error = Error,
-			       parameters = Params}) ->
-	{returnError, #'ReturnError'{invokeId = inv_id_to_asn_rec(InvId),
-			errcode = osmo_util:asn_val(Error),
-			parameter = osmo_util:asn_val(Params)}};
-uprim_to_asn_rec(#'TC-R-REJECT'{invokeID = InvId, problemCode = Pcode}) ->
-	{reject, #'Reject'{invokeId = InvId, problem = Pcode}};
-uprim_to_asn_rec(#'TC-U-REJECT'{invokeID = InvId, problemCode = Pcode}) ->
-	{reject, #'Reject'{invokeId = InvId, problem = Pcode}}.
-
 % Convert from asn1ct-generated record to the primitive records
 asn_rec_to_uprim({invoke, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Invoke') ->
 	#'TC-INVOKE'{dialogueID = DlgId,
-		     invokeID = inv_id_to_uprim(AsnRec#'Invoke'.invokeId),
-		     linkedID = inv_id_to_uprim(AsnRec#'Invoke'.linkedId),
+		     invokeID = invoke_id(AsnRec#'Invoke'.invokeId),
+		     linkedID = invoke_id(AsnRec#'Invoke'.linkedId),
 		     operation = AsnRec#'Invoke'.opcode,
 		     parameters = AsnRec#'Invoke'.argument,
 		     lastComponent = Last};
@@ -305,7 +367,7 @@ asn_rec_to_uprim({returnResultNotLast, AsnRec}, DlgId, Last) when is_record(AsnR
 			Result = undefined
 	end,
 	#'TC-RESULT-NL'{dialogueID = DlgId,
-			invokeID = inv_id_to_uprim(AsnRec#'ReturnResult'.invokeId),
+			invokeID = invoke_id(AsnRec#'ReturnResult'.invokeId),
 			operation = Op,
 			parameters = Result,
 			lastComponent = Last};
@@ -318,22 +380,21 @@ asn_rec_to_uprim({returnResult, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Re
 			Result = undefined
 	end,
 	#'TC-RESULT-L'{dialogueID = DlgId,
-			invokeID = inv_id_to_uprim(AsnRec#'ReturnResult'.invokeId),
+			invokeID = invoke_id(AsnRec#'ReturnResult'.invokeId),
 			operation = Op,
 			parameters = Result,
 			lastComponent = Last};
 asn_rec_to_uprim({returnError, AsnRec}, DlgId, Last) when is_record(AsnRec, 'ReturnError') ->
 	#'TC-U-ERROR'{dialogueID = DlgId,
-		      invokeID = inv_id_to_uprim(AsnRec#'ReturnError'.invokeId),
+		      invokeID = invoke_id(AsnRec#'ReturnError'.invokeId),
 		      error = AsnRec#'ReturnError'.errcode,
 		      parameters = AsnRec#'ReturnError'.parameter,
 		      lastComponent = Last};
 asn_rec_to_uprim({reject, AsnRec}, DlgId, Last) when is_record(AsnRec, 'Reject') ->
 	#'TC-U-REJECT'{dialogueID = DlgId,
-			invokeID = inv_id_to_uprim(AsnRec#'Reject'.invokeId),
+			invokeID = invoke_id(AsnRec#'Reject'.invokeId),
 			problemCode = AsnRec#'Reject'.problem,
 			lastComponent = Last}.
-
 
 process_rx_components(ISMs, Usap, DlgId, [Head|[]]) ->
 	process_rx_component(ISMs, Usap, DlgId, Head, true),
@@ -343,7 +404,7 @@ process_rx_components(ISMs, Usap, DlgId, [Head|Tail]) ->
 	process_rx_components(ISMs, Usap, DlgId, Tail).
 
 process_rx_component(ISMs, Usap, DlgId, C={invoke, #'Invoke'{}}, Last) ->
-	InvId = get_invoke_id_from_comp(C),
+	InvokeId = get_invoke_id_from_comp(C),
 	{invoke, I} = C,
 	case I#'Invoke'.linkedId of
 	    asn1_NOVALUE ->
@@ -356,8 +417,8 @@ process_rx_component(ISMs, Usap, DlgId, C={invoke, #'Invoke'{}}, Last) ->
 	Prim = asn_rec_to_uprim(C, DlgId, Last),
 	gen_statem:cast(Usap, {'TC','INVOKE',indication,Prim});
 process_rx_component(ISMs, _Usap, DlgId, C={reject, #'Reject'{problem=Problem}}, Last) ->
-	InvId = get_invoke_id_from_comp(C),
-	ISM = lists:keyfind(InvId, 1, ISMs),
+	InvokeId = get_invoke_id_from_comp(C),
+	ISM = lists:keyfind(InvokeId, 1, ISMs),
 	case Problem of
 	    {invoke, _} ->
 		% FIXME: ISM active (No -> Inform TC-User)
@@ -367,35 +428,29 @@ process_rx_component(ISMs, _Usap, DlgId, C={reject, #'Reject'{problem=Problem}},
 	end,
 	% FIXME: decide on TC-U-REJECT or TC-R-REJECT
 	Prim = asn_rec_to_uprim(C, DlgId, Last),
-	{InvId, ISM} = lists:keyfind(InvId, 1, ISMs),
+	{InvokeId, ISM} = lists:keyfind(InvokeId, 1, ISMs),
 	gen_statem:cast(ISM, Prim);
 process_rx_component(ISMs, _Usap, DlgId, Comp, Last) ->
 	% syntax error?
-	InvId = get_invoke_id_from_comp(Comp),
-	{InvId, ISM} = lists:keyfind(InvId, 1, ISMs),
+	InvokeId = get_invoke_id_from_comp(Comp),
+	{InvokeId, ISM} = lists:keyfind(InvokeId, 1, ISMs),
 	% FIXME: ISM active (No -> 6)
 	Prim = asn_rec_to_uprim(Comp, DlgId, Last),
 	gen_statem:cast(ISM, Prim).
 
-add_components_to_state(State = #state{components=CompOld}, CompNew) when is_list(CompNew) ->
-	State#state{components = CompOld ++ CompNew};
-add_components_to_state(State, CompNew) when is_record(CompNew, component) ->
-	add_components_to_state(State, [CompNew]).
-
-
 % get the invokeId from the given asn-record component tuple.
 get_invoke_id_from_comp({invoke,
-			 #'Invoke'{invokeId = InvId}}) ->
-	inv_id_to_uprim(InvId);
+			 #'Invoke'{invokeId = InvokeId}}) ->
+	invoke_id(InvokeId);
 get_invoke_id_from_comp({returnResult,
-			 #'ReturnResult'{invokeId = InvId}}) ->
-	inv_id_to_uprim(InvId);
+			 #'ReturnResult'{invokeId = InvokeId}}) ->
+	invoke_id(InvokeId);
 get_invoke_id_from_comp({returnResultNotLast,
-			 #'ReturnResult'{invokeId = InvId}}) ->
-	inv_id_to_uprim(InvId);
+			 #'ReturnResult'{invokeId = InvokeId}}) ->
+	invoke_id(InvokeId);
 get_invoke_id_from_comp({returnError,
-			 #'ReturnError'{invokeId = InvId}}) ->
-	inv_id_to_uprim(InvId);
+			 #'ReturnError'{invokeId = InvokeId}}) ->
+	invoke_id(InvokeId);
 get_invoke_id_from_comp({reject,
-			 #'Reject'{invokeId = InvId}}) ->
-	inv_id_to_uprim(InvId).
+			 #'Reject'{invokeId = InvokeId}}) ->
+	invoke_id(InvokeId).
