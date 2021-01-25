@@ -281,11 +281,12 @@ for TCAP implemented with the CSL.
 Figure 6-1: Process Distribution</p>
 
 When the TSL is created with {@link tcap:start_tsl/3. start_tsl/3}
-the {@link tcap_tco_server. tcap_tco_server} behaviour callback module
-may (optionally) export a
-{@link tcap_tco_server:start_dialogue/1. start_dialogue/1} callback
-function used to start a CSL at a remote node by dynamically adding
-a child of a {@link tcap_csl_sup. tcap_csl_sup} supervisor in the
+the {@link tcap_tco_server. tcap_tco_server} behaviour callback
+module exports a {@link tcap_tco_server:start_aei/2. start_aei/2}
+callback function used to start an Application Entity Instance
+(AEI) which includes a CSL instance. The AEI may be created at
+a remote node by dynamically adding a child of a
+{@link tcap_csl_sup. tcap_csl_sup} supervisor in the
 {@link //tcap. tcap} application running on that node.
 
 ==Primitives (ITU)==

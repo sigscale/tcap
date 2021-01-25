@@ -124,29 +124,6 @@
 %%%
 %%% 	`TCU' is the pid of the TC-User which shall received indications
 %%% 	from the CSL.
-%%%
-%%% 	<h3  class="function">
-%%% 		<a name="start_dialogue-2">start_dialogue/2</a>
-%%% 	</h3>
-%%% 	<div class="spec">
-%%% 		<p>
-%%% 			<tt>start_dialogue(DialoguePortion, State) -&gt; Result</tt>
-%%% 		</p>
-%%% 		<ul class="definitions">
-%%% 			<li><tt>DialoguePortion = binary()</tt></li>
-%%% 			<li><tt>State = term()</tt></li>
-%%% 			<li><tt>Result = {ok, DHA, State} | {error, Reason}</tt></li>
-%%% 			<li><tt>DHA = pid()</tt></li>
-%%% 			<li><tt>Reason = term()</tt></li>
-%%% 		</ul>
-%%% 	</div>
-%%% 	The callback module may optionally export this function
-%%%	to overide the default method used to start a dialogue
-%%% 	handler (DHA).
-%%%
-%%% 	The start function must create and link to the child process,
-%%% 	and should return `{ok, DHA}' where `DHA' is the pid of
-%%% 	the (possibly remote) DHA process.
 %%% @end
 %%% @reference ITU-T Q.774 (06/97) Annex A Transaction capabilities SDLs
 %%%

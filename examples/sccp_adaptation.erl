@@ -49,7 +49,7 @@
 		terminate/2, code_change/3]).
 
 % export the tcap_tco_server specific call backs
--export([send_primitive/2, start_dialogue/2]).
+-export([send_primitive/2, start_aei/2]).
 
 -record(state, {nsap}).
 
@@ -65,14 +65,25 @@
 send_primitive(Primitive, State) ->
 	State#state.nsap ! Primitive.
 
-%% @spec (DialogueID, CSL, State) -> pid()
-%% 	DialogueID = int()
-%%
+-spec start_aei(DialoguePortion, CSL, State) -> Result
+	when
+		DialoguePortion :: binary(),
+		State :: term(),
+		Result :: {ok, DHA, CCO, TCU, State} | {error, Reason},
+		DHA :: pid(),
+		CCO :: pid(),
+		TCU :: pid(),
+		Reason :: term.
 %% @doc Start a MAP dialogue state machine (DSM) TC-User process.
 %%
-start_user(DialogueID, CSL, State) ->
-	map:open(State#state.map, DialogueID, CSL).
-
+start_aei(_DialoguePortion, State) ->
+	case supervisor:start_child(map_aei_sup, [self(), DialoguePortion]) of
+		{ok, AEI} ->
+			...
+			{ok, DHA, CCO, TCU, NewState};
+		{error, Reason} ->
+			{error, Reason}
+	end.
 
 %%----------------------------------------------------------------------
 %%  The gen_server call backs
