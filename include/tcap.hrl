@@ -52,6 +52,17 @@
 %%%
 %%% 	componentsPresent is a boolean
 
+-type problemCode() :: {general,
+			unrecognizedPDU | mistypedPDU | badlyStructuredPDU}
+		| {invoke, duplicateInvocation | unrecognizedOperation
+				| mistypedArgument | resourceLimitation
+				| releaseInProgress | unrecognizedLinkedId
+				| linkedResponseUnexpected | unexpectedLinkedOperation}
+		| {returnResult, unrecognizedInvocation
+				| resultResponseUnexpected | mistypedResult}
+		| {returnError, unrecognizedInvocation | errorResponseUnexpected
+				| unrecognizedError | unexpectedError | mistypedParameter}.
+
 %% reference: Table 3/Q.771 - TC-UNI primitives
 -record('TC-UNI',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
@@ -135,7 +146,7 @@
 -record('TC-U-ERROR',
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
-		error,
+		error :: {local, integer()} | {global, tuple()},
 		parameters,
 		lastComponent :: boolean()}).
 
@@ -143,7 +154,7 @@
 -record('TC-U-REJECT',
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
-		problemCode,
+		problemCode :: problemCode(),
 		lastComponent :: boolean()}).
 
 %% reference: Table 14/Q.771 - TC-CANCEL primitives
@@ -163,12 +174,12 @@
 -record('TC-L-REJECT',
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
-		problemCode,
+		problemCode :: problemCode(),
 		lastComponent :: boolean()}).
 -record('TC-R-REJECT',
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
-		problemCode,
+		problemCode :: problemCode(),
 		lastComponent ::boolean()}).
 
 %% reference: Table 16/Q.771 - Primitive for Abort
