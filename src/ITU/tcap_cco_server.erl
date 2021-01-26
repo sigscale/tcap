@@ -381,11 +381,6 @@ handle_cast({reject_component, Reject},
 	{noreply, NewState};
 % DHA -> CHA (CCO)
 % Figure A.6/Q.774 (4 of 4)
-handle_cast('request-components',
-		#state{dha = DHA, components = []} = State) ->
-	% if no components, signal 'no-components' to DHA
-	gen_statem:cast(DHA, 'no-component'),
-	{noreply, State};
 handle_cast('request-components', State1) ->
 	% for each component
 	F = fun F(#state{components = [{#'TC-INVOKE'{class = Class,

@@ -556,7 +556,7 @@ active(info, _, _Data) ->
 %% reference: Figure A.5/Q.774 (sheet 2 of 11)
 wait_for_uni_components(enter, _, _Data) ->
 	keep_state_and_data;
-wait_for_uni_components(cast, 'no-component', Data) ->
+wait_for_uni_components(cast, {'requested-components', []}, Data) ->
 	wait_for_uni_components1(Data);
 wait_for_uni_components(cast, {'requested-components', Components},
 		#statedata{parms = #'TR-UNI'{userData = UserData} = TrParms} = Data) ->
@@ -590,7 +590,7 @@ wait_for_uni_components1(#statedata{tco = TCO,
 %% reference: Figure A.5/Q.774 (sheet 2 of 11)
 wait_for_begin_components(enter, _, _Data) ->
 	keep_state_and_data;
-wait_for_begin_components(cast, 'no-component', Data) ->
+wait_for_begin_components(cast, {'requested-components', []}, Data) ->
 	wait_for_begin_components1(Data);
 wait_for_begin_components(cast, {'requested-components', Components},
 		#statedata{parms = #'TR-BEGIN'{userData = UserData} = TrParms} = Data) ->
@@ -625,7 +625,7 @@ wait_for_begin_components1(#statedata{tco = TCO, parms = TrParms} = Data) ->
 %% reference: Figure A.5/Q.774 (sheet 5 of 11)
 wait_cont_components_ir(enter, _, _Data) ->
 	keep_state_and_data;
-wait_cont_components_ir(cast, 'no-component', Data) ->
+wait_cont_components_ir(cast, {'requested-components', []}, Data) ->
 	wait_cont_components_ir1(Data);
 wait_cont_components_ir(cast, {'requested-components', Components},
 		#statedata{parms = #'TR-CONTINUE'{userData = UserData} = TrParms} = Data) ->
@@ -655,7 +655,7 @@ wait_cont_components_ir1(#statedata{tco = TCO, parms = TrParms} = Data) ->
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
 wait_cont_components_active(enter, _, _Data) ->
 	keep_state_and_data;
-wait_cont_components_active(cast, 'no-component', Data) ->
+wait_cont_components_active(cast, {'requested-components', []}, Data) ->
 	wait_cont_components_active1(Data);
 wait_cont_components_active(cast, {'requested-components', Components},
 		#statedata{parms = #'TR-CONTINUE'{userData = UserData} = TrParms} = Data) ->
@@ -686,7 +686,7 @@ wait_cont_components_active1(#statedata{tco = TCO, parms = TrParms} = Data) ->
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
 wait_for_end_components(enter, _, _Data) ->
 	keep_state_and_data;
-wait_for_end_components(cast, 'no-component', Data) ->
+wait_for_end_components(cast, {'requested-components', []}, Data) ->
 	wait_for_end_components1(Data);
 wait_for_end_components(cast, {'requested-components', Components},
 		#statedata{parms = #'TR-END'{userData = UserData} = TrParms} = Data) ->
