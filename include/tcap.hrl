@@ -125,7 +125,7 @@
 		operation :: {local, integer()} | {global, tuple()},
 		parameters :: binary(),
 		lastComponent :: boolean(),
-		timeout}).
+		timeout = 5000 :: pos_integer()}).
 
 %% reference: Table 11/Q.771 - Report of success primitives
 -record('TC-RESULT-L',
