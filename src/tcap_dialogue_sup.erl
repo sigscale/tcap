@@ -45,7 +45,7 @@
 %%
 init([_TSL, _TCU] = Args) ->
 	ChildSpecs = [supervisor(tcap_components_sup, Args),
-			fsm(tcap_dha_fsm, Args)],
+			fsm(tcap_dha_fsm, [self() | Args])],
 	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
 	{ok, {SupFlags, ChildSpecs}}.
 

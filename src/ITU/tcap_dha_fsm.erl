@@ -77,7 +77,8 @@
 
 %% the dialogue_fsm state data
 -record(statedata,
-		{usap :: pid(),
+		{sup :: pid(),
+		usap :: pid(),
 		tco :: pid(),
 		cco :: pid(),
 		did :: 0..4294967295,
@@ -98,7 +99,7 @@
 %% @private
 %%
 callback_mode() ->
-	[state_functions].
+	[state_functions, state_enter].
 
 -spec init(Args) -> Result
 	when
@@ -118,9 +119,9 @@ callback_mode() ->
 %%
 %% @see //stdlib/gen_statem:init/1
 %% @private
-init([TCO, TCU]) ->
+init([Sup, TCO, TCU]) ->
 	process_flag(trap_exit, true),
-	{ok, idle, #statedata{tco = TCO, usap = TCU}}.
+	{ok, idle, #statedata{sup = Sup, tco = TCO, usap = TCU}}.
 
 -spec idle(EventType, EventContent, Data) -> Result
 	when
@@ -133,6 +134,12 @@ init([TCO, TCU]) ->
 %
 % reference: Figure A.5/Q.774 (sheet 1 of 11)
 % TC-UNI request from TCU
+idle(enter, idle, #statedata{sup = Sup1} = Data) ->
+	Children1 = supervisor:which_children(Sup1),
+	{_, Sup2, _, _} = lists:keyfind(tcap_components_sup, 1, Children1),
+	Children2 = supervisor:which_children(Sup2),
+	{_, CCO, _, _} = lists:keyfind(tcap_cco_server, 1, Children2),
+	{keep_state, Data#statedata{cco = CCO}};
 idle(cast, {'TC', 'UNI', request,
 		#'TC-UNI'{qos = QoS,
 		destAddress = DestAddress, origAddress = OrigAddress,
@@ -300,6 +307,8 @@ idle(info, _, _Data) ->
 %
 % reference: Figure A.5/Q.774 (sheet 5 of 11)
 % TC-CONTINUE request from TCU
+initiation_received(enter, _, _Data) ->
+	keep_state_and_data;
 initiation_received(cast, {'TC', 'CONTINUE', request,
 		#'TC-CONTINUE'{qos = QoS, origAddress = OrigAddress,
 		appContextName = AC, userInfo = UserInfo} = _ContParms},
@@ -415,6 +424,8 @@ initiation_received(info, _, _Data) ->
 %% @private
 % reference: Figure A.5/Q.774 (sheet 7 of 11)
 %% TC-END request from TCU
+initiation_sent(enter, _, _Data) ->
+	keep_state_and_data;
 initiation_sent(cast, {'TC', 'END', request,
 		#'TC-END'{termination = prearranged, qos = QoS} = _EndParms},
 		#statedata{did = DID, tco = TCO, cco = CCO} = Data) ->
@@ -479,6 +490,8 @@ initiation_sent(info, _, _Data) ->
 %% @private
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
 %% TC-CONTINUE request from TCU
+active(enter, _, _Data) ->
+	keep_state_and_data;
 active(cast, {'TC', 'CONTINUE', request,
 		#'TC-CONTINUE'{dialogueID = DID, qos = QoS,
 		origAddress = OrigAddress, userInfo = UserInfo} = _ContParms},
@@ -541,6 +554,8 @@ active(info, _, _Data) ->
 %% @private
 %% reference: Figure A.5 bis/Q.774
 %% reference: Figure A.5/Q.774 (sheet 2 of 11)
+wait_for_uni_components(enter, _, _Data) ->
+	keep_state_and_data;
 wait_for_uni_components(cast, 'no-component', Data) ->
 	wait_for_uni_components1(Data);
 wait_for_uni_components(cast, {'requested-components', Components},
@@ -573,6 +588,8 @@ wait_for_uni_components1(#statedata{tco = TCO,
 %% @private
 %% reference: Figure A.5 bis/Q.774
 %% reference: Figure A.5/Q.774 (sheet 2 of 11)
+wait_for_begin_components(enter, _, _Data) ->
+	keep_state_and_data;
 wait_for_begin_components(cast, 'no-component', Data) ->
 	wait_for_begin_components1(Data);
 wait_for_begin_components(cast, {'requested-components', Components},
@@ -606,6 +623,8 @@ wait_for_begin_components1(#statedata{tco = TCO, parms = TrParms} = Data) ->
 %% @private
 %% reference: Figure A.5 bis/Q.774
 %% reference: Figure A.5/Q.774 (sheet 5 of 11)
+wait_cont_components_ir(enter, _, _Data) ->
+	keep_state_and_data;
 wait_cont_components_ir(cast, 'no-component', Data) ->
 	wait_cont_components_ir1(Data);
 wait_cont_components_ir(cast, {'requested-components', Components},
@@ -634,6 +653,8 @@ wait_cont_components_ir1(#statedata{tco = TCO, parms = TrParms} = Data) ->
 %% @private
 %% reference: Figure A.5 bis/Q.774
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
+wait_cont_components_active(enter, _, _Data) ->
+	keep_state_and_data;
 wait_cont_components_active(cast, 'no-component', Data) ->
 	wait_cont_components_active1(Data);
 wait_cont_components_active(cast, {'requested-components', Components},
@@ -663,6 +684,8 @@ wait_cont_components_active1(#statedata{tco = TCO, parms = TrParms} = Data) ->
 %% reference: Figure A.5 bis/Q.774
 %% reference: Figure A.5/Q.774 (sheet 5 of 11)
 %% reference: Figure A.5/Q.774 (sheet 9 of 11)
+wait_for_end_components(enter, _, _Data) ->
+	keep_state_and_data;
 wait_for_end_components(cast, 'no-component', Data) ->
 	wait_for_end_components1(Data);
 wait_for_end_components(cast, {'requested-components', Components},
