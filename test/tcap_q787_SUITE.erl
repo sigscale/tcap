@@ -90,13 +90,13 @@ init_per_testcase(TestCase, Config) ->
 	Module = tcap_test_tsl_server,
 	{ok, TSL} = tcap:start_tsl({local, Module}, Module, [self()], []),
 	unlink(TSL),
-	[{tco_pid, TSL} | Config].
+	[{tco, TSL} | Config].
 
 -spec end_per_testcase(TestCase :: atom(), Config :: [tuple()]) -> any().
 %% Cleanup after each test case.
 %%
 end_per_testcase(_TestCase, Config) ->
-	TSL = ?config(tco_pid, Config),
+	TSL = ?config(tco, Config),
 	ok = tcap:stop_tsl(TSL).
 
 -spec sequences() -> Sequences :: [{SeqName :: atom(), Testcases :: [atom()]}].
@@ -515,34 +515,34 @@ unitdata(CalledAddress, CallingAddress, UserData) ->
 %%
 sccp_send(CalledAddress, CallingAddress,
 		#'Unidirectional'{} = TCMessage, Config) ->
-	TSL = ?config(tco_pid, Config),
+	TSL = ?config(tco, Config),
 	{ok, SccpUserData} = 'TR':encode('TCMessage', {unidirectional, TCMessage}),
 	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
 	receive
 		{tcap_test_tsl_fsm, TCU} ->
-			[{tcu_pid, TCU} | Config]
+			[{tcu, TCU} | Config]
 	end;
 sccp_send(CalledAddress, CallingAddress,
 		#'Begin'{} = TCMessage, Config) ->
-	TSL = ?config(tco_pid, Config),
+	TSL = ?config(tco, Config),
 	{ok, SccpUserData} = 'TR':encode('TCMessage', {'begin', TCMessage}),
 	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
 	receive
 		{tcap_test_tsl_fsm, TCU} ->
-			[{tcu_pid, TCU} | Config]
+			[{tcu, TCU} | Config]
 	end;
 sccp_send(CalledAddress, CallingAddress,
 		#'Continue'{} = TCMessage, Config) ->
-	TSL = ?config(tco_pid, Config),
+	TSL = ?config(tco, Config),
 	{ok, SccpUserData} = 'TR':encode('TCMessage', {continue, TCMessage}),
 	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
 	Config;
 sccp_send(CalledAddress, CallingAddress,
 		#'End'{} = TCMessage, Config) ->
-	TSL = ?config(tco_pid, Config),
+	TSL = ?config(tco, Config),
 	{ok, SccpUserData} = 'TR':encode('TCMessage', {'end', TCMessage}),
 	UnitData = unitdata(CalledAddress, CallingAddress, SccpUserData),
 	gen_server:cast(TSL, {'N', 'UNITDATA', indication, UnitData}),
@@ -600,15 +600,15 @@ return_result() ->
 %%
 tr_send({'TR', Name, request, _Parameters} = Primitive, Config)
 		when Name == 'UNI'; Name == 'BEGIN' ->
-	TCO = ?config(tco_pid, Config),
+	TCO = ?config(tco, Config),
 	{ok, TCU} = gen_statem:start_link(tcap_test_tsl_fsm, [TCO, self()], []),
 	receive
 		{tcap_test_tsl_fsm, TCU} ->
 			gen_statem:cast(TCU, {tr_send, Primitive}),
-			[{tcu_pid, TCU} | Config]
+			[{tcu, TCU} | Config]
 	end;
 tr_send({'TR', Name, request, _Parameters} = Primitive, Config)
 		when Name == 'CONTINUE'; Name == 'END' ->
-	TCU = ?config(tcu_pid, Config),
+	TCU = ?config(tcu, Config),
 	gen_statem:cast(TCU, {tr_send, Primitive}).
 
