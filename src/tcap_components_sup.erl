@@ -45,7 +45,7 @@
 %%
 init([_TCO, _TCU] = Args) ->
 	ChildSpecs = [supervisor(tcap_invocation_sup, []),
-			server(tcap_cco_server, Args)],
+			server(tcap_cco_server, [self() | Args])],
 	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
 	{ok, {SupFlags, ChildSpecs}}.
 

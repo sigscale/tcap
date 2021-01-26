@@ -52,18 +52,20 @@
 -behaviour(gen_server).
 
 %% call backs needed for gen_server behaviour
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	terminate/2, code_change/3]).
+-export([init/1, handle_continue/2, handle_call/3, handle_cast/2,
+		handle_info/2, terminate/2, code_change/3]).
 
 -include("tcap.hrl").
 -include("TR.hrl").
 -include("TC.hrl").
 
 -record(state,
-		{usap :: pid(),
+		{sup :: pid(),
+		usap :: pid(),
 		did :: 0..4294967295,
 		components = [] :: [{Primitive :: tuple(), ASN :: tuple()}],
 		dha :: pid(),
+		ism_sup :: pid(),
 		ism = #{} :: #{InvokeId :: -128..127 := (ISM :: pid())}}).
 -type state() :: #state{}.
 
@@ -79,9 +81,23 @@
 				| {stop, Reason :: term()} | ignore.
 %% @see //stdlib/gen_server:init/1
 %% @private
-init([_TCO, TCU]) ->
+init([Sup, _TCO, TCU]) ->
 	process_flag(trap_exit, true),
-	{ok, #state{usap = TCU}}.
+	{ok, #state{sup = Sup, usap = TCU}, {continue, init}}.
+
+-spec handle_continue(Continue, State) -> Result
+	when
+		Continue :: term(),
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}.
+%% @see //stdlib/gen_server:handle_continue/2
+%% @private
+handle_continue(init, #state{sup = Sup1} = State) ->
+	Children = supervisor:which_children(Sup1),
+	{_, Sup2, _, _} = lists:keyfind(tcap_invocation_sup, 1, Children),
+	{noreply, State#state{ism_sup = Sup2}}.
 
 -spec handle_call(Request, From, State) -> Result
 	when
@@ -145,7 +161,7 @@ handle_cast({'TC','U-CANCEL',request,
 						gen_statem:cast(ISM, terminate),
 						{noreply, State#state{ism = NewISMs}};
 					error ->
-						{shutdown, ism_not_found, State}
+						{stop, ism_not_found, State}
 				end
 	end,
 	F(Components, []);
@@ -385,11 +401,12 @@ handle_cast('request-components', State1) ->
 	% for each component
 	F = fun F(#state{components = [{#'TC-INVOKE'{class = Class,
 					timeout = Timeout, invokeID = InvokeId}, ASN} | T],
-					ism = ISMs, usap = USAP, did = DID} = State2, Acc) ->
+					ism_sup = Sup, ism = ISMs, usap = USAP,
+					did = DID} = State2, Acc) ->
 				% if INVOKE component
 				% start ISM and store ISM
-				case tcap_invocation_sup:start_ism(USAP, DID,
-						InvokeId, self(), Class, Timeout) of
+				StartArgs = [[USAP, DID, InvokeId, self(), Class, Timeout], []],
+				case supervisor:start_child(Sup, StartArgs) of
 					{ok, ISM} ->
 						% signal 'operation-sent' to ISM
 						gen_statem:cast(ISM, 'operation-sent'),
