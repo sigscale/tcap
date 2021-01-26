@@ -486,13 +486,13 @@ operation(Operation) when is_tuple(Operation) ->
 
 -spec argument(Argument) -> Argument
 	when
-		Argument :: asn1_NOVALUE | undefined.
+		Argument :: asn1_NOVALUE | undefined | binary().
 %% @doc Argument CODEC.
 %% @private
 argument(asn1_NOVALUE = _Argument) ->
 	undefined;
 argument(undefined = _Argument) ->
 	asn1_NOVALUE;
-argument(Argument) when is_list(Argument) ->
+argument(Argument) when is_binary(Argument) ->
 	Argument.
 

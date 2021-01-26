@@ -123,7 +123,7 @@
 		invokeID :: -128..127,
 		linkedID :: -128..127,
 		operation :: {local, integer()} | {global, tuple()},
-		parameters,
+		parameters :: binary(),
 		lastComponent :: boolean(),
 		timeout}).
 
@@ -132,14 +132,14 @@
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
 		operation :: {local, integer()} | {global, tuple()},
-		parameters,
+		parameters :: binary(),
 		lastComponent :: boolean()}).
 
 -record('TC-RESULT-NL',
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
 		operation :: {local, integer()} | {global, tuple()},
-		parameters,
+		parameters :: binary(),
 		lastComponent :: boolean()}).
 
 %% reference: Table 12/Q.771 - Report of failure primitives
@@ -147,7 +147,7 @@
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
 		error :: {local, integer()} | {global, tuple()},
-		parameters,
+		parameters :: binary(),
 		lastComponent :: boolean()}).
 
 %% reference: Table 13/Q.771 - User rejection primitives
