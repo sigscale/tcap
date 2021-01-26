@@ -58,7 +58,7 @@ callback_mode() ->
 init([TCO, CT]) ->
 	{ok, idle, #statedata{tco = TCO, ct = CT}}.
 
-handle_event(enter, idle, idle, #statedata{ct = CT} = Data) ->
+handle_event(enter, idle, idle, #statedata{ct = CT} = _Data) ->
 	CT ! {?MODULE, self()},
 	keep_state_and_data;
 handle_event(cast, {tr_send, {'TR', 'BEGIN', request, _} = Primitive}, _State,
