@@ -60,7 +60,8 @@
 -include("TC.hrl").
 
 -record(state,
-		{sup :: pid(),
+		{cco_sup :: pid(),
+		dha_sup :: pid(),
 		usap :: pid(),
 		did :: 0..4294967295,
 		components = [] :: [{Primitive :: tuple(), ASN :: tuple()}],
@@ -81,9 +82,10 @@
 				| {stop, Reason :: term()} | ignore.
 %% @see //stdlib/gen_server:init/1
 %% @private
-init([Sup, _TCO, TCU]) ->
+init([CcoSup, DhaSup, _TCO, TCU]) ->
 	process_flag(trap_exit, true),
-	{ok, #state{sup = Sup, usap = TCU}, {continue, init}}.
+	{ok, #state{cco_sup = CcoSup, dha_sup = DhaSup,
+			usap = TCU}, {continue, init}}.
 
 -spec handle_continue(Continue, State) -> Result
 	when
@@ -94,10 +96,13 @@ init([Sup, _TCO, TCU]) ->
 				| {stop, Reason :: term(), NewState :: state()}.
 %% @see //stdlib/gen_server:handle_continue/2
 %% @private
-handle_continue(init, #state{sup = Sup1} = State) ->
-	Children = supervisor:which_children(Sup1),
-	{_, Sup2, _, _} = lists:keyfind(tcap_invocation_sup, 1, Children),
-	{noreply, State#state{ism_sup = Sup2}}.
+handle_continue(init, #state{dha_sup = DhaSup,
+		cco_sup = CcoSup} = State) ->
+	Children1 = supervisor:which_children(CcoSup),
+	{_, IsmSup, _, _} = lists:keyfind(tcap_invocation_sup, 1, Children1),
+	Children2 = supervisor:which_children(DhaSup),
+	{_, DHA, _, _} = lists:keyfind(tcap_dha_fsm, 1, Children2),
+	{noreply, State#state{ism_sup = IsmSup, dha = DHA}}.
 
 -spec handle_call(Request, From, State) -> Result
 	when
