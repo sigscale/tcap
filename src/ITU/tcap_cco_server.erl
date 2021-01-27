@@ -140,7 +140,7 @@ handle_cast({'TC','INVOKE',request,
 		operation = Operation, parameters = Parameters} = InvokeParam},
 		#state{components = Components} = State) ->
 	Invoke = #'Invoke'{invokeId = invoke_id(InvokeId),
-			linkedId = invoke_id(LinkedId), opcode = operation(Operation),
+			linkedId = invoke_id(LinkedId), opcode = Operation,
 			argument = argument(Parameters)},
 	% assemble INVOKE component
 	Component = {InvokeParam, {invoke, Invoke}},
@@ -175,7 +175,7 @@ handle_cast({'TC', 'RESULT-L', request,
 		#'TC-RESULT-L'{invokeID = InvokeId,
 		operation = Operation, parameters = Parameters} = Param},
 		#state{components = Components} = State) ->
-	ReturnResultResult = #'ReturnResult_result'{opcode = operation(Operation),
+	ReturnResultResult = #'ReturnResult_result'{opcode = Operation,
 					result = argument(Parameters)},
 	ReturnResult = #'ReturnResult'{invokeId = invoke_id(InvokeId),
 			result = ReturnResultResult},
@@ -187,7 +187,7 @@ handle_cast({'TC', 'RESULT-NL', request,
 		#'TC-RESULT-NL'{invokeID = InvokeId,
 		operation = Operation, parameters = Parameters} = Param},
 		#state{components = Components} = State) ->
-	ReturnResultResult = #'ReturnResult_result'{opcode = operation(Operation),
+	ReturnResultResult = #'ReturnResult_result'{opcode = Operation,
 					result = argument(Parameters)},
 	ReturnResult = #'ReturnResult'{invokeId = invoke_id(InvokeId),
 			result = ReturnResultResult},
@@ -200,7 +200,7 @@ handle_cast({'TC', 'U-ERROR', request,
 		error = Error, parameters = Parameters} = Param},
 		#state{components = Components} = State) ->
 	ReturnError = #'ReturnError'{invokeId = invoke_id(InvokeId),
-			errcode = operation(Error), parameter = argument(Parameters)},
+			errcode = Error, parameter = argument(Parameters)},
 	% Figure A.6/Q.774 (1 of 4)
 	% assemble requested component
 	Component = {Param, {returnError, ReturnError}},
@@ -211,7 +211,7 @@ handle_cast({'TC', 'U-ERROR', request,
 handle_cast({'TC','U-REJECT',request,
 		#'TC-U-REJECT'{invokeID = InvokeId, problemCode = Problem} = Param},
 		#state{components = Components} = State) ->
-	Reject = #'Reject'{invokeId = InvokeId, problem = Problem},
+	Reject = #'Reject'{invokeId = invoke_id(InvokeId), problem = Problem},
 	% assemble reject component
 	Component = {Param, {reject, Reject}}, %FIXME
 	% FIXME: if problem type Result/Error, terminate ISM
@@ -229,14 +229,14 @@ handle_cast({components, Components},
 				% Linked operation? (no)
 				Invoke = #'TC-INVOKE'{dialogueID = DID,
 						invokeID = invoke_id(InvokeId),
-						operation = operation(Operation),
+						operation = Operation,
 						parameters = argument(Argument),
 						lastComponent = Flast(T)},
 				gen_statem:cast(USAP,
 						{'TC', 'INVOKE', indication, Invoke}),
 				F(T);
 			F([{invoke, #'Invoke'{invokeId = InvokeId,
-					linkedId = LinkedId, opcode = Operation,
+					linkedId = {present, LinkedId}, opcode = Operation,
 					argument = Argument}} | T]) ->
 				% Linked operation? (yes)
 				ISM = maps:get(LinkedId, ISMs),
@@ -249,8 +249,8 @@ handle_cast({components, Components},
 							StateName == sent_class_4 ->
 						Invoke = #'TC-INVOKE'{dialogueID = DID,
 								invokeID = invoke_id(InvokeId),
-								linkedID = invoke_id(LinkedId),
-								operation = operation(Operation),
+								linkedID = LinkedId,
+								operation = Operation,
 								parameters = argument(Argument),
 								lastComponent = Flast(T)},
 						gen_statem:cast(USAP,
@@ -260,22 +260,23 @@ handle_cast({components, Components},
 						% Linked ISM in operation sent state? (no)
 						% Assemble REJECT component
 						Reject = #'TC-L-REJECT'{dialogueID = DID,
-								invokeID = InvokeId,
+								invokeID = invoke_id(InvokeId),
 								problemCode = {invoke, unrecognizedLinkedId},
 								lastComponent = Flast(T)},
 						gen_statem:cast(USAP,
 								{'TC', 'L-REJECT', indication, Reject}),
 						F(T)
 				end;
-			F([{returnResultNotLast, #'ReturnResult'{invokeId = InvokeId,
+			F([{returnResultNotLast,
+					#'ReturnResult'{invokeId = {present, InvokeId},
 					result = #'ReturnResult_result'{opcode = Operation,
 					result = ReturnResultResult}}} | T]) ->
 				% Is ISM active?
-				case maps:get(InvokeId, ISMs) of
+				case maps:find(InvokeId, ISMs) of
 					{ok, ISM} ->
 						ReturnResult = #'TC-RESULT-NL'{dialogueID = DID,
-								invokeID = invoke_id(InvokeId),
-								operation = operation(Operation),
+								invokeID = InvokeId,
+								operation = Operation,
 								parameters = ReturnResultResult,
 								lastComponent = Flast(T)},
 						gen_statem:cast(ISM, ReturnResult);
@@ -289,13 +290,14 @@ handle_cast({components, Components},
 								{'TC', 'L-REJECT', indication, Reject})
 				end,
 				F(T);
-			F([{returnResultNotLast, #'ReturnResult'{invokeId = InvokeId,
+			F([{returnResultNotLast,
+					#'ReturnResult'{invokeId = {present, InvokeId},
 					result = asn1_NOVALUE}} | T]) ->
 				% Is ISM active?
-				case maps:get(InvokeId, ISMs) of
+				case maps:find(InvokeId, ISMs) of
 					{ok, ISM} ->
 						ReturnResult = #'TC-RESULT-NL'{dialogueID = DID,
-								invokeID = invoke_id(InvokeId),
+								invokeID = InvokeId,
 								lastComponent = Flast(T)},
 						gen_statem:cast(ISM, ReturnResult);
 					error ->
@@ -308,13 +310,14 @@ handle_cast({components, Components},
 								{'TC', 'L-REJECT', indication, Reject})
 				end,
 				F(T);
-			F([{returnResult, #'ReturnResult'{invokeId = InvokeId,
+			F([{returnResult,
+					#'ReturnResult'{invokeId = {present, InvokeId},
 					result = asn1_NOVALUE}} | T]) ->
 				% Is ISM active?
-				case maps:get(InvokeId, ISMs) of
+				case maps:find(InvokeId, ISMs) of
 					{ok, ISM} ->
 						ReturnResult = #'TC-RESULT-L'{dialogueID = DID,
-								invokeID = invoke_id(InvokeId),
+								invokeID = InvokeId,
 								lastComponent = Flast(T)},
 						gen_statem:cast(ISM, ReturnResult);
 					error ->
@@ -327,15 +330,16 @@ handle_cast({components, Components},
 								{'TC', 'L-REJECT', indication, Reject})
 				end,
 				F(T);
-			F([{returnResult, #'ReturnResult'{invokeId = InvokeId,
+			F([{returnResult,
+					#'ReturnResult'{invokeId = {present, InvokeId},
 					result = #'ReturnResult_result'{opcode = Operation,
 					result = ReturnResultResult}}} | T]) ->
 				% Is ISM active?
-				case maps:get(InvokeId, ISMs) of
+				case maps:find(InvokeId, ISMs) of
 					{ok, ISM} ->
 						ReturnResult = #'TC-RESULT-L'{dialogueID = DID,
-								invokeID = invoke_id(InvokeId),
-								operation = operation(Operation),
+								invokeID = InvokeId,
+								operation = Operation,
 								parameters = ReturnResultResult,
 								lastComponent = Flast(T)},
 						gen_statem:cast(ISM, ReturnResult);
@@ -349,14 +353,15 @@ handle_cast({components, Components},
 								{'TC', 'L-REJECT', indication, Reject})
 				end,
 				F(T);
-			F([{returnError, #'ReturnError'{invokeId = InvokeId,
+			F([{returnError,
+					#'ReturnError'{invokeId = {present, InvokeId},
 					errcode = ErrorCode, parameter = Parameter}} | T]) ->
 				% Is ISM active?
-				case maps:get(InvokeId, ISMs) of
+				case maps:find(InvokeId, ISMs) of
 					{ok, ISM} ->
 						ReturnError = #'TC-U-ERROR'{dialogueID = DID,
-								invokeID = invoke_id(InvokeId),
-								error = operation(ErrorCode),
+								invokeID = InvokeId,
+								error = ErrorCode,
 								parameters = argument(Parameter),
 								lastComponent = Flast(T)},
 						gen_statem:cast(ISM, ReturnError);
@@ -370,13 +375,13 @@ handle_cast({components, Components},
 								{'TC', 'L-REJECT', indication, Reject})
 				end,
 				F(T);
-			F([{reject, #'Reject'{invokeId = InvokeId,
+			F([{reject, #'Reject'{invokeId = {present, InvokeId},
 					problem = Problem}} | T]) ->
 				% Is ISM active?
-				case maps:get(InvokeId, ISMs) of
+				case maps:find(InvokeId, ISMs) of
 					{ok, ISM} ->
 						Reject = #'TC-U-REJECT'{dialogueID = DID,
-								invokeID = invoke_id(InvokeId),
+								invokeID = InvokeId,
 								problemCode = Problem,
 								lastComponent = Flast(T)},
 						gen_statem:cast(ISM, Reject);
@@ -486,20 +491,6 @@ invoke_id({present, InvokeId}) when is_integer(InvokeId) ->
 	InvokeId;
 invoke_id(asn1_NOVALUE) ->
 	undefined.
-
--spec operation(Operation) -> Operation
-	when
-		Operation :: {local, integer()} | {global, tuple()} | integer() | tuple().
-%% @doc Operation CODEC.
-%% @private
-operation({local, Operation}) when is_integer(Operation) ->
-	Operation;
-operation({global, Operation}) when is_tuple(Operation) ->
-	Operation;
-operation(Operation) when is_integer(Operation) ->
-	{local, Operation};
-operation(Operation) when is_tuple(Operation) ->
-	{global, Operation}.
 
 -spec argument(Argument) -> Argument
 	when
