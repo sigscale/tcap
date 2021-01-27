@@ -1063,7 +1063,10 @@ extract_dialogue_portion(#'TR-user-data'{dialoguePortion = DP},
 			AARE;	%% Dialogue portion correct? (yes)
 		_ ->
 			abort	%% Dialogue portion correct? (no)
-	end.
+	end;
+extract_dialogue_portion(#'TR-user-data'{dialoguePortion = asn1_NOVALUE},
+		undefined, _) ->
+	undefined.
 
 -spec dialogue_ext(DialoguePortion) -> Result
 	when
