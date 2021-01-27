@@ -136,7 +136,8 @@ handle_call(Request, _From, State) ->
 %% @end
 % from TCU: TC-INVOKE.req
 handle_cast({'TC','INVOKE',request,
-		#'TC-INVOKE'{invokeID = InvokeId, linkedID = LinkedId,
+		#'TC-INVOKE'{dialogueID = DID,
+		invokeID = InvokeId, linkedID = LinkedId,
 		operation = Operation, parameters = Parameters} = InvokeParam},
 		#state{components = Components} = State) ->
 	Invoke = #'Invoke'{invokeId = invoke_id(InvokeId),
@@ -145,18 +146,20 @@ handle_cast({'TC','INVOKE',request,
 	% assemble INVOKE component
 	Component = {InvokeParam, {invoke, Invoke}},
 	% mark it as available
-	NewState = State#state{components = [Component | Components]},
+	NewState = State#state{did = DID,
+			components = [Component | Components]},
 	% what to do with class and timeout?
 	{noreply, NewState};
 % from TCU: TC-U-CANCEL.req
 handle_cast({'TC','U-CANCEL',request,
-		#'TC-U-CANCEL'{invokeID = InvokeId} = _Param},
+		#'TC-U-CANCEL'{dialogueID = DID, invokeID = InvokeId} = _Param},
 		#state{components = Components, ism = ISMs} = State) ->
 	% if there are any INV componnents waiting, discard them
 	F = fun F([{#'TC-INVOKE'{invokeID = ID}, _} | T], Acc)
 					when ID =:= InvokeId ->
-				NewComponents = lists:reverse(Acc) ++ T,
-				{noreply, State#state{components = NewComponents}};
+				NewState = State#state{did = DID,
+						components = lists:reverse(Acc) ++ T},
+				{noreply, NewState};
 			F([H | T], Acc) ->
 				F(T, [H | Acc]);
 			F([], _Acc) ->
@@ -164,15 +167,15 @@ handle_cast({'TC','U-CANCEL',request,
 				case maps:take(InvokeId, ISMs) of
 					{ISM, NewISMs} ->
 						gen_statem:cast(ISM, terminate),
-						{noreply, State#state{ism = NewISMs}};
+						{noreply, State#state{did = DID, ism = NewISMs}};
 					error ->
-						{stop, ism_not_found, State}
+						{stop, ism_not_found, State#state{did = DID}}
 				end
 	end,
 	F(Components, []);
 % from TCL -> CHA (CCO): TC-RESULT-{L,NL}, U-ERROR
 handle_cast({'TC', 'RESULT-L', request,
-		#'TC-RESULT-L'{invokeID = InvokeId,
+		#'TC-RESULT-L'{dialogueID = DID, invokeID = InvokeId,
 		operation = Operation, parameters = Parameters} = Param},
 		#state{components = Components} = State) ->
 	ReturnResultResult = #'ReturnResult_result'{opcode = Operation,
@@ -181,10 +184,11 @@ handle_cast({'TC', 'RESULT-L', request,
 			result = ReturnResultResult},
 	Component = {Param, {returnResult, ReturnResult}},
 	% mark component available for this dialogue
-	NewState = State#state{components = [Component | Components]},
+	NewState = State#state{did = DID,
+			components = [Component | Components]},
 	{noreply, NewState};
 handle_cast({'TC', 'RESULT-NL', request,
-		#'TC-RESULT-NL'{invokeID = InvokeId,
+		#'TC-RESULT-NL'{dialogueID = DID, invokeID = InvokeId,
 		operation = Operation, parameters = Parameters} = Param},
 		#state{components = Components} = State) ->
 	ReturnResultResult = #'ReturnResult_result'{opcode = Operation,
@@ -193,10 +197,11 @@ handle_cast({'TC', 'RESULT-NL', request,
 			result = ReturnResultResult},
 	Component = {Param, {returnResultNotLast, ReturnResult}},
 	% mark component available for this dialogue
-	NewState = State#state{components = [Component | Components]},
+	NewState = State#state{did = DID,
+			components = [Component | Components]},
 	{noreply, NewState};
 handle_cast({'TC', 'U-ERROR', request,
-		#'TC-U-ERROR'{invokeID = InvokeId,
+		#'TC-U-ERROR'{dialogueID = DID, invokeID = InvokeId,
 		error = Error, parameters = Parameters} = Param},
 		#state{components = Components} = State) ->
 	ReturnError = #'ReturnError'{invokeId = invoke_id(InvokeId),
@@ -205,22 +210,25 @@ handle_cast({'TC', 'U-ERROR', request,
 	% assemble requested component
 	Component = {Param, {returnError, ReturnError}},
 	% mark component available for this dialogue
-	NewState = State#state{components = [Component | Components]},
+	NewState = State#state{did = DID,
+			components = [Component | Components]},
 	{noreply, NewState};
 % TCL->CHA: TC-U-REJECT.req
 handle_cast({'TC','U-REJECT',request,
-		#'TC-U-REJECT'{invokeID = InvokeId, problemCode = Problem} = Param},
+		#'TC-U-REJECT'{dialogueID = DID, invokeID = InvokeId,
+		problemCode = Problem} = Param},
 		#state{components = Components} = State) ->
 	Reject = #'Reject'{invokeId = invoke_id(InvokeId), problem = Problem},
 	% assemble reject component
 	Component = {Param, {reject, Reject}}, %FIXME
 	% FIXME: if problem type Result/Error, terminate ISM
 	% mark component available for this dialogue
-	NewState = State#state{components = [Component | Components]},
+	NewState = State#state{did = DID,
+			components = [Component | Components]},
 	{noreply, NewState};
 % DHA -> CHA (CCO): Components received
-handle_cast({components, Components},
-		#state{usap = USAP, did = DID, ism = ISMs} = State) ->
+handle_cast({components, DID, Components},
+		#state{usap = USAP, ism = ISMs} = State) ->
 	% Figure A.6/Q.774 (2 of 4)
 	Flast = fun([]) -> true; (_) -> false end,
 	F = fun F([{invoke, #'Invoke'{invokeId = InvokeId,
@@ -396,7 +404,7 @@ handle_cast({components, Components},
 				end,
 				F(T);
 			F([]) ->
-				{noreply, State}
+				{noreply, State#state{did = DID}}
 	end,
 	F(Components);
 % ISM -> CCO: Generate REJ component

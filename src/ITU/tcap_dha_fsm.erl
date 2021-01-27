@@ -202,7 +202,7 @@ idle(cast, {'TC', 'BEGIN', request,
 idle(cast, {'TR', 'UNI', indication,
 		#'TR-UNI'{qos = QoS, destAddress = DestAddress,
 		origAddress = OrigAddress, userData = UserData} = UniParms},
-		#statedata{usap = USAP, cco = CCO} = Data) ->
+		#statedata{usap = USAP, cco = CCO, did = DID} = Data) ->
 	%% Extract dialogue portion
 	case extract_uni_dialogue_portion(UserData) of
 		incorrect_dialogue_portion ->   %% Dialogue portion correct? (no)
@@ -222,7 +222,7 @@ idle(cast, {'TR', 'UNI', indication,
 			%% Components to CHA
 			case ComponentsPresent of
 				true ->
-					gen_server:cast(CCO, {components, Components});
+					gen_server:cast(CCO, {components, DID, Components});
 				false ->
 					ok       % should never happen
 			end,
@@ -287,7 +287,7 @@ idle(cast, {'TR', 'BEGIN', indication,
 			case ComponentsPresent of
 				true ->
 					%% Components to CHA
-					gen_server:cast(CCO, {components, Components});
+					gen_server:cast(CCO, {components, DID, Components});
 				false ->
 					ok
 			end,
@@ -800,7 +800,7 @@ is_or_active(StateName, {'TR', 'CONTINUE', indication,
 			case ComponentsPresent of
 				true ->
 					%% Components to CHA
-					gen_server:cast(CCO, {components, Components}),
+					gen_server:cast(CCO, {components, DID, Components}),
 					{next_state, active, NewData};
 				false ->
 					{next_state, active, NewData}
@@ -842,7 +842,7 @@ is_or_active(StateName, {'TR', 'END', indication,
 			case ComponentsPresent of
 				true ->
 					%% Components to CHA
-					gen_server:cast(CCO, {components, Components});
+					gen_server:cast(CCO, {components, DID, Components});
 				false ->
 					ok
 			end,
