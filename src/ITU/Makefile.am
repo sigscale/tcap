@@ -22,9 +22,19 @@ erl_DATA = tcap_tco_server.erl \
 		tcap_ism_fsm.erl \
 		$(ASN_MODULES)
 
+einclude_DATA = TR.hrl \
+		TC.hrl
+
 ASNCFLAGS = $(ERLCFLAGS) +ber +noobj
 
 %.erl:$(top_srcdir)/asn_src/ITU/%.asn
+	$(ERLC) $(ASNCFLAGS) $<
+
+TC.hrl:$(top_srcdir)/asn_src/ITU/TC.asn
+	$(ERLC) $(ASNCFLAGS) $<
+
+TR.hrl:$(top_srcdir)/asn_src/ITU/TR.asn \
+		$(top_srcdir)/asn_src/ITU/TCAPMessages.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
 TR.erl:$(top_srcdir)/asn_src/ITU/TR.asn \
