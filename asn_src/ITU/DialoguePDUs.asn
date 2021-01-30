@@ -1,12 +1,11 @@
-DialoguePDUs {itu-t recommendation q 773 modules(2) dialoguePDUs(2) version1(1)
-  } DEFINITIONS ::=
-BEGIN
+DialoguePDUs {itu-t(0) recommendation(0) q(17) 773(773) modules(2) dialoguePDUs(2) version1(1)}
+
+DEFINITIONS ::= BEGIN
 
 EXPORTS dialogue-as-id, DialoguePDU;
 
 -- abstract syntax name for structured dialogue APDUs
-dialogue-as-id OBJECT IDENTIFIER ::=
-  {itu-t recommendation q 773 as(1) dialogue-as(1) version1(1)}
+dialogue-as-id OBJECT IDENTIFIER ::= {itu-t(0) recommendation(0) q(17) 773(773) as(1) dialogue-as(1) version1(1)}
 
 DialoguePDU ::= CHOICE {
   dialogueRequest   AARQ-apdu,

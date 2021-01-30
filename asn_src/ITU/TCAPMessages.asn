@@ -1,16 +1,16 @@
-TCAPMessages {itu-t recommendation q 773 modules(2) messages(1) version3(3)}
-DEFINITIONS IMPLICIT TAGS ::=
-BEGIN
+TCAPMessages {itu-t(0) recommendation(0) q(17) 773(773) modules(2) messages(1) version3(3)}
+
+DEFINITIONS IMPLICIT TAGS ::= BEGIN
 
 -- EXPORTS everything
 -- Transaction Portion fields.
 IMPORTS
   ROS{}, InvokeId
-    FROM Remote-Operations-Generic-ROS-PDUs {joint-iso-itu-t
-      remote-operations(4) generic-ROS-PDUs(6) version1(0)}
+    FROM Remote-Operations-Generic-ROS-PDUs
+        {joint-iso-itu-t(2) remote-operations(4) generic-ROS-PDUs(6) version1(0)}
   OPERATION
-    FROM Remote-Operations-Information-Objects {joint-iso-itu-t
-      remote-operations(4) informationObjects(5) version1(0)};
+    FROM Remote-Operations-Information-Objects
+        {joint-iso-itu-t(2) remote-operations(4) informationObjects(5) version1(0)};
 
 TCMessage{OPERATION:Invokable, OPERATION:Returnable} ::= CHOICE {
   unidirectional  [APPLICATION 1]  Unidirectional{{Invokable}, {Returnable}},

@@ -1,13 +1,13 @@
 -- Module Remote-Operations-Information-Objects (Rec. X.880:07/1994)
-Remote-Operations-Information-Objects {joint-iso-itu-t remote-operations(4)
-  informationObjects(5) version1(0)} DEFINITIONS ::=
-BEGIN
+Remote-Operations-Information-Objects {joint-iso-itu-t(2) remote-operations(4) informationObjects(5) version1(0)}
+
+DEFINITIONS ::= BEGIN
 
 -- exports everything
 IMPORTS
   emptyBind, emptyUnbind
-    FROM Remote-Operations-Useful-Definitions {joint-iso-itu-t
-      remote-operations(4) useful-definitions(7) version1(0)};
+    FROM Remote-Operations-Useful-Definitions
+        {joint-iso-itu-t(2) remote-operations(4) useful-definitions(7) version1(0)};
 
 OPERATION ::= CLASS {
   &ArgumentType          OPTIONAL,

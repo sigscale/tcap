@@ -1,28 +1,27 @@
 -- Module TC-Notation-Extensions (Q.775:06/1997)
+TC-Notation-Extensions {itu-t(0) recommendation(0) q(17) 775(775) modules(2) notation-extension(4) version1(1)}
 
-TC-Notation-Extensions {itu-t recommendation q 775 modules(2)
-  notation-extension(4) version1(1)} DEFINITIONS ::=
-BEGIN
+DEFINITIONS ::= BEGIN
 
 IMPORTS
   TCMessage{}
-    FROM TCAPMessages {itu-t recommendation q 773 modules(2) messages(1)
-      version3(3)}
+    FROM TCAPMessages
+        {itu-t(0) recommendation(0) q(17) 773(773) modules(2) messages(1) version3(3)}
   Bind{}, Unbind{}
-    FROM Remote-Operations-Generic-ROS-PDUs {joint-iso-itu-t
-      remote-operations(4) generic-ROS-PDUs(6) version1(0)}
+    FROM Remote-Operations-Generic-ROS-PDUs
+        {joint-iso-itu-t(2) remote-operations(4) generic-ROS-PDUs(6) version1(0)}
   AllOperations{}, ConsumerPerforms{}, SupplierPerforms{}, combine{}
-    FROM Remote-Operations-Useful-Definitions {joint-iso-itu-t
-      remote-operations(4) useful-definitions(7) version1(0)}
+    FROM Remote-Operations-Useful-Definitions
+        {joint-iso-itu-t(2) remote-operations(4) useful-definitions(7) version1(0)}
   CONTRACT, OPERATION-PACKAGE
-    FROM Remote-Operations-Information-Objects {joint-iso-itu-t
-      remote-operations(4) informationObjects(5) version1(0)}
+    FROM Remote-Operations-Information-Objects
+        {joint-iso-itu-t(2) remote-operations(4) informationObjects(5) version1(0)}
   UniDialoguePDU, uniDialogue-as-id
-    FROM UnidialoguePDUs {itu-t recommendation q 773 modules(2)
-      unidialoguePDUs(3) version1(1)}
+    FROM UnidialoguePDUs
+        {itu-t(0) recommendation(0) q(17) 773(773) modules(2) unidialoguePDUs(3) version1(1)}
   DialoguePDU, dialogue-as-id
-    FROM DialoguePDUs {itu-t recommendation q 773 modules(2) dialoguePDUs(2)
-      version1(1)};
+    FROM DialoguePDUs
+        {itu-t(0) recommendation(0) q(17) 773(773) modules(2) dialoguePDUs(2) version1(1)};
 
 APPLICATION-CONTEXT ::= CLASS {
   &associationContract           CONTRACT,

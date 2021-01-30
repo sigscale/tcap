@@ -1,10 +1,11 @@
 TR {joint-iso-itu-t(2) country(16) ca(124) mti(113594) tcap(10) modules(0) itu-t(0) tr(0) version1(1)}
-DEFINITIONS IMPLICIT TAGS ::=
-BEGIN
+
+DEFINITIONS IMPLICIT TAGS ::= BEGIN
 
 IMPORTS
   Abort, DialoguePortion, OrigTransactionID, DestTransactionID
-		FROM TCAPMessages {itu-t recommendation q 773 modules(2) messages(1) version3(3)};
+		FROM TCAPMessages
+          {itu-t(0) recommendation(0) q(17) 773(773) modules(2) messages(1) version3(3)};
 
 -- The Transaction sub-layer ignores the content of the ComponentPortion
 -- so we have redefined these Types without parameterization and defined

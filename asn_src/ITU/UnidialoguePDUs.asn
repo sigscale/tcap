@@ -1,12 +1,11 @@
-UnidialoguePDUs {itu-t recommendation q 773 modules(2) unidialoguePDUs(3)
-  version1(1)} DEFINITIONS ::=
-BEGIN
+UnidialoguePDUs {itu-t(0) recommendation(0) q(17) 773(773) modules(2) unidialoguePDUs(3) version1(1)}
+
+DEFINITIONS ::= BEGIN
 
 EXPORTS uniDialogue-as-id, UniDialoguePDU;
 
 -- Abstract syntax name for unstructured dialogue APDUs
-uniDialogue-as-id OBJECT IDENTIFIER ::=
-  {itu-t recommendation q 773 as(1) unidialogue-as(2) version1(1)}
+uniDialogue-as-id OBJECT IDENTIFIER ::= {itu-t(0) recommendation(0) q(17)  773(773) as(1) unidialogue-as(2) version1(1)}
 
 UniDialoguePDU ::= CHOICE {unidialoguePDU  AUDT-apdu}
 

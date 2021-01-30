@@ -1,15 +1,14 @@
 -- Module TCAP-Tools (Q.775:06/1997)
+TCAP-Tools {itu-t(0) recommendation(0) q(17) 775(775) modules(2) tools(1) version1(1)}
 
-TCAP-Tools {itu-t recommendation q 775 modules(2) tools(1) version1(1)}
-DEFINITIONS ::=
-BEGIN
+DEFINITIONS ::= BEGIN
 
 EXPORTS cancel, cancelFailed, cancelled;
 
 IMPORTS
   OPERATION, ERROR
-    FROM Remote-Operations-Information-Objects {joint-iso-itu-t
-      remote-operations(4) informationObjects(5) version1(0)};
+    FROM Remote-Operations-Information-Objects
+        {joint-iso-itu-t(2) remote-operations(4) informationObjects(5) version1(0)};
 --  TCInvokeIdSet
 --    FROM TCAPMessages {itu-t recommendation q 773 modules(2) messages(1)
 --      version3(3)};

@@ -1,7 +1,7 @@
 -- Module TC-TMP (Q.755.2:09/1997)
-TC-TMP {itu-t recommendation q 755 modules(0) tmp(2) version1(1)} DEFINITIONS
-IMPLICIT TAGS ::=
-BEGIN
+TC-TMP {itu-t(0) recommendation(0) q(17) 755(775) modules(0) tmp(2) version1(1)}
+
+DEFINITIONS IMPLICIT TAGS ::= BEGIN
 
 TMP-PDU ::= CHOICE {
   testInit      [0]  TestInit,

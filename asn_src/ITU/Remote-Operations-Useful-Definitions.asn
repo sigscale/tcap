@@ -1,16 +1,16 @@
 -- Module Remote-Operations-Useful-Definitions (Rec. X.880:07/1994)
-Remote-Operations-Useful-Definitions {joint-iso-itu-t remote-operations(4)
-  useful-definitions(7) version1(0)} DEFINITIONS IMPLICIT TAGS ::=
-BEGIN
+Remote-Operations-Useful-Definitions {joint-iso-itu-t(2) remote-operations(4) useful-definitions(7) version1(0)}
+
+DEFINITIONS IMPLICIT TAGS ::= BEGIN
 
 -- exports everything
 IMPORTS
   OPERATION, ERROR, OPERATION-PACKAGE, Code
-    FROM Remote-Operations-Information-Objects {joint-iso-itu-t
-      remote-operations(4) informationObjects(5) version1(0)}
+    FROM Remote-Operations-Information-Objects
+        {joint-iso-itu-t(2) remote-operations(4) informationObjects(5) version1(0)}
   InvokeId, ROS{}
-    FROM Remote-Operations-Generic-ROS-PDUs {joint-iso-itu-t
-      remote-operations(4) generic-ROS-PDUs(6) version1(0)};
+    FROM Remote-Operations-Generic-ROS-PDUs
+        {joint-iso-itu-t(2) remote-operations(4) generic-ROS-PDUs(6) version1(0)};
 
 emptyBind OPERATION ::= {ERRORS       {refuse}
                          SYNCHRONOUS  TRUE
