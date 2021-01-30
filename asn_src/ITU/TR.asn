@@ -5,7 +5,7 @@ DEFINITIONS IMPLICIT TAGS ::= BEGIN
 IMPORTS
   Abort, DialoguePortion, OrigTransactionID, DestTransactionID
 		FROM TCAPMessages
-          {itu-t(0) recommendation(0) q(17) 773(773) modules(2) messages(1) version3(3)};
+          {itu-t(0) recommendation(0) q(17) 773 modules(2) messages(1) version3(3)};
 
 -- The Transaction sub-layer ignores the content of the ComponentPortion
 -- so we have redefined these Types without parameterization and defined

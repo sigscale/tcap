@@ -1,6 +1,6 @@
 -- Module TCAP-Examples (Q.775:06/1997)
 
-TCAP-Examples {itu-t(0) recommendation(0) q(17) 775(775) modules(2) examples(2) version1(1)}
+TCAP-Examples {itu-t(0) recommendation(0) q(17) 775 modules(2) examples(2) version1(1)}
 DEFINITIONS ::=
 BEGIN
 

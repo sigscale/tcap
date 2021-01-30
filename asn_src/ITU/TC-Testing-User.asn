@@ -1,5 +1,5 @@
 -- Module TC-Testing-User (Q.755.2:09/1997)
-TC-Testing-User {itu-t(0) recommendation(0) q(17) 755(755) modules(0) testing-user(1) version1(1)}
+TC-Testing-User {itu-t(0) recommendation(0) q(17) 755 modules(0) testing-user(1) version1(1)}
 
 DEFINITIONS ::= BEGIN
 
@@ -11,13 +11,13 @@ IMPORTS
   --FROM Notation-Extensions {joint-iso-itu-t(2) remote-operations(4) notation-extension(2)}
   TMP-PDU
     FROM TC-TMP
-        {itu-t(0) recommendation(0) q(17)  755(755) modules(0) tmp(2) version1(1)}
+        {itu-t(0) recommendation(0) q(17)  755 modules(0) tmp(2) version1(1)}
   OPERATION-PACKAGE, Code, OPERATION, ERROR
     FROM Remote-Operations-Information-Objects
         {joint-iso-itu-t(2) remote-operations(4) informationObjects(5) version1(0)};
 
 -- application-context-names
-ac-id OBJECT IDENTIFIER ::= {itu-t(0) recommendation(0) q(17) 755(755) ac(5)}
+ac-id OBJECT IDENTIFIER ::= {itu-t(0) recommendation(0) q(17) 755 ac(5)}
 
 testing-ac-id OBJECT IDENTIFIER ::= {ac-id testing-ac(1) version1(1)}
 
@@ -41,7 +41,7 @@ localConsumerOperation OPERATION ::= {
 globalConsumerOperation OPERATION ::= {
   ARGUMENT TMP-PDU RESULT TMP-PDU ERRORS  {globalSupplierError}
   CODE
-    global:{itu-t(0) recommendation(0) q(17) 755(755) operations(1) consumer(1)}
+    global:{itu-t(0) recommendation(0) q(17) 755 operations(1) consumer(1)}
 }
 
 class1SupplierOperation OPERATION ::= {
@@ -67,7 +67,7 @@ globalSupplierOperation OPERATION ::= {
   ARGUMENT TMP-PDU RESULT TMP-PDU ERRORS  {globalConsumerError}
   LINKED                                  {globalConsumerOperation}
   CODE
-    global:{itu-t(0) recommendation(0) q(17)  755(755) operations(1) supplier(2)}
+    global:{itu-t(0) recommendation(0) q(17)  755 operations(1) supplier(2)}
 }
 
 localConsumerError ERROR ::= {PARAMETER TMP-PDU CODE  local:1
@@ -75,7 +75,7 @@ localConsumerError ERROR ::= {PARAMETER TMP-PDU CODE  local:1
 
 globalConsumerError ERROR ::= {
   PARAMETER TMP-PDU CODE
-    global:{itu-t(0) recommendation(0) q(17)  755(755) errors(2) consumer(1)}
+    global:{itu-t(0) recommendation(0) q(17)  755 errors(2) consumer(1)}
 }
 
 localSupplierError ERROR ::= {PARAMETER TMP-PDU CODE  local:2
@@ -83,7 +83,7 @@ localSupplierError ERROR ::= {PARAMETER TMP-PDU CODE  local:2
 
 globalSupplierError ERROR ::= {
   PARAMETER TMP-PDU CODE
-    global:{itu-t(0) recommendation(0) q(17)  755(755) errors(2) supplier(2)}
+    global:{itu-t(0) recommendation(0) q(17)  755 errors(2) supplier(2)}
 }
 
 END

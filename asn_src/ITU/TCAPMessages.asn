@@ -1,4 +1,4 @@
-TCAPMessages {itu-t(0) recommendation(0) q(17) 773(773) modules(2) messages(1) version3(3)}
+TCAPMessages {itu-t(0) recommendation(0) q(17) 773 modules(2) messages(1) version3(3)}
 
 DEFINITIONS IMPLICIT TAGS ::= BEGIN
 

@@ -1,5 +1,5 @@
 -- Module TC-TMP (Q.755.2:09/1997)
-TC-TMP {itu-t(0) recommendation(0) q(17) 755(775) modules(0) tmp(2) version1(1)}
+TC-TMP {itu-t(0) recommendation(0) q(17) 755 modules(0) tmp(2) version1(1)}
 
 DEFINITIONS IMPLICIT TAGS ::= BEGIN
 
@@ -51,6 +51,6 @@ ServiceType ::= ENUMERATED {
 
 -- abstract syntax name for TMP-PDUs
 tmp-pdus-as OBJECT IDENTIFIER ::=
-  {itu-t recommendation q 755 as(4) tmp-pdus(1) version1(1)}
+  {itu-t(0) recommendation(0) q(17) 755 as(4) tmp-pdus(1) version1(1)}
 
 END

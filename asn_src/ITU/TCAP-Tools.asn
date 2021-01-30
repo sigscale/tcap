@@ -1,5 +1,5 @@
 -- Module TCAP-Tools (Q.775:06/1997)
-TCAP-Tools {itu-t(0) recommendation(0) q(17) 775(775) modules(2) tools(1) version1(1)}
+TCAP-Tools {itu-t(0) recommendation(0) q(17) 775 modules(2) tools(1) version1(1)}
 
 DEFINITIONS ::= BEGIN
 
