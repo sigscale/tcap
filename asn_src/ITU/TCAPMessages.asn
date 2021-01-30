@@ -85,6 +85,6 @@ Component{OPERATION:Invokable, OPERATION:Returnable} ::= CHOICE {
 
 TCInvokeIdSet ::= InvokeId(WITH COMPONENTS { present  (-128..127) })
 
-InvokeIdType ::= INTEGER (–128..127)
+InvokeIdType ::= INTEGER (-128..127)
 
 END -- TCAPMessages
