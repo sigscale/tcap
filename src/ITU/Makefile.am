@@ -11,9 +11,11 @@ ASN_MODULES = TR.erl \
 		Remote-Operations-Information-Objects.erl \
 		Remote-Operations-Useful-Definitions.erl \
 		Remote-Operations-Generic-ROS-PDUs.erl \
+		TC-Notation-Extensions.erl \
 		TC-TMP.erl \
 		TC-Testing-User.erl \
-		TCAP-Examples.erl
+		TCAP-Examples.erl \
+		TCAP-Tools.erl
 
 erl_DATA = tcap_tco_server.erl \
 		tcap_cco_server.erl \
@@ -71,7 +73,7 @@ TC-Notation-Extensions.erl:$(top_srcdir)/asn_src/ITU/TC-Notation-Extensions.asn 
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Generic-ROS-PDUs.asn \
 		$(top_srcdir)/asn_src/ITU/UnidialoguePDUs.asn \
-		$(top_srcdir)/asn_src/ITU/DialoguePDUsasn.
+		$(top_srcdir)/asn_src/ITU/DialoguePDUs.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
 Remote-Operations-Useful-Definitions.erl:$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn \

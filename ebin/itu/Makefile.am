@@ -16,9 +16,11 @@ beam_DATA = tcap_cco_server.beam \
 		Remote-Operations-Information-Objects.beam \
 		Remote-Operations-Useful-Definitions.beam \
 		Remote-Operations-Generic-ROS-PDUs.beam \
+		TC-Notation-Extensions.beam \
 		TC-TMP.beam \
 		TC-Testing-User.beam \
-		TCAP-Examples.beam
+		TCAP-Examples.beam \
+		TCAP-Tools.beam
 
 %.beam:$(top_srcdir)/src/ITU/%.erl	\
 		$(top_srcdir)/include/tcap.hrl
@@ -55,6 +57,9 @@ Remote-Operations-Generic-ROS-PDUs.beam:$(top_builddir)/src/ITU/Remote-Operation
 		$(top_builddir)/src/ITU/Remote-Operations-Generic-ROS-PDUs.hrl
 	$(ERLC) $(ERLCFLAGS) -I $(top_builddir)/src/ITU $<
 
+TC-Notation-Extensions.beam:$(top_builddir)/src/ITU/TC-Notation-Extensions.erl
+	$(ERLC) $(ERLCFLAGS) -I $(top_builddir)/src/ITU $<
+
 TC-TMP.beam:$(top_builddir)/src/ITU/TC-TMP.erl  \
 		$(top_builddir)/src/ITU/TC-TMP.hrl
 	$(ERLC) $(ERLCFLAGS) -I $(top_builddir)/src/ITU $<
@@ -65,6 +70,9 @@ TC-Testing-User.beam:$(top_builddir)/src/ITU/TC-Testing-User.erl  \
 
 TCAP-Examples.beam:$(top_builddir)/src/ITU/TCAP-Examples.erl  \
 		$(top_builddir)/src/ITU/TCAP-Examples.hrl
+	$(ERLC) $(ERLCFLAGS) -I $(top_builddir)/src/ITU $<
+
+TCAP-Tools.beam:$(top_builddir)/src/ITU/TCAP-Tools.erl
 	$(ERLC) $(ERLCFLAGS) -I $(top_builddir)/src/ITU $<
 
 CLEANFILES = $(beam_DATA)
