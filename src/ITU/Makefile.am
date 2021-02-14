@@ -30,51 +30,50 @@ einclude_DATA = TR.hrl \
 		DialoguePDUs.hrl \
 		UnidialoguePDUs.hrl \
 		Remote-Operations-Generic-ROS-PDUs.hrl \
-		TCAP-Examples.hrl
-		TC-Testing-User.hrl
+		TCAP-Examples.hrl \
+		TC-Testing-User.hrl \
 		TC-TMP.hrl
 
 ASNCFLAGS = $(ERLCFLAGS) +ber +noobj
 
-%.erl:$(top_srcdir)/asn_src/ITU/%.asn
+%.erl %.hrl: $(top_srcdir)/asn_src/ITU/%.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
-TC.hrl:$(top_srcdir)/asn_src/ITU/TC.asn
-	$(ERLC) $(ASNCFLAGS) $<
-
-TR.hrl:$(top_srcdir)/asn_src/ITU/TR.asn \
+TR.erl TR.hrl: $(top_srcdir)/asn_src/ITU/TR.asn \
 		$(top_srcdir)/asn_src/ITU/TCAPMessages.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
-TR.erl:$(top_srcdir)/asn_src/ITU/TR.asn \
-		$(top_srcdir)/asn_src/ITU/TCAPMessages.asn
-	$(ERLC) $(ASNCFLAGS) $<
-
-TCAPMessages.erl:$(top_srcdir)/asn_src/ITU/TCAPMessages.asn \
+TCAPMessages.erl TCAPMessages.hrl: \
+		$(top_srcdir)/asn_src/ITU/TCAPMessages.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn
 	$(ERLC) $(ASNCFLAGS) $<
 	sed -e "/^-record('EXTERNAL'/,/^})\./d" TCAPMessages.hrl > TCAPMessages.hrl.tmp
 	mv TCAPMessages.hrl.tmp TCAPMessages.hrl
 
-UnidialoguePDUs.erl:$(top_srcdir)/asn_src/ITU/UnidialoguePDUs.asn
+UnidialoguePDUs.erl UnidialoguePDUs.hrl: \
+		$(top_srcdir)/asn_src/ITU/UnidialoguePDUs.asn
 	$(ERLC) $(ASNCFLAGS) $<
 	sed -e "/^-record('EXTERNAL'/,/^})\./d" UnidialoguePDUs.hrl > UnidialoguePDUs.hrl.tmp
 	mv UnidialoguePDUs.hrl.tmp UnidialoguePDUs.hrl
 
-TC-Testing-User.erl:$(top_srcdir)/asn_src/ITU/TC-Testing-User.asn \
+TC-Testing-User.erl TC-Testing-User.hrl: \
+		$(top_srcdir)/asn_src/ITU/TC-Testing-User.asn \
 		$(top_srcdir)/asn_src/ITU/TC-TMP.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
-TCAP-Examples.erl:$(top_srcdir)/asn_src/ITU/TCAP-Examples.asn \
+TCAP-Examples.erl TCAP-Examples.hrl: \
+		$(top_srcdir)/asn_src/ITU/TCAP-Examples.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
-TCAP-Tools.erl:$(top_srcdir)/asn_src/ITU/TCAP-Tools.asn \
+TCAP-Tools.erl TCAP-Tools.hrl: \
+		$(top_srcdir)/asn_src/ITU/TCAP-Tools.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
-TC-Notation-Extensions.erl:$(top_srcdir)/asn_src/ITU/TC-Notation-Extensions.asn \
+TC-Notation-Extensions.erl TC-Notation-Extensions.hrl: \
+		$(top_srcdir)/asn_src/ITU/TC-Notation-Extensions.asn \
 		$(top_srcdir)/asn_src/ITU/TCAPMessages.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn \
@@ -83,13 +82,17 @@ TC-Notation-Extensions.erl:$(top_srcdir)/asn_src/ITU/TC-Notation-Extensions.asn 
 		$(top_srcdir)/asn_src/ITU/DialoguePDUs.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
-Remote-Operations-Useful-Definitions.erl:$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn \
+Remote-Operations-Useful-Definitions.erl \
+		Remote-Operations-Useful-Definitions.hrl: \
+		$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Generic-ROS-PDUs.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn
 	$(ERLC) $(ASNCFLAGS) $<
 
-Remote-Operations-Information-Objects.erl:$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn \
+Remote-Operations-Information-Objects.erl \
+		Remote-Operations-Information-Objects.hrl: \
+		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Information-Objects.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Generic-ROS-PDUs.asn \
 		$(top_srcdir)/asn_src/ITU/Remote-Operations-Useful-Definitions.asn
