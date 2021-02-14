@@ -42,6 +42,8 @@ ASNCFLAGS = $(ERLCFLAGS) +ber +noobj
 TR.erl TR.hrl: $(top_srcdir)/asn_src/ITU/TR.asn \
 		$(top_srcdir)/asn_src/ITU/TCAPMessages.asn
 	$(ERLC) $(ASNCFLAGS) $<
+	sed -e "/^-record('EXTERNAL'/,/^})\./d" TR.hrl > TR.hrl.tmp
+	mv TR.hrl.tmp TR.hrl
 
 TCAPMessages.erl TCAPMessages.hrl: \
 		$(top_srcdir)/asn_src/ITU/TCAPMessages.asn \
