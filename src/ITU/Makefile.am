@@ -25,7 +25,14 @@ erl_DATA = tcap_tco_server.erl \
 		$(ASN_MODULES)
 
 einclude_DATA = TR.hrl \
-		TC.hrl
+		TC.hrl \
+		TCAPMessages.hrl \
+		DialoguePDUs.hrl \
+		UnidialoguePDUs.hrl \
+		Remote-Operations-Generic-ROS-PDUs.hrl \
+		TCAP-Examples.hrl
+		TC-Testing-User.hrl
+		TC-TMP.hrl
 
 ASNCFLAGS = $(ERLCFLAGS) +ber +noobj
 
