@@ -43,11 +43,13 @@ AC_PROG_LN_S
 AC_ERLANG_SUBST_INSTALL_LIB_DIR
 appdir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION
 erldir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/src
+asndir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/asn_src
 beamdir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/ebin
 eincludedir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/include
 docdir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/doc
 AC_SUBST(appdir)
 AC_SUBST(erldir)
+AC_SUBST(asndir)
 AC_SUBST(beamdir)
 AC_SUBST(eincludedir)
 
@@ -84,6 +86,7 @@ AC_ERLANG_CHECK_LIB([sccp], [], [AC_MSG_WARN([sccp was not found!])])
 
 AC_OUTPUT([Makefile include/Makefile doc/Makefile
 		src/Makefile src/ITU/Makefile src/ANSI/Makefile
+		asn_src/Makefile asn_src/ITU/Makefile
 		ebin/Makefile ebin/itu/Makefile ebin/ansi/Makefile
 		test/Makefile])
 
