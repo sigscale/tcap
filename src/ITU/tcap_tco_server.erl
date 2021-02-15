@@ -64,7 +64,7 @@
 %%% 	module we create a `handle_info/2' clause which matches
 %%% 	the primitives:
 %%% 	```
-%%% 	handle_info({'N', _, indication, _} = Primitive, State) -&gt;
+%%% 	handle_info({'N', _, indication, _} = Primitive, State) ->
 %%% 	      {primitive, Primitive, State}.
 %%% 	'''
 %%% 	As the example above illustrates the `{@module}'
