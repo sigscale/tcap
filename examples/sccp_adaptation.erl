@@ -57,7 +57,7 @@
 %%  The tcap_tco_server specific call backs
 %%----------------------------------------------------------------------
 
-%% @spec (Primitive, State) -> void()
+%% @spec (Primitive, State) -> any()
 %% 	Primitive = {'N', 'UNITDATA', request, UdataParams}
 %%
 %% @doc Deliver service primitive to the SCCP layer.

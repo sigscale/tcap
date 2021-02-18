@@ -82,7 +82,7 @@
 %%% 	</h3>
 %%% 	<div class="spec">
 %%% 		<p>
-%%% 			<tt>send_primitive(Primitive, State) -&gt; void()</tt>
+%%% 			<tt>send_primitive(Primitive, State) -&gt; any()</tt>
 %%% 		</p>
 %%% 		<ul class="definitions">
 %%% 			<li><tt>Primitive = {'N', 'UNITDATA', request, UdataParams}</tt></li>
