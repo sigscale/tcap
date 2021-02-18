@@ -101,7 +101,6 @@
 %%% 		</p>
 %%% 		<ul class="definitions">
 %%% 			<li><tt>DialoguePortion = binary()</tt></li>
-%%% 			<li><tt>TSL = pid()</tt></li>
 %%% 			<li><tt>State = term()</tt></li>
 %%% 			<li><tt>Result = {ok, DHA, CCO, TCU, State}
 %%% 					| {error, Reason}</tt></li>
