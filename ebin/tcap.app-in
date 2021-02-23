@@ -18,6 +18,6 @@
 				tcap_ism_fsm]},
 		{registered, []},
 		{applications, [kernel, stdlib]},
-		{runtime_dependencies, ["sccp-1.1.0"]},
+		{runtime_dependencies, ["sccp-2.0.0"]},
 		{env, []},
 		{mod, {tcap_app, []}}]}.
