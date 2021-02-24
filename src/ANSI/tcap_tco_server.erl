@@ -295,7 +295,7 @@ handle_cast({'N', 'UNITDATA', indication, UdataParms}, State)
 							%% Build ABORT message (P-Abort Cause = Resource Limitation)
 							Abort = {abort, #'Abort'{dtid = TPDU#'Begin'.otid,
 									reason = {'p-abortCause', resourceLimitation}}},
-							NewTPDU = list_to_binary('TCMessage':encode('TCMessage', Abort)),
+							NewTPDU = 'TCMessage':encode('TCMessage', Abort),
 							SccpParms = #'N-UNITDATA'{calledAddress = UdataParms#'N-UNITDATA'.callingAddress,
 									callingAddress = UdataParms#'N-UNITDATA'.calledAddress,
 									sequenceControl = false, returnOption = false,
