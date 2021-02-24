@@ -131,15 +131,14 @@ init([Sup, TCO, TCU]) ->
 		Result :: gen_statem:event_handler_result(state()).
 %% @doc Handles events received in the <em>idle</em> state.
 %% @private
-%
-% reference: Figure A.5/Q.774 (sheet 1 of 11)
-% TC-UNI request from TCU
-idle(enter, idle, #statedata{sup = Sup1} = Data) ->
+idle(enter, idle, #statedata{sup = Sup1, usap = TCU} = Data) ->
 	Children1 = supervisor:which_children(Sup1),
 	{_, Sup2, _, _} = lists:keyfind(tcap_components_sup, 1, Children1),
 	Children2 = supervisor:which_children(Sup2),
 	{_, CCO, _, _} = lists:keyfind(tcap_cco_server, 1, Children2),
 	{keep_state, Data#statedata{cco = CCO}};
+% reference: Figure A.5/Q.774 (sheet 1 of 11)
+% TC-UNI request from TCU
 idle(cast, {'TC', 'UNI', request,
 		#'TC-UNI'{qos = QoS,
 		destAddress = DestAddress, origAddress = OrigAddress,
