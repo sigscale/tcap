@@ -47,6 +47,8 @@
 %%%  {'TR', 'UNI', indication, #TR-UNI'{})
 %%%
 
+-include("DialoguePDUs.hrl").
+
 %%%
 %%%  TC-User
 %%%
@@ -70,7 +72,7 @@
 		appContextName :: tuple(),
 		origAddress :: sccp:party_address(),
 		dialogueID :: 0..4294967295,
-		userInfo,
+		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		componentsPresent :: boolean()}).
 
 %% reference: Table 4/Q.771 - TC-BEGIN primitives
@@ -80,7 +82,7 @@
 		appContextName :: tuple(),
 		origAddress :: sccp:party_address(),
 		dialogueID :: 0..4294967295,
-		userInfo,
+		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		componentsPresent :: boolean()}).
 
 %% reference: Table 5/Q.771 - TC-CONTINUE primitives
@@ -89,7 +91,7 @@
 		origAddress :: sccp:party_address(),
 		appContextName :: tuple(),
 		dialogueID :: 0..4294967295,
-		userInfo,
+		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		componentsPresent :: boolean()}).
 
 %% reference: Table 7/Q.771 - TC-END primitives
@@ -98,7 +100,7 @@
 		dialogueID :: 0..4294967295,
 		appContextName :: tuple(),
 		componentsPresent :: boolean(),
-		userInfo,
+		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		termination :: prearranged | basic | abort}).
 
 %% reference: Table 8/Q.771 - TC-U-ABORT primitives
@@ -107,7 +109,7 @@
 		dialogueID :: 0..4294967295,
 		abortReason :: applicationContextNotSupported | dialogueRefused | userSpecific,
 		appContextName :: tuple(),
-		userInfo}).
+		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE}).
 
 %% reference: Table 9/Q.771 - TC-NOTICE primitives
 -record('TC-NOTICE',
