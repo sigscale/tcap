@@ -146,14 +146,15 @@ idle(cast, {'TC', 'UNI', request,
 		#statedata{cco = CCO} = Data) 
 		when is_record(UniParms, 'TC-UNI') ->
 	%% Dialogue info included?
-	DialoguePortion = case UserInfo of
-		undefined ->
-			undefined;
-		UserInfo when is_binary(UserInfo) ->
+	DialoguePortion = case AppContextName of
+		AC when is_tuple(AC) ->
 			%% Build AUDT apdu
-			'UnidialoguePDUs':encode('AUDT-apdu',
-					#'AUDT-apdu'{'application-context-name' = AppContextName,
-					'user-information' = UserInfo})
+			{ok, DP} = 'UnidialoguePDUs':encode('AUDT-apdu',
+					#'AUDT-apdu'{'application-context-name' = AC,
+					'user-information' = UserInfo}),
+			DP;
+		undefined ->
+			asn1_NOVALUE
 	end,
 	TrUserData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)},
 	TrParms = #'TR-UNI'{qos = QoS,
@@ -174,16 +175,16 @@ idle(cast, {'TC', 'BEGIN', request,
 		#statedata{cco = CCO} = Data) -> 
 	%% Dialogue info included?
 	DialoguePortion = case AppContextName of
-		undefined ->
-			undefined;
-		AC ->
+		AC when is_tuple(AC) ->
 			%% Set protocol version = 1
 			%% Build AARQ apdu
 			{ok, DP} = 'DialoguePDUs':encode('AARQ-apdu',
 					#'AARQ-apdu'{'protocol-version' = [version1],
 					'application-context-name' = AC,
 					'user-information' = UserInfo}),
-			DP	
+			DP;
+		undefined ->
+			asn1_NOVALUE
 	end,
 	TrUserData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)},
 	TrParms = #'TR-BEGIN'{qos = QoS,
@@ -303,25 +304,30 @@ idle(info, _, _Data) ->
 		Result :: gen_statem:event_handler_result(state()).
 %% @doc Handles events received in the <em>initiation_received</em> state.
 %% @private
-%
-% reference: Figure A.5/Q.774 (sheet 5 of 11)
-% TC-CONTINUE request from TCU
 initiation_received(enter, _, _Data) ->
 	keep_state_and_data;
+% reference: Figure A.5/Q.774 (sheet 5 of 11)
+% TC-CONTINUE request from TCU
 initiation_received(cast, {'TC', 'CONTINUE', request,
 		#'TC-CONTINUE'{qos = QoS, origAddress = OrigAddress,
-		appContextName = AC, userInfo = UserInfo} = _ContParms},
+		appContextName = AppContextName, userInfo = UserInfo} = _ContParms},
 		#statedata{did = DID, cco = CCO} = Data) ->
 	%% Dialogue info included?
-	AARE = #'AARE-apdu'{'protocol-version' = [version1],
-			'application-context-name' = AC,
-			result = accepted,
-			'result-source-diagnostic' = {'dialogue-service-user', null},
-			'user-information' = UserInfo},
-	{ok, DP} = 'DialoguePDUs':encode('AARE-apdu', AARE),
+	DialoguePortion = case AppContextName of
+		AC when is_tuple(AC) ->
+			AARE = #'AARE-apdu'{'protocol-version' = [version1],
+					'application-context-name' = AC,
+					result = accepted,
+					'result-source-diagnostic' = {'dialogue-service-user', null},
+					'user-information' = UserInfo},
+			{ok, DP} = 'DialoguePDUs':encode('AARE-apdu', AARE),
+			DP;
+		undefined ->
+			asn1_NOVALUE
+	end,
 	TrParms = #'TR-CONTINUE'{qos = QoS,
-				origAddress = OrigAddress, transactionID = DID,
-				userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DP)}},
+			origAddress = OrigAddress, transactionID = DID,
+			userData = #'TR-user-data'{dialoguePortion = dialogue_ext(DialoguePortion)}},
 	NewData = Data#statedata{parms = TrParms},
 	%% Request components to CHA
 	gen_server:cast(CCO, 'request-components'),
