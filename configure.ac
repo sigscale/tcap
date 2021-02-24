@@ -5,7 +5,7 @@
 ##
 ## Boilerplate:  standard boilerplate code
 ##
-AC_INIT([tcap], [1.0.5], [issues@sigscale.org])
+AC_INIT([tcap], [1.0.6], [issues@sigscale.org])
 AC_COPYRIGHT([Copyright (c) 2004-2005 Motivity Telecom Inc.])
 AC_PREREQ(2.63)
 AC_CONFIG_SRCDIR([src/tcap_app.erl])
