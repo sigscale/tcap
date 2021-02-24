@@ -995,10 +995,7 @@ extract_uni_dialogue_portion(_DialoguePortion) ->
 %% Dialogue portion included? (yes)
 extract_begin_dialogue_portion(#'TR-user-data'{dialoguePortion = DP})
 		when DP /= asn1_NOVALUE ->
-	%% Extract dialogue portion
-	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, PDU} = DP,
-	% some implementations seem to be broken and not send the 'syntax' part?!?
-	{'EXTERNAL', _, _, PDU} = DP,
+	#'EXTERNAL'{'encoding' = {'single-ASN1-type', PDU}} = DP,
 	case 'DialoguePDUs':decode('DialoguePDU', PDU) of
 		{ok, {dialogueRequest, #'AARQ-apdu'{'protocol-version' = Version,
 				'application-context-name' = AC,
@@ -1054,10 +1051,7 @@ extract_dialogue_portion(UserData, AppContextName, active)
 extract_dialogue_portion(#'TR-user-data'{dialoguePortion = DP},
 		AppContextName, _) when DP /= asn1_NOVALUE,
 		AppContextName /= undefined ->
-	%% Extract dialogue portion
-	%{'EXTERNAL', {syntax,{0,0,17,773,1,1,1}}, _, PDU} = DP
-	% some implementations seem to be broken and not send the 'syntax' part?!?
-	{'EXTERNAL', _, _, PDU} = DP,
+	#'EXTERNAL'{'encoding' = {'single-ASN1-type', PDU}} = DP,
 	case 'DialoguePDUs':decode('DialoguePDU', PDU) of
 		{ok, {dialogueResponse, #'AARE-apdu'{} = AARE}} ->
 			AARE;	%% Dialogue portion correct? (yes)
