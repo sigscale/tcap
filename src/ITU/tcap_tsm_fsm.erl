@@ -65,11 +65,9 @@
 
 -type state() :: idle | initiation_sent | initiation_received | active.
 
-%% record definitions for TR-User primitives
+-include("DialoguePDUs.hrl").
 -include("tcap.hrl").
-%% record definitions for N-User primitives
 -include("sccp_primitive.hrl").
-%% record definitions for TCAP messages
 -include("TCAPMessages.hrl").
 
 %% the transaction_fsm state data

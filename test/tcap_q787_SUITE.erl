@@ -37,6 +37,7 @@
 		recv_msg_established/0, recv_msg_established/1,
 		send_class_1/0, send_class_1/1]).
 
+-include("DialoguePDUs.hrl").
 -include("tcap.hrl").
 -include("sccp_primitive.hrl").
 -include("TC.hrl").

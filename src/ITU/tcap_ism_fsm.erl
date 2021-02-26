@@ -60,7 +60,7 @@
 -export([idle/3, sent_class_1/3, sent_class_2/3, sent_class_3/3,
 	 sent_class_4/3, wait_for_reject/3]).
 
-%% record definitions for TC-User primitives
+-include("DialoguePDUs.hrl").
 -include("tcap.hrl").
 
 -type state() :: idle | sent_class_1 | sent_class_2

@@ -29,6 +29,7 @@
 -export([start_tsl/0, start_tsl/1, stop_tsl/0, stop_tsl/1,
 		start_csl/0, start_csl/1, stop_csl/0, stop_csl/1]).
 
+-include("DialoguePDUs.hrl").
 -include("tcap.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -87,8 +88,7 @@ start_tsl() ->
 	[{userdata, [{doc, "Start a transaction sublayer (TSL)"}]}].
 
 start_tsl(_Config) ->
-	Module = tcap_test_nsap_server,
-	{ok, TSL} = tcap:start_tsl({local, start_tsl}, Module, [self()], []),
+	{ok, TSL} = tcap:start_tsl({local, start_tsl}, #tcap_tco_cb{}, [self()], []),
 	unlink(TSL),
 	true = is_process_alive(TSL),
 	tcap:stop_tsl(TSL).
@@ -97,8 +97,7 @@ stop_tsl() ->
 	[{userdata, [{doc, "Stop a transaction sublayer (TSL)"}]}].
 
 stop_tsl(_Config) ->
-	Module = tcap_test_nsap_server,
-	{ok, TSL} = tcap:start_tsl({local, stop_tsl}, Module, [self()], []),
+	{ok, TSL} = tcap:start_tsl({local, stop_tsl}, #tcap_tco_cb{}, [self()], []),
 	unlink(TSL),
 	ok = tcap:stop_tsl(TSL),
 	false = is_process_alive(TSL).
@@ -107,8 +106,7 @@ start_csl() ->
 	[{userdata, [{doc, "Start a component sublayer (CSL)"}]}].
 
 start_csl(_Config) ->
-	Module = tcap_test_nsap_server,
-	{ok, TSL} = tcap:start_tsl({local, start_tsl}, Module, [self()], []),
+	{ok, TSL} = tcap:start_tsl({local, start_tsl}, #tcap_tco_cb{}, [self()], []),
 	unlink(TSL),
 	{ok, DHA, CCO} = tcap:open(TSL, self()),
 	{_, _, _, [PDict1 | _]} = sys:get_status(DHA),
@@ -121,8 +119,7 @@ stop_csl() ->
 	[{userdata, [{doc, "Stop a component sublayer (CSL)"}]}].
 
 stop_csl(_Config) ->
-	Module = tcap_test_nsap_server,
-	{ok, TSL} = tcap:start_tsl({local, start_tsl}, Module, [self()], []),
+	{ok, TSL} = tcap:start_tsl({local, start_tsl}, #tcap_tco_cb{}, [self()], []),
 	unlink(TSL),
 	{ok, DHA, CCO} = tcap:open(TSL, self()),
 	true = is_process_alive(DHA),

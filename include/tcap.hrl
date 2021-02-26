@@ -47,8 +47,6 @@
 %%%  {'TR', 'UNI', indication, #TR-UNI'{})
 %%%
 
--include("DialoguePDUs.hrl").
-
 %%%
 %%%  TC-User
 %%%
@@ -256,4 +254,17 @@
 		origAddress :: sccp:party_address(),
 		destAddress :: sccp:party_address(),
 		reportCause}).
+
+-record(tcap_tco_cb,
+		{init = false :: fun() | false,
+		handle_call = false :: fun() | false,
+		handle_cast = false :: fun() | false,
+		handle_info = false :: fun() | false,
+		terminate = false :: fun() | false,
+		handle_continue = false :: fun() | false,
+		send_primitive = false :: fun() | false,
+		start_aei = false :: fun() | false,
+		code_change = false :: fun() | false,
+		format_status = false :: fun() | false,
+		extra = [] :: [Args :: term()]}).
 
