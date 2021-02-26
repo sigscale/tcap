@@ -16,6 +16,7 @@ modhtml = tcap.html \
 		tcap_dha_fsm.html \
 		tcap_ism_fsm.html \
 		tcap_tco_server.html \
+		tcap_tco_callback.html \
 		tcap_tsm_fsm.html
 
 doc_DATA = overview.edoc $(modhtml) \

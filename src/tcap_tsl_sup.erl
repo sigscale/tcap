@@ -27,6 +27,9 @@
 %% export the callback needed for supervisor behaviour
 -export([init/1]).
 
+-include("DialoguePDUs.hrl").
+-include("tcap.hrl").
+
 %%----------------------------------------------------------------------
 %%  The supervisor callback
 %%----------------------------------------------------------------------
@@ -54,11 +57,12 @@
 %% @see //stdlib/supervisor:init/1
 %% @private
 %%
-init([TcoName, TcoModule, TcoArgs, TcoOpts] = _Args)
-		when is_tuple(TcoName), is_atom(TcoModule),
+init([TcoName, TcoCallback, TcoArgs, TcoOpts] = _Args)
+		when is_tuple(TcoName),
+		(is_atom(TcoCallback) or is_record(TcoCallback, tcap_tco_cb)),
 		is_list(TcoArgs), is_list(TcoOpts) ->
 	ChildSpecs = [supervisor(tcap_transaction_sup, []),
-			tco_server(TcoModule, TcoName, [self() | TcoArgs], TcoOpts)],
+			tco_server(TcoCallback, TcoName, [self() | TcoArgs], TcoOpts)],
 	SupFlags = #{intensity => 10, period => 60},
 	{ok, {SupFlags, ChildSpecs}}.
 
@@ -81,9 +85,9 @@ supervisor(StartMod, Args) ->
 	#{id => StartMod, start => StartFunc,
 			type => supervisor, modules => [StartMod]}.
 
--spec tco_server(StartMod, Name, Args, Opts) -> Result
+-spec tco_server(Callback, Name, Args, Opts) -> Result
 	when
-		StartMod :: atom(),
+		Callback :: atom() | #tcap_tco_cb{},
 		Name :: {local, LocalName} | {global, GlobalName}
 				| {via, ViaModule, ViaName},
 		LocalName :: atom(),
@@ -102,8 +106,15 @@ supervisor(StartMod, Args) ->
 %% 	with a registered name and options.
 %% @private
 %%
-tco_server(StartMod, Name, Args, Opts) ->
-	StartArgs = [Name, StartMod, Args, Opts],
-	StartFunc = {tcap_tco_server, start_link, StartArgs},
-	#{id => StartMod, start => StartFunc, modules => [StartMod]}.
+tco_server(Callback, Name, Args, Opts) ->
+	StartMod = tcap_tco_server,
+	Modules = case Callback of
+		Callback when is_atom(Callback) ->
+			[StartMod, Callback];
+		Callback when is_record(Callback, tcap_tco_cb) ->
+			[StartMod, tcap_tco_callback]
+	end,
+	StartArgs = [Name, Callback, Args, Opts],
+	StartFunc = {StartMod, start_link, StartArgs},
+	#{id => StartMod, start => StartFunc, modules => Modules}.
 

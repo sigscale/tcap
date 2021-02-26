@@ -151,7 +151,7 @@
 -export_type([tid/0]).
 
 -include("TCAPMessages.hrl").
-%-include("TR.hrl").
+-include("DialoguePDUs.hrl").
 -include("tcap.hrl").
 -include("sccp_primitive.hrl").
 
@@ -159,7 +159,7 @@
 		{tsl_sup:: pid(),
 		tsm_sup :: pid(),
 		tsm  = #{} :: map(),
-		module :: atom(),
+		callback :: atom() | #tcap_tco_cb{},
 		ext_state :: any()}).
 -type state() :: #state{}.
 
@@ -255,15 +255,17 @@
 				| {stop, Reason :: term()} | ignore.
 %% @see //stdlib/gen_server:init/1
 %% @private
-init([Module, [Sup | Args]])
-		when is_atom(Module), is_pid(Sup) ->
+init([Callback, [Sup | Args]])
+		when (is_atom(Callback) or is_record(Callback, tcap_tco_cb)),
+		is_pid(Sup) ->
 	process_flag(trap_exit, true),
-	case Module:init(Args) of
+	CbArgs = [Args],
+   case tcap_tco_callback:cb(init, Callback, CbArgs) of
 		{ok, ExtState} ->
-			NewState = #state{tsl_sup = Sup, module = Module, ext_state = ExtState},
+			NewState = #state{tsl_sup = Sup, callback = Callback, ext_state = ExtState},
 			{ok, NewState, {continue, {?MODULE, infinity}}};
 		{ok, ExtState, Timeout} ->
-			NewState = #state{tsl_sup = Sup, module = Module, ext_state = ExtState},
+			NewState = #state{tsl_sup = Sup, callback = Callback, ext_state = ExtState},
 			{ok, NewState, {continue, {?MODULE, Timeout}}};
 		{stop, Reason} ->
 			{stop, Reason};
@@ -294,21 +296,22 @@ handle_call({'TR', 'BEGIN', request,
 		{error, Reason} ->
 			{stop, {error, Reason}, Reason, State}
 	end;
-handle_call(Request, From, State) ->
-	Module = State#state.module,
-	case Module:handle_call(Request, From, State#state.ext_state) of
-		{reply, Reply, ExtState} ->
-			{reply, Reply, State#state{ext_state = ExtState}};
-		{reply, Reply, ExtState, Timeout} ->
-			{reply, Reply, State#state{ext_state = ExtState}, Timeout};
-		{noreply, ExtState} ->
-			{noreply, State#state{ext_state = ExtState}};
-		{noreply, ExtState, Timeout} ->
-			{noreply, State#state{ext_state = ExtState}, Timeout};
-		{stop, Reason, Reply, ExtState} ->
-			{stop, Reason, Reply, State#state{ext_state = ExtState}};
-		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}}
+handle_call(Request, From,
+		#state{callback = Callback, ext_state = ExtState} = State) ->
+	CbArgs = [Request, From, ExtState],
+	case tcap_tco_callback:cb(handle_call, Callback, CbArgs) of
+		{reply, Reply, ExtState1} ->
+			{reply, Reply, State#state{ext_state = ExtState1}};
+		{reply, Reply, ExtState1, Timeout} ->
+			{reply, Reply, State#state{ext_state = ExtState1}, Timeout};
+		{noreply, ExtState1} ->
+			{noreply, State#state{ext_state = ExtState1}};
+		{noreply, ExtState1, Timeout} ->
+			{noreply, State#state{ext_state = ExtState1}, Timeout};
+		{stop, Reason, Reply, ExtState1} ->
+			{stop, Reason, Reply, State#state{ext_state = ExtState1}};
+		{stop, Reason, ExtState1} ->
+			{stop, Reason, State#state{ext_state = ExtState1}}
 	end.
 
 -spec handle_cast(Request, State) -> Result
@@ -325,7 +328,7 @@ handle_call(Request, From, State) ->
 %% 	gen_server:cast/2} or {@link //stdlib/gen_server:abcast/2.
 %% 	gen_server:abcast/2,3}.
 %%
-%% 	A user callback module may return an SCCP service primitive
+%% 	A user callback may return an SCCP service primitive
 %% 	to TCO for processing with the return value 
 %% 	`{primitive, Primitive, NewState}'.
 %% @@see //stdlib/gen_server:handle_cast/2
@@ -338,12 +341,13 @@ handle_cast({'N', 'UNITDATA', indication,
 		#'N-UNITDATA'{userData = UserData1, calledAddress = CalledAddress,
 		callingAddress = CallingAddress, sequenceControl = SequenceControl,
 		returnOption = ReturnOption} = UdataParams},
-		#state{module = Module, ext_state = ExtState1,
+		#state{callback = Callback, ext_state = ExtState1,
 		tsm_sup = TsmSup, tsm = Map} = State) ->
 	case 'TR':decode('TCMessage', UserData1) of
 		{ok, {unidirectional, #'Unidirectional'{dialoguePortion = DialoguePortion,
 				components = ComponentPortion}}} ->
-			case Module:start_aei(DialoguePortion, ExtState1) of
+			CbArgs = [DialoguePortion, ExtState1],
+			case tcap_tco_callback:cb(start_aei, Callback, CbArgs) of
 				{ok, DHA, _CCO, _TCU, ExtState2}  ->
 					% TR-UNI indication CSL <- TSL
 					UserData2 = #'TR-user-data'{dialoguePortion = DialoguePortion,
@@ -360,7 +364,8 @@ handle_cast({'N', 'UNITDATA', indication,
 		{ok, {'begin', #'Begin'{dialoguePortion = DialoguePortion,
 				otid = Otid} = Begin1}} ->
 			OTID = decode_tid(Otid),
-			case Module:start_aei(DialoguePortion, ExtState1) of
+			CbArgs = [DialoguePortion, ExtState1],
+			case tcap_tco_callback:cb(start_aei, Callback, CbArgs) of
 				{ok, DHA, _CCO, _TCU, ExtState2}  ->
 					NewState = State#state{ext_state = ExtState2},
 					% Assign local transaction ID
@@ -382,7 +387,8 @@ handle_cast({'N', 'UNITDATA', indication,
 									callingAddress = CalledAddress, sequenceControl = false,
 									returnOption = false, userData = EncAbort},
 							Primitive = {'N', 'UNITDATA', request, SccpParams},
-							Module:send_primitive(Primitive, ExtState1),
+							CbArgs = [Primitive, ExtState1],
+							tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
 							{stop, Reason, NewState}
 					end;
 				{error, Reason} ->
@@ -394,7 +400,8 @@ handle_cast({'N', 'UNITDATA', indication,
 							callingAddress = CalledAddress, sequenceControl = false,
 							returnOption = false, userData = EncAbort},
 					Primitive = {'N', 'UNITDATA', request, SccpParams},
-					Module:send_primitive(Primitive, ExtState1),
+					CbArgs = [Primitive, ExtState1],
+					tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
 					{stop, Reason, State}
 			end;
 		{ok, {'begin', _TPDU}} ->
@@ -529,7 +536,7 @@ handle_cast({'N', 'NOTICE', indication,
 handle_cast({'TR', 'UNI', request,
 		#'TR-UNI'{qos = QoS, destAddress = DestAddress,
 		origAddress = OrigAddress, userData = UserData} = _UniParams},
-		#state{module = Module, ext_state = ExtState} = State) ->
+		#state{callback = Callback, ext_state = ExtState} = State) ->
 	{SequenceControl, ReturnOption} = QoS,
 	DialoguePortion = UserData#'TR-user-data'.dialoguePortion,
 	ComponentPortion = UserData#'TR-user-data'.componentPortion,
@@ -540,7 +547,9 @@ handle_cast({'TR', 'UNI', request,
 			SccpParams = #'N-UNITDATA'{userData = TPDU,
 					calledAddress = DestAddress, callingAddress =  OrigAddress,
 					sequenceControl = SequenceControl, returnOption = ReturnOption},
-			Module:send_primitive({'N', 'UNITDATA', request, SccpParams}, ExtState),
+			Primitive = {'N', 'UNITDATA', request, SccpParams},
+			CbArgs = [Primitive, ExtState],
+			tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
 			{noreply, State};
 		{error, Reason} ->
 			error_logger:error_report(["Error generating ASN1",
@@ -583,20 +592,22 @@ handle_cast({'TR', 'U-ABORT', request,
 			{noreply, State}
 	end;
 handle_cast({'N', 'UNITDATA', request, _} = Primitive,
-		#state{module = Module, ext_state = ExtState} = State) ->
-	Module:send_primitive(Primitive, ExtState),
+		#state{callback = Callback, ext_state = ExtState} = State) ->
+	CbArgs = [Primitive, ExtState],
+	tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
 	{noreply, State};
-handle_cast(Request, State) ->
-	Module = State#state.module,
-	case Module:handle_cast(Request, State#state.ext_state) of
-		{noreply, ExtState} ->
-			{noreply, State#state{ext_state = ExtState}};
-		{noreply, ExtState, Timeout} ->
-			{noreply, State#state{ext_state = ExtState}, Timeout};
-		{primitive, Primitive, ExtState} ->
-			handle_cast(Primitive, State#state{ext_state = ExtState});
-		{stop, Reason, ExtState} ->
-			{stop, Reason, State#state{ext_state = ExtState}}
+handle_cast(Request,
+		#state{callback = Callback, ext_state = ExtState} = State) ->
+	CbArgs = [Request, ExtState],
+	case tcap_tco_callback:cb(handle_cast, Callback, CbArgs) of
+		{noreply, ExtState1} ->
+			{noreply, State#state{ext_state = ExtState1}};
+		{noreply, ExtState1, Timeout} ->
+			{noreply, State#state{ext_state = ExtState1}, Timeout};
+		{primitive, Primitive, ExtState1} ->
+			handle_cast(Primitive, State#state{ext_state = ExtState1});
+		{stop, Reason, ExtState1} ->
+			{stop, Reason, State#state{ext_state = ExtState1}}
 	end.
 
 -spec handle_continue(Info, State) -> Result
@@ -612,20 +623,28 @@ handle_continue({?MODULE, Timeout}, #state{tsl_sup = TslSup} = State) ->
 	{_, TsmSup, _, _} = lists:keyfind(tcap_transaction_sup, 1, Children),
 	NewState = State#state{tsm_sup = TsmSup},
 	{noreply, NewState, Timeout};
-handle_continue(Info, State) ->
-	Module = State#state.module,
-	case erlang:function_exported(Module, handle_continue, 2) of
+handle_continue(Info, #state{callback = Callback} = State)
+		when is_atom(Callback) ->
+	case erlang:function_exported(Callback, handle_continue, 2) of
 		true ->
-			case Module:handle_continue(Info, State#state.ext_state) of
-				{noreply, ExtState} ->
-					{noreply, State#state{ext_state = ExtState}};
-				{noreply, ExtState, Timeout} ->
-					{noreply, State#state{ext_state = ExtState}, Timeout};
-				{stop, Reason, ExtState} ->
-					{stop, Reason, State#state{ext_state = ExtState}}
-			end;
+			handle_continue1(Info, State);
 		false ->
 			{noreply, State}
+	end;
+handle_continue(Info, #state{callback = Callback} = State)
+		when is_record(Callback, tcap_tco_cb) ->
+	handle_continue1(Info, State).
+%% @hidden
+handle_continue1(Info,
+		#state{callback = Callback, ext_state = ExtState} = State) ->
+	CbArgs = [Info, ExtState],
+	case tcap_tco_callback:cb(handle_continue, Callback, CbArgs) of
+		{noreply, ExtState1} ->
+			{noreply, State#state{ext_state = ExtState1}};
+		{noreply, ExtState1, Timeout} ->
+			{noreply, State#state{ext_state = ExtState1}, Timeout};
+		{stop, Reason, ExtState1} ->
+			{stop, Reason, State#state{ext_state = ExtState1}}
 	end.
 
 -spec handle_info(Info, State) -> Result
@@ -663,22 +682,30 @@ handle_info({'EXIT', Pid, _Reason} = Info, #state{tsm = Map} = State) ->
 handle_info(Info, State) ->
 	handle_info1(Info, State).
 %% @hidden
-handle_info1(Info, State) ->
-	Module = State#state.module,
-	case erlang:function_exported(Module, handle_info, 2) of
+handle_info1(Info, #state{callback = Callback} = State)
+		when is_atom(Callback) ->
+	case erlang:function_exported(Callback, handle_info, 2) of
 		true ->
-			case Module:handle_info(Info, State#state.ext_state) of
-				{noreply, ExtState} ->
-					{noreply, State#state{ext_state = ExtState}};
-				{noreply, ExtState, Timeout} ->
-					{noreply, State#state{ext_state = ExtState}, Timeout};
-				{primitive, Primitive, ExtState} ->
-					handle_cast(Primitive, State#state{ext_state = ExtState});
-				{stop, Reason, ExtState} ->
-					{stop, Reason, State#state{ext_state = ExtState}}
-			end;
+			handle_info2(Info, State);
 		false ->
 			{noreply, State}
+	end;
+handle_info1(Info, #state{callback = Callback} = State)
+		when is_record(Callback, tcap_tco_cb) ->
+	handle_info2(Info, State).
+%% @hidden
+handle_info2(Info,
+		#state{callback = Callback, ext_state = ExtState} = State) ->
+	CbArgs = [Info, ExtState],
+	case tcap_tco_callback:cb(handle_info, Callback, CbArgs) of
+		{noreply, ExtState1} ->
+			{noreply, State#state{ext_state = ExtState1}};
+		{noreply, ExtState1, Timeout} ->
+			{noreply, State#state{ext_state = ExtState1}, Timeout};
+		{primitive, Primitive, ExtState1} ->
+			handle_cast(Primitive, State#state{ext_state = ExtState1});
+		{stop, Reason, ExtState1} ->
+			{stop, Reason, State#state{ext_state = ExtState1}}
 	end.
 
 -spec terminate(Reason, State) -> any()
@@ -687,14 +714,22 @@ handle_info1(Info, State) ->
       State :: state().
 %% @see //stdlib/gen_server:terminate/3
 %% @private
-terminate(Reason, State) ->
-	Module = State#state.module,
-	case erlang:function_exported(Module, terminate, 2) of
+terminate(Reason, #state{callback = Callback} = State)
+		when is_atom(Callback) ->
+	case erlang:function_exported(Callback, terminate, 2) of
 		true ->
-			Module:terminate(Reason, State#state.ext_state);
+			terminate1(Reason, State);
 		false ->
 			ok
-	end.
+	end;
+terminate(Reason, #state{callback = Callback} = State)
+		when is_record(Callback, tcap_tco_cb) ->
+	terminate1(Reason, State).
+%% @hidden
+terminate1(Reason,
+		#state{callback = Callback, ext_state = ExtState} = _State) ->
+	CbArgs = [Reason, ExtState],
+	tcap_tco_callback:cb(terminate, Callback, CbArgs).
 
 -spec code_change(OldVersion, State, Extra) -> Result
 	when
@@ -704,18 +739,26 @@ terminate(Reason, State) ->
 		Result :: {ok, NewState :: state()} | {error, Reason :: term()}.
 %% @see //stdlib/gen_server:code_change/3
 %% @private
-code_change(OldVersion, State, Extra) ->
-	Module = State#state.module,
-	case erlang:function_exported(Module, code_change, 3) of
+code_change(OldVersion, #state{callback = Callback} = State, Extra)
+		when is_atom(Callback) ->
+	case erlang:function_exported(Callback, code_change, 3) of
 		true ->
-			case Module:code_change(OldVersion, State#state.ext_state, Extra) of
-				{ok, ExtState} ->
-					{ok, State#state{ext_state = ExtState}};
-				{error, Reason} ->
-					{error, Reason}
-			end;
+			code_change1(OldVersion, State, Extra);
 		false ->
 			{ok, State}
+	end;
+code_change(OldVersion, #state{callback = Callback} = State, Extra)
+		when is_record(Callback, tcap_tco_cb) ->
+	code_change1(OldVersion, State, Extra).
+%% @hidden
+code_change1(OldVersion,
+		#state{callback = Callback, ext_state = ExtState} = State, Extra) ->
+	CbArgs = [OldVersion, ExtState, Extra],
+	case tcap_tco_callback:cb(terminate, Callback, CbArgs) of
+		{ok, ExtState} ->
+			{ok, State#state{ext_state = ExtState}};
+		{error, Reason} ->
+			{error, Reason}
 	end.
 
 -spec format_status(Opt, StatusData) -> Status
@@ -727,11 +770,12 @@ code_change(OldVersion, State, Extra) ->
       Status :: term().
 %% @see //stdlib/gen_server:format_status/3
 %% @private
-format_status(Opt, [PDict, State] = _StatusData) ->
-	Module = State#state.module,
-	case erlang:function_exported(Module, format_status, 2) of
+format_status(Opt,
+		[_PDict, #state{callback = Callback} = State] = StatusData)
+		when is_atom(Callback) ->
+	case erlang:function_exported(Callback, format_status, 2) of
 		true ->
-			Module:format_status(Opt, [PDict, State#state.ext_state]);
+			format_status1(Opt, StatusData);
 		false ->
 			case Opt of
 				terminate ->
@@ -739,7 +783,16 @@ format_status(Opt, [PDict, State] = _StatusData) ->
 				_ ->
 					[{data, [{"State", State}]}]
 			end
-	end.
+	end;
+format_status(Opt,
+		[_PDict, #state{callback = Callback} = _State] = StatusData)
+		when is_record(Callback, tcap_tco_cb) ->
+	format_status1(Opt, StatusData).
+%% @hidden
+format_status1(Opt, [PDict, #state{callback = Callback,
+		ext_state = ExtState} = _State] = _StatusData) ->
+	CbArgs = [Opt, [PDict, ExtState]],
+	tcap_tco_callback:cb(format_status, Callback, CbArgs).
 
 %%----------------------------------------------------------------------
 %%  The gen_server API functions

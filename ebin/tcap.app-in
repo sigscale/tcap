@@ -7,6 +7,7 @@
 				tcap_sup,
 				tcap_tsl_sup,
 				tcap_tco_server,
+				tcap_tco_callback,
 				tcap_transaction_sup,
 				tcap_tsm_fsm,
 				tcap_csl_sup,

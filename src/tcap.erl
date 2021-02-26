@@ -55,6 +55,9 @@
 -type tcap_options() :: [Option :: {variant, Variant :: itu | ansi}].
 -export_type([tcap_options/0]).
 
+-include("DialoguePDUs.hrl").
+-include("tcap.hrl").
+
 %%----------------------------------------------------------------------
 %%  The tcap public API
 %%----------------------------------------------------------------------
@@ -77,7 +80,7 @@ start() ->
 stop() ->
 	application:stop(tcap).
 
--spec start_tsl(Name, Module, Args, Opts) -> Result
+-spec start_tsl(Name, Callback, Args, Opts) -> Result
 	when
 		Name :: {local, LocalName} | {global, GlobalName}
 				| {via, ViaModule, ViaName},
@@ -85,7 +88,7 @@ stop() ->
 		GlobalName :: term(),
 		ViaModule :: atom(),
 		ViaName :: term(),
-		Module :: atom(),
+		Callback :: atom() | #tcap_tco_cb{},
 		Args :: [term()],
 		Opts :: [Option],
 		Option :: {timeout, Timeout} | {debug, [Flag]},
@@ -101,24 +104,25 @@ stop() ->
 %% 	instance of a {@link tcap_tco_server. tcap_tco_server}
 %% 	behaviour process. Binding to a lower layer (SCCP)
 %% 	service access point (SAP) is accomplished by providing
-%% 	a callback `Module' for the
+%% 	a callback module `Callback' for the
 %% 	{@link tcap_tco_server. tcap_tco_server} behaviour.
 %%
 %% 	The {@link tcap_tco_server. tcap_tco_server} process
 %% 	will be registered with `Name'.
 %%
-%% 	`Module' is the name of the callback module.
+%% 	`Callback' is the name of the callback module or a
+%% 	`#tcap_tco_cb{}' record definition of callback `fun()'s.
 %%
-%% 	`Args' will be the arguments passed to `Module:init/1'.
+%% 	`Args' will be the arguments passed to `Callback:init/1'.
 %%
 %% 	`Opts' may include any of the options available to
 %% 	{@link //stdlib/gen_server:start_link/3. gen_server:start_link/3}.
 %%
-start_tsl(Name, Module, Args, Opts) ->
-	case tcap_sup:start_tsl(Module, [Name, Module, Args, Opts]) of
+start_tsl(Name, Callback, Args, Opts) ->
+	case tcap_sup:start_tsl(make_ref(), [Name, Callback, Args, Opts]) of
 		{ok, Sup} ->
 			ChildSpecs = supervisor:which_children(Sup),
-			{_, TSL, _, _} = lists:keyfind(Module, 1, ChildSpecs),
+			{_, TSL, _, _} = lists:keyfind(tcap_tco_server, 1, ChildSpecs),
 			link(TSL),
 			{ok, TSL};
 		{error, Reason} ->

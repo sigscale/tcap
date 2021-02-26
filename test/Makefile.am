@@ -13,7 +13,9 @@ testmods = tcap_test_tsl_server \
 check_DATA = .dialyzer_ok .common_test_ok
 
 .dialyzer_ok:	$(addsuffix .beam, $(testmods))
-	dialyzer --src $(top_srcdir)/src
+	dialyzer --src $(top_srcdir)/src \
+			-I $(top_srcdir)/include \
+			-I $(top_builddir)/src/ITU
 
 %.beam:$(top_srcdir)/test/%.erl $(top_srcdir)/include/tcap.hrl
 	$(ERLC) $(ERLCFLAGS) -pa $(top_builddir)/ebin \
