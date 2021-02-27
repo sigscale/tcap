@@ -68,8 +68,10 @@ handle_info({'N', _, indication, _} = Primitive, State) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
-send_primitive({'N', 'UNITDATA', request, _} = Primitive, #state{ct = CT} = _State) ->
-	CT ! Primitive.
+send_primitive({'N', 'UNITDATA', request, _} = Primitive,
+		#state{ct = CT} = State) ->
+	CT ! Primitive,
+	{noreply, State}.
 
 start_aei(_DialoguePortion, #state{ct = CT} = State) ->
 	{ok, TCU} = gen_statem:start_link(tcap_test_tsl_fsm, [self(), CT], []),

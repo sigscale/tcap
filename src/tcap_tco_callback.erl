@@ -48,14 +48,23 @@
 %%  The tcap_tco_callback public API
 %%----------------------------------------------------------------------
 
--spec send_primitive(Primitive, State) -> any()
+-spec send_primitive(Primitive, State) -> Result
 	when
-		State :: state(),
 		Primitive :: {'N', 'UNITDATA', request, UdataParams},
-		UdataParams :: #'N-UNITDATA'{}.
+		UdataParams :: #'N-UNITDATA'{},
+		State :: state(),
+		Result :: {noreply, NewState}
+				| {noreply, NewState, Timeout}
+				| {noreply, NewState, hibernate}
+				| {noreply, NewState, {continue, Continue}}
+				| {stop, Reason, NewState},
+		NewState :: state(),
+		Timeout :: non_neg_integer() | infinity,
+		Continue :: term(),
+		Reason :: term().
 %% @see //tcap/tcap_tco_server:send_primitive/2
-send_primitive(_Primitive, _State) ->
-	ok.
+send_primitive(_Primitive, State) ->
+	{noreply, State}.
 
 -spec start_aei(DialoguePortion, State) -> Result
 	when

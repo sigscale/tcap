@@ -68,11 +68,14 @@
 
 -type tid() :: 0..4294967295.
 
--callback send_primitive(Primitive, State) -> any()
+-callback send_primitive(Primitive, State) -> Result
 	when
-		State :: state(),
 		Primitive :: {'N', 'UNITDATA', request, UdataParams},
-		UdataParams :: #'N-UNITDATA'{}.
+		UdataParams :: #'N-UNITDATA'{},
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}.
 -callback start_user(CSL, DialogueID, State) -> pid()
 	when
 		CSL :: {DHA, CCO},

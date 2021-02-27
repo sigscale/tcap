@@ -82,11 +82,21 @@
 %%% 	</h3>
 %%% 	<div class="spec">
 %%% 		<p>
-%%% 			<tt>send_primitive(Primitive, State) -&gt; any()</tt>
+%%% 			<tt>send_primitive(Primitive, State) -&gt; Result</tt>
 %%% 		</p>
 %%% 		<ul class="definitions">
 %%% 			<li><tt>Primitive = {'N', 'UNITDATA', request, UdataParams}</tt></li>
 %%% 			<li><tt>UdataParams = #'N-UNITDATA'{}</tt></li>
+%%% 			<li><tt>Result = {noreply, NewState}
+%%% 					| {noreply, NewState, Timeout}
+%%% 					| {noreply, NewState, hibernate}
+%%% 					| {noreply, NewState, {continue, Continue}}
+%%% 					| {stop, Reason, NewState}</tt>
+%%% 			</li>
+%%% 			<li><tt>NewState = term()</tt></li>
+%%% 			<li><tt>Timeout = int()>=0 | infinity</tt></li>
+%%% 			<li><tt>Continue = term()</tt></li>
+%%% 			<li><tt>Reason = term()</tt></li>
 %%% 		</ul>
 %%% 	</div>
 %%% 	The `TCO' will call this function when it has a service primitive
@@ -165,11 +175,14 @@
 
 -type tid() :: 0..4294967295.
 
--callback send_primitive(Primitive, State) -> any()
+-callback send_primitive(Primitive, State) -> Result
 	when
-		State :: state(),
 		Primitive :: {'N', 'UNITDATA', request, UdataParams},
-		UdataParams :: #'N-UNITDATA'{}.
+		UdataParams :: #'N-UNITDATA'{},
+		State :: state(),
+		Result :: {noreply, NewState :: state()}
+				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: state()}.
 -callback start_aei(DialoguePortion, State) -> Result
 	when
 		DialoguePortion:: binary(),
@@ -388,8 +401,12 @@ handle_cast({'N', 'UNITDATA', indication,
 									returnOption = false, userData = EncAbort},
 							Primitive = {'N', 'UNITDATA', request, SccpParams},
 							CbArgs = [Primitive, ExtState1],
-							tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
-							{stop, Reason, NewState}
+							case tcap_tco_callback:cb(send_primitive, Callback, CbArgs) of
+								Result when element(1, Result) == noreply  ->
+									{stop, Reason, NewState#state{ext_state = element(2, Result)}};
+								{stop, _, ExtState2} ->
+									{stop, Reason, NewState#state{ext_state = ExtState2}}
+							end
 					end;
 				{error, Reason} ->
 					% TID = no TID
@@ -401,8 +418,12 @@ handle_cast({'N', 'UNITDATA', indication,
 							returnOption = false, userData = EncAbort},
 					Primitive = {'N', 'UNITDATA', request, SccpParams},
 					CbArgs = [Primitive, ExtState1],
-					tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
-					{stop, Reason, State}
+					case tcap_tco_callback:cb(send_primitive, Callback, CbArgs) of
+						Result when element(1, Result) == noreply  ->
+							{stop, Reason, State#state{ext_state = element(2, Result)}};
+						{stop, _, ExtState2} ->
+							{stop, Reason, State#state{ext_state = ExtState2}}
+					end
 			end;
 		{ok, {'begin', _TPDU}} ->
 			% is OTID derivable?
@@ -549,8 +570,14 @@ handle_cast({'TR', 'UNI', request,
 					sequenceControl = SequenceControl, returnOption = ReturnOption},
 			Primitive = {'N', 'UNITDATA', request, SccpParams},
 			CbArgs = [Primitive, ExtState],
-			tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
-			{noreply, State};
+			case tcap_tco_callback:cb(send_primitive, Callback, CbArgs) of
+				{noreply, ExtState1} ->
+					{noreply, State#state{ext_state = ExtState1}};
+				{noreply, ExtState1, Timeout} ->
+					{noreply, State#state{ext_state = ExtState1}, Timeout};
+				{stop, Reason, ExtState1} ->
+					{stop, Reason, State#state{ext_state = ExtState1}}
+			end;
 		{error, Reason} ->
 			error_logger:error_report(["Error generating ASN1",
 					{error, Reason}, {message_type, unidirectional},
@@ -594,8 +621,14 @@ handle_cast({'TR', 'U-ABORT', request,
 handle_cast({'N', 'UNITDATA', request, _} = Primitive,
 		#state{callback = Callback, ext_state = ExtState} = State) ->
 	CbArgs = [Primitive, ExtState],
-	tcap_tco_callback:cb(send_primitive, Callback, CbArgs),
-	{noreply, State};
+	case tcap_tco_callback:cb(send_primitive, Callback, CbArgs) of
+		{noreply, ExtState1} ->
+			{noreply, State#state{ext_state = ExtState1}};
+		{noreply, ExtState1, Timeout} ->
+			{noreply, State#state{ext_state = ExtState1}, Timeout};
+		{stop, Reason, ExtState1} ->
+			{stop, Reason, State#state{ext_state = ExtState1}}
+	end;
 handle_cast(Request,
 		#state{callback = Callback, ext_state = ExtState} = State) ->
 	CbArgs = [Request, ExtState],

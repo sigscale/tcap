@@ -40,9 +40,10 @@ handle_info(_Info, State) ->
 erlang:display({?MODULE, ?LINE, _Info, State}),
 	{noreply, State}.
 
-send_primitive(Primitive, #state{ct = CT} = _State) ->
-erlang:display({?MODULE, ?LINE, Primitive, _State}),
-	CT ! Primitive.
+send_primitive(Primitive, #state{ct = CT} = State) ->
+erlang:display({?MODULE, ?LINE, Primitive, State}),
+	CT ! Primitive,
+	{noreply, State}.
 
 start_aei(_DialoguePortion, #state{ct = CT} = State) ->
 	{ok, TCU} = gen_statem:start_link(tcap_test_csl_fsm, [CT], [{debug, [trace]}]),

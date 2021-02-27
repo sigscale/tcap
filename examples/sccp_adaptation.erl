@@ -57,13 +57,14 @@
 %%  The tcap_tco_server specific call backs
 %%----------------------------------------------------------------------
 
-%% @spec (Primitive, State) -> any()
+%% @spec (Primitive, State) -> Result
 %% 	Primitive = {'N', 'UNITDATA', request, UdataParams}
 %%
 %% @doc Deliver service primitive to the SCCP layer.
 %%
 send_primitive(Primitive, State) ->
-	State#state.nsap ! Primitive.
+	State#state.nsap ! Primitive,
+	{noreply, State}.
 
 -spec start_aei(DialoguePortion, CSL, State) -> Result
 	when
