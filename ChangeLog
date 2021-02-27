@@ -1,0 +1,46 @@
+2022-02-27  Vance Shipley <vances@sigscale.org>
+
+	* refactor for result from send_primitive/2
+	* support callback fun()s in tco_server
+	* correct handling of user info in tc-user requests
+	* asn1 decode returns binary since r16
+	* require sccp v2
+	* install asn.1 modules
+	* build tc notation extensions and tc tools
+	* remove syntactically incorrect integer oid identifiers
+	* use fully specified object identifiers
+	* install tr and tc header files
+	* test case for tc-user send class 1
+	* add csl test modules
+	* handle dialogue id in cco
+	* correct invoke id handling in cco
+	* accept missing dialogue portion
+	* get dha pid in cco
+	* discover cco in dha
+	* refactor receive components from dha; handle linkedid state
+	* refactor components and ism in cco state
+	* modernize and style refactor of cco fsm
+	* test case for dialogue with continuation
+	* tsl test case for end with basic termination
+	* correct dialogue id handling
+	* refactor all state machines to gen_statem behaviour
+	* clean up author and copyright attributions
+	* tr-begin request as call to communicate dha pid and provide backpressure
+	* refactor starting csl and tsm
+	* test case for send structured dialog begin
+	* refactor starting csl tree and tc-user
+	* single static csl sup
+	* no custom start function for tsm
+	* refactor process supervision and start/stop
+	* document refactor of process supervision and distribution
+	* describe q787 test specification cases in common_test html reports
+	* correct qos in tr-uni
+	* receive uni test case
+	* no importance in quality of service attribute of tr primitives
+	* test suite for itu-t q.787 test specifications
+	* public api function to start tsl
+	* refactor for modernization of type specifications, edoc
+	* modernize and consolidate diagrams
+	* build with autotools
+	* modernize asn1 compiler flags
+
