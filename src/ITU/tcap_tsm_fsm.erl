@@ -209,7 +209,7 @@ initiation_received(cast, {'CONTINUE', transaction,
 initiation_received(cast, {'END', transaction,
 		#'TR-END'{termination = prearranged} = _EndParms},
 		#statedata{localTID = TID} = Data) ->
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % End from TR-User (not prearranged)
 initiation_received(cast, {'END', transaction,
 		#'TR-END'{userData = UserData} = EndParms},
@@ -225,7 +225,7 @@ initiation_received(cast, {'END', transaction,
 			sequenceControl = SequenceControl, returnOption = ReturnOption,
 			importance = none, userData = TPDU},
 	gen_server:cast(TCO, {'N', 'UNITDATA', request, SccpParms}),
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % Abort from TR-User
 initiation_received(cast, {'ABORT', transaction,
 		#'TR-U-ABORT'{userData = UserData} = AbortParms},
@@ -239,7 +239,7 @@ initiation_received(cast, {'ABORT', transaction,
 			sequenceControl = SequenceControl, returnOption = ReturnOption,
 			importance = none, userData = TPDU},
 	gen_server:cast(TCO, {'N', 'UNITDATA', request, SccpParms}),
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 initiation_received(info, _, _Data) ->
 	keep_state_and_data.
 	
@@ -285,7 +285,7 @@ initiation_sent(cast, {'END', received,
 	TrParms = #'TR-END'{qos = {SequenceControl, ReturnOption},
 			transactionID = TID, userData = UserData},
 	gen_statem:cast(DHA, {'TR', 'END', indication, TrParms}),
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % Abort from remote
 initiation_sent(cast, {'ABORT', received,
 		#'N-UNITDATA'{sequenceControl = SequenceControl,
@@ -303,17 +303,17 @@ initiation_sent(cast, {'ABORT', received,
 					transactionID = TID, userData = UserData},
 			gen_statem:cast(DHA, {'TR', 'U-ABORT', indication, TrParms})
 	end,
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % End from TR-User
 initiation_sent(cast, {'END', transaction,
 		#'TR-END'{} = _EndParms},
 		#statedata{localTID = TID} = Data) ->
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 %% Abort from TR-User
 initiation_sent(cast, {'ABORT', transaction,
 		#'TR-U-ABORT'{} = _AbortParms},
 		#statedata{localTID = TID} = Data) ->
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 initiation_sent(info, _, _Data) ->
 	keep_state_and_data.
 	
@@ -374,12 +374,12 @@ active(cast, {'END', received,
 			transactionID = TID, userData = UserData},
 	%% TR-END indication CSL <- TSL
 	gen_statem:cast(DHA, {'TR', 'END', indication, TrParms}),
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % End from TR-User (prearranged)
 active(cast, {'END', transaction,
 		#'TR-END'{termination = prearranged} = _EndParms},
 		#statedata{localTID = TID} = Data) ->
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % End from TR-User (not prearranged)
 active(cast, {'END', transaction,
 		#'TR-END'{userData = UserData} = EndParms},
@@ -395,7 +395,7 @@ active(cast, {'END', transaction,
 			sequenceControl = SequenceControl, returnOption = ReturnOption,
 			importance = none, userData = TPDU},
 	gen_server:cast(TCO, {'N', 'UNITDATA', request, SccpParms}),
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % Abort received from remote
 active(cast, {'ABORT', received,
 		#'N-UNITDATA'{sequenceControl = SequenceControl,
@@ -415,7 +415,7 @@ active(cast, {'ABORT', received,
 			%% TR-U-ABORT indication CSL <- TSL
 			gen_statem:cast(DHA, {'TR', 'U-ABORT', indication, TrParms})
 	end,
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 % Abort from TR-User
 active(cast, {'ABORT', transaction,
 		#'TR-U-ABORT'{userData = UserData} = AbortParms},
@@ -432,7 +432,7 @@ active(cast, {'ABORT', transaction,
 			importance = none, userData = TPDU},
 	%% N-UNITDATA request TSL -> SCCP
 	gen_server:cast(TCO, {'N', 'UNITDATA', request, SccpParms}),
-	{stop, {shutdown, TID}, Data};
+	{stop, {shutdown, {?MODULE, TID}}, Data};
 active(info, _, _Data) ->
 	keep_state_and_data.
 
