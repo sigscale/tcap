@@ -63,7 +63,7 @@ init([TcoName, TcoCallback, TcoArgs, TcoOpts] = _Args)
 		is_list(TcoArgs), is_list(TcoOpts) ->
 	ChildSpecs = [supervisor(tcap_transaction_sup, []),
 			tco_server(TcoCallback, TcoName, [self() | TcoArgs], TcoOpts)],
-	SupFlags = #{intensity => 10, period => 60},
+	SupFlags = #{strategy => one_for_all, intensity => 10, period => 60},
 	{ok, {SupFlags, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
