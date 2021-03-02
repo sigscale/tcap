@@ -123,7 +123,7 @@
 		linkedID :: -128..127 | undefined,
 		operation :: {local, integer()} | {global, tuple()},
 		parameters :: binary() | undefined,
-		lastComponent :: boolean(),
+		lastComponent :: boolean() | undefined,
 		timeout = 5000 :: pos_integer()}).
 
 %% reference: Table 11/Q.771 - Report of success primitives
@@ -132,13 +132,13 @@
 		invokeID :: -128..127,
 		operation :: {local, integer()} | {global, tuple()},
 		parameters :: binary() | undefined,
-		lastComponent :: boolean()}).
+		lastComponent :: boolean() | undefined}).
 -record('TC-RESULT-NL',
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
 		operation :: {local, integer()} | {global, tuple()},
 		parameters :: binary() | undefined,
-		lastComponent :: boolean()}).
+		lastComponent :: boolean() | undefined}).
 
 %% reference: Table 12/Q.771 - Report of failure primitives
 -record('TC-U-ERROR',
@@ -146,14 +146,14 @@
 		invokeID :: -128..127,
 		error :: {local, integer()} | {global, tuple()},
 		parameters :: binary() | undefined,
-		lastComponent :: boolean()}).
+		lastComponent :: boolean() | undefined}).
 
 %% reference: Table 13/Q.771 - User rejection primitives
 -record('TC-U-REJECT',
 		{dialogueID :: 0..4294967295,
 		invokeID :: -128..127,
 		problemCode :: problemCode(),
-		lastComponent :: boolean()}).
+		lastComponent :: boolean() | undefined}).
 
 %% reference: Table 14/Q.771 - TC-CANCEL primitives
 -record('TC-L-CANCEL',
