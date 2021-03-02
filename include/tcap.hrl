@@ -66,7 +66,7 @@
 -record('TC-UNI',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
 		destAddress :: sccp:party_address(),
-		appContextName :: tuple(),
+		appContextName :: tuple() | undefined,
 		origAddress :: sccp:party_address(),
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
@@ -76,7 +76,7 @@
 -record('TC-BEGIN',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
 		destAddress :: sccp:party_address(),
-		appContextName :: tuple(),
+		appContextName :: tuple() | undefined,
 		origAddress :: sccp:party_address(),
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
@@ -86,7 +86,7 @@
 -record('TC-CONTINUE',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
 		origAddress :: sccp:party_address(),
-		appContextName :: tuple(),
+		appContextName :: tuple() | undefined,
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		componentsPresent :: boolean() | undefined}).
@@ -95,7 +95,7 @@
 -record('TC-END',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
 		dialogueID :: 0..4294967295,
-		appContextName :: tuple(),
+		appContextName :: tuple() | undefined,
 		componentsPresent :: boolean() | undefined,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		termination :: prearranged | basic | abort}).
@@ -105,7 +105,7 @@
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
 		dialogueID :: 0..4294967295,
 		abortReason :: applicationContextNotSupported | dialogueRefused | userSpecific,
-		appContextName :: tuple(),
+		appContextName :: tuple() | undefined,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE}).
 
 %% reference: Table 9/Q.771 - TC-NOTICE primitives
