@@ -50,7 +50,6 @@
 %%%
 %%%  TC-User
 %%%
-%%% 	componentsPresent is a boolean
 
 -type problemCode() :: {general,
 			unrecognizedPDU | mistypedPDU | badlyStructuredPDU}
@@ -71,7 +70,7 @@
 		origAddress :: sccp:party_address(),
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
-		componentsPresent :: boolean()}).
+		componentsPresent :: boolean() | undefined}).
 
 %% reference: Table 4/Q.771 - TC-BEGIN primitives
 -record('TC-BEGIN',
@@ -81,7 +80,7 @@
 		origAddress :: sccp:party_address(),
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
-		componentsPresent :: boolean()}).
+		componentsPresent :: boolean() | undefined}).
 
 %% reference: Table 5/Q.771 - TC-CONTINUE primitives
 -record('TC-CONTINUE',
@@ -90,14 +89,14 @@
 		appContextName :: tuple(),
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
-		componentsPresent :: boolean()}).
+		componentsPresent :: boolean() | undefined}).
 
 %% reference: Table 7/Q.771 - TC-END primitives
 -record('TC-END',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
 		dialogueID :: 0..4294967295,
 		appContextName :: tuple(),
-		componentsPresent :: boolean(),
+		componentsPresent :: boolean() | undefined,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		termination :: prearranged | basic | abort}).
 
