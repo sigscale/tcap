@@ -16,7 +16,7 @@
 				tcap_components_sup,
 				tcap_cco_server,
 				tcap_invocation_sup,
-				tcap_ism_fsm]},
+				tcap_ism_fsm,
 				Remote-Operations-Generic-ROS-PDUs,
 				Remote-Operations-Information-Objects,
 				Remote-Operations-Useful-Definitions,
