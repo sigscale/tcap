@@ -370,8 +370,11 @@ handle_cast({'N', 'UNITDATA', indication,
 							userData = UserData2},
 					gen_statem:cast(DHA, {'TR', 'UNI', indication, TrParams}),
 					{noreply, State#state{ext_state = ExtState2}};
-				{error, _Reason} ->
-%% @todo Handle error starting AEI.
+				{error, Reason} ->
+					error_logger:warning_report(["Error starting AEI",
+							{error, Reason},
+							{dialogue_portion, DialoguePortion},
+							{calling, CallingAddress}, {called, CalledAddress}]),
 					{noreply, State}
 			end;
 		{ok, {'begin', #'Begin'{dialoguePortion = DialoguePortion,
@@ -420,7 +423,11 @@ handle_cast({'N', 'UNITDATA', indication,
 					CbArgs = [Primitive, ExtState1],
 					case tcap_tco_callback:cb(send_primitive, Callback, CbArgs) of
 						Result when element(1, Result) == noreply  ->
-							{stop, Reason, State#state{ext_state = element(2, Result)}};
+							error_logger:warning_report(["Error starting AEI",
+									{error, Reason},
+									{dialogue_portion, DialoguePortion},
+									{calling, CallingAddress}, {called, CalledAddress}]),
+							{noreply, State#state{ext_state = element(2, Result)}};
 						{stop, _, ExtState2} ->
 							{stop, Reason, State#state{ext_state = ExtState2}}
 					end
