@@ -1,6 +1,8 @@
 2021-03-10  Vance Shipley <vances@sigscale.org>
 
-	*    warn and continue on failure to start aei
+	* warn and continue on failure to start aei
+	* missing modules in application specification
+	* last component parameter only used in tc indications
 
 2021-02-27  Vance Shipley <vances@sigscale.org>
 
