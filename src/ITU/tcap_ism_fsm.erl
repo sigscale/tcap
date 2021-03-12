@@ -103,7 +103,7 @@ callback_mode() ->
 		Reason :: term().
 %% @doc Initialize the {@module} finite state machine.
 %%
-%% 	Initialize a Invocation State Machine (TSM) process.
+%% 	Initialize an Invocation State Machine (TSM) process.
 %%
 %% 	Reference: Figure A.7/Q.774 (sheet 1 of 6)
 %%
