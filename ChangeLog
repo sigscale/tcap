@@ -1,3 +1,7 @@
+2021-03-12  Vance Shipley <vances@sigscale.org>
+
+	* ism workers are temporary, not permanent
+
 2021-03-10  Vance Shipley <vances@sigscale.org>
 
 	* warn and continue on failure to start aei

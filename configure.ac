@@ -5,7 +5,7 @@
 ##
 ## Boilerplate:  standard boilerplate code
 ##
-AC_INIT([tcap], [1.2.4], [issues@sigscale.org])
+AC_INIT([tcap], [1.2.5], [issues@sigscale.org])
 AC_COPYRIGHT([Copyright (c) 2021 SigScale Global Inc.,
 		Copyright (c) 2004-2005 Motivity Telecom Inc.])
 AC_PREREQ(2.63)
