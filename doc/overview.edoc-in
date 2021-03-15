@@ -174,9 +174,9 @@ updateLocation OPERATION ::= { --Timer m
 In a complex AE there may be multiple TC-User ASEs.  The operation
 codes (e.g. <tt>local:2</tt> for the <tt>updateLocation</tt> above)
 of the received components allow the AE to distribute to the appropriate
-ASE.  While the <tt>locationUpdatingPackage-v3</tt> definition above
-appears informally in the current specifications MAP is still viewed as
-having a single Application Service Element for historical reasons.
+ASE.  Note that while the <tt>locationUpdatingPackage-v3</tt> definition
+above appears informally in the current specifications MAP is still viewed
+as having a single Application Service Element for historical reasons.
 The Intelligent Network Application Protocol (INAP) however clearly
 defines many distinct ASEs.  <a href="inap_aei.png">Figure 3-2</a>
 shows the configuration of an AEI for INAP using the
