@@ -21,7 +21,7 @@ modhtml = tcap.html \
 
 doc_DATA = overview.edoc $(modhtml) \
 		modules-frame.html overview-summary.html \
-		index.html stylesheet.css \
+		index.html stylesheet.css edoc-info \
 		sigscale-logo.png \
 		ae_invocations.png \
 		application_process.png \
