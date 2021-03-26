@@ -64,7 +64,10 @@
 		initiation_received/3, wait_cont_components_ir/3,
 		wait_cont_components_active/3, wait_for_end_components/3]).
 
--type state() :: idle | initiation_sent | initiation_received | active.
+-type state() :: idle | initiation_sent | initiation_received | active
+		| wait_for_uni_components | wait_for_begin_components
+      | initiation_received | wait_cont_components_ir
+      | wait_cont_components_active | wait_for_end_components.
 
 -include("sccp_primitive.hrl").
 -include("UnidialoguePDUs.hrl").
@@ -530,7 +533,7 @@ active(cast, {'TC', 'END', request,
 			%% Process components
 			{next_state, wait_for_end_components, NewData}
 	end;
-%% reference: Figuer A.5/Q774 (sheet 10 of 11)
+%% reference: Figure A.5/Q774 (sheet 10 of 11)
 %% TR-END indication from TSL
 active(cast, {'TR', 'END', indication, _EndParms} = P, Data) ->
 	is_or_active(active, P, Data);
