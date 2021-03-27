@@ -185,16 +185,26 @@ open(TSL, TCU) ->
 			{error, Reason}
 	end.
 
--spec close(DHA) -> ok
+-spec close(DHA) -> Result
 	when
-		DHA :: pid().
+		DHA :: pid(),
+		Result :: ok | {error, not_found}.
 %% @doc Close a component sublayer (CSL).
 %%
 %% 	`DHA' is a pid returned in a previous call to 
 %% 	{@link open/2. open/2}.
 %%
 close(DHA) when is_pid(DHA) ->
-	gen_statem:stop(DHA).
+	try
+		{_, _, _, [PDict | _]} = sys:get_status(DHA),
+		lists:keyfind('$ancestors', 1, PDict)
+	of
+		{_, [Sup | _]} ->
+			supervisor:terminate_child(tcap_csl_sup, Sup)
+	catch
+		_ ->
+			not_found
+	end.
 
 %%----------------------------------------------------------------------
 %%  Internal functions

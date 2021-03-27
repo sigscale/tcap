@@ -129,9 +129,9 @@ stop_csl(_Config) ->
 	link(CCO),
 	ok = tcap:close(DHA),
 	receive
-		{'EXIT', DHA, _} ->
+		{'EXIT', DHA, shutdown} ->
 			receive
-				{'EXIT', CCO, _} ->
+				{'EXIT', CCO, shutdown} ->
 					ok
 			end
 	end,
