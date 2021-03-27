@@ -58,11 +58,9 @@ callback_mode() ->
 	[handle_event_function].
 
 init([CT]) ->
-erlang:display({?MODULE, ?LINE, CT}),
 	{ok, idle, #statedata{ct = CT}}.
 
 handle_event({call, From}, {csl_open, DHA, CCO}, _State, Data) ->
-erlang:display({?MODULE, ?LINE, {call, From}, {csl_open, DHA, CCO}}),
 	NewData = Data#statedata{dha = DHA, cco = CCO},
 	Actions = [{reply, From, ok}],
 	{keep_state, NewData, Actions};
@@ -71,7 +69,6 @@ handle_event(cast,
 		#statedata{dha = DHA} = _Data) when Name == 'UNI';
 		Name == 'BEGIN'; Name == 'CONTINUE'; Name == 'END';
 		Name == 'U-ABORT' ->
-erlang:display({?MODULE, ?LINE, DHA, Primitive}),
 	gen_server:cast(DHA, Primitive),
 	keep_state_and_data;
 handle_event(cast,
@@ -79,15 +76,12 @@ handle_event(cast,
 		#statedata{cco = CCO} = _Data) when Name == 'INVOKE';
 		Name == 'RESULT-L'; Name == 'U-ERROR'; Name == 'U-CANCEL';
 		Name == 'U-REJECT' ->
-erlang:display({?MODULE, ?LINE, CCO, Primitive}),
 	gen_server:cast(CCO, Primitive),
 	keep_state_and_data;
 handle_event(cast, {'TC', _, indication, _} = Primitive, _State,
 		#statedata{ct = CT} = _Data) ->
-erlang:display({?MODULE, ?LINE, CT, Primitive}),
 	CT ! Primitive,
 	keep_state_and_data;
 handle_event(_EventType, _EventContent, _State, _Data) ->
-erlang:display({?MODULE, ?LINE, _EventType, _EventContent, _State, _Data}),
 	keep_state_and_data.
 

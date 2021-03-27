@@ -103,7 +103,7 @@ init_per_testcase(TestCase, Config)
 		when TestCase == send_class_1 ->
 	describe(TestCase),
 	Module = tcap_test_csl_server,
-	{ok, TSL} = tcap:start_tsl({local, Module}, Module, [self()], [{debug, [trace]}]),
+	{ok, TSL} = tcap:start_tsl({local, Module}, Module, [self()], []),
 	unlink(TSL),
 	[{tco, TSL} | Config].
 
@@ -721,7 +721,7 @@ tr_send({'TR', Name, request, _Parameters} = Primitive, Config)
 %% @doc Start TC-User and CSL.
 tc_start(Config) ->
 	TCO = ?config(tco, Config),
-	{ok, TCU} = gen_statem:start_link(tcap_test_csl_fsm, [self()], [{debug, [trace]}]),
+	{ok, TCU} = gen_statem:start_link(tcap_test_csl_fsm, [self()], []),
 	{ok, DHA, CCO} = tcap:open(TCO, TCU),
 	ok = gen_statem:call(TCU, {csl_open, DHA, CCO}),
 	[{tcu, TCU}, {dha, DHA}, {cco, CCO} | Config].
