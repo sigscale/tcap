@@ -63,5 +63,5 @@ fsm(StartMod) ->
 	StartArgs = [StartMod],
 	StartFunc = {gen_statem, start_link, StartArgs},
 	#{id => StartMod, start => StartFunc,
-			restart => temporary, modules => [StartMod]}.
+			restart => transient, modules => [StartMod]}.
 

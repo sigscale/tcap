@@ -65,8 +65,8 @@ init([_TSL, _TCU] = Args) ->
 supervisor(StartMod, Args) ->
 	StartArgs = [StartMod, Args],
 	StartFunc = {supervisor, start_link, StartArgs},
-	#{id => StartMod, start => StartFunc,
-			type => supervisor, modules => [StartMod]}.
+	#{id => StartMod, start => StartFunc, type => supervisor,
+			restart => transient, modules => [StartMod]}.
 
 -spec fsm(StartMod, Args) -> Result
 	when
@@ -80,5 +80,6 @@ supervisor(StartMod, Args) ->
 fsm(StartMod, Args) ->
 	StartArgs = [StartMod, Args, []],
 	StartFunc = {gen_statem, start_link, StartArgs},
-	#{id => StartMod, start => StartFunc, modules => [StartMod]}.
+	#{id => StartMod, start => StartFunc,
+			restart => transient, modules => [StartMod]}.
 
