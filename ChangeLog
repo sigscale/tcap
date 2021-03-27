@@ -1,3 +1,10 @@
+2021-03-27  Vance Shipley <vances@sigscale.org>
+
+	* suppress supervision reports on normal shutdown
+	* add missing states to state type
+	* include edoc-info in installed doc
+	* clarify map ase ac in overview
+
 2021-03-12  Vance Shipley <vances@sigscale.org>
 
 	* ism workers are temporary, not permanent
