@@ -1,5 +1,6 @@
 2021-03-27  Vance Shipley <vances@sigscale.org>
 
+	* close csl by terminating csl_sup child
 	* suppress supervision reports on normal shutdown
 	* add missing states to state type
 	* include edoc-info in installed doc
