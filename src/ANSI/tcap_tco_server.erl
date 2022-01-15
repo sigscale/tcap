@@ -72,17 +72,17 @@
 	when
 		Primitive :: {'N', 'UNITDATA', request, UdataParams},
 		UdataParams :: #'N-UNITDATA'{},
-		State :: state(),
-		Result :: {noreply, NewState :: state()}
-				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
-				| {stop, Reason :: term(), NewState :: state()}.
+		State :: any(),
+		Result :: {noreply, NewState :: any()}
+				| {noreply, NewState :: any(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: any()}.
 -callback start_user(CSL, DialogueID, State) -> pid()
 	when
 		CSL :: {DHA, CCO},
 		DHA :: pid(),
 		CCO :: pid(),
 		DialogueID :: tid(),
-		State :: state().
+		State :: any().
 -callback start_dialogue(DialogueID, State) -> StartFunc
 	when
 		DialogueID :: tid(),
@@ -94,57 +94,57 @@
 -callback init(Args) -> Result
 	when
 		Args :: [term()],
-		Result :: {ok, State :: state()}
-				| {ok, State :: state(), Timeout :: timeout() | hibernate | {continue, term()}}
+		Result :: {ok, State :: any()}
+				| {ok, State :: any(), Timeout :: timeout() | hibernate | {continue, term()}}
 				| {stop, Reason :: term()} | ignore.
 -callback handle_call(Request, From, State) -> Result
 	when
 		Request :: term(),
 		From :: {pid(), Tag :: any()},
-		State :: state(),
-		Result :: {reply, Reply :: term(), NewState :: state()}
-				| {reply, Reply :: term(), NewState :: state(), timeout() | hibernate | {continue, term()}}
-				| {noreply, NewState :: state()}
-				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
-				| {stop, Reason :: term(), Reply :: term(), NewState :: state()}
-				| {stop, Reason :: term(), NewState :: state()}.
+		State :: any(),
+		Result :: {reply, Reply :: term(), NewState :: any()}
+				| {reply, Reply :: term(), NewState :: any(), timeout() | hibernate | {continue, term()}}
+				| {noreply, NewState :: any()}
+				| {noreply, NewState :: any(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), Reply :: term(), NewState :: any()}
+				| {stop, Reason :: term(), NewState :: any()}.
 -callback handle_cast(Request, State) -> Result
 	when
 		Request :: term(),
-		State :: state(),
-		Result :: {noreply, NewState :: state()}
-				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
-				| {stop, Reason :: term(), NewState :: state()}
-				| {primitive, Primitive, NewState :: state()},
+		State :: any(),
+		Result :: {noreply, NewState :: any()}
+				| {noreply, NewState :: any(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: any()}
+				| {primitive, Primitive, NewState :: any()},
 		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
 				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
 -callback handle_continue(Info, State) -> Result
 	when
 		Info :: term(),
-		State :: state(),
-		Result :: {noreply, NewState :: state()}
-				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
-				| {stop, Reason :: term(), NewState :: state()}.
+		State :: any(),
+		Result :: {noreply, NewState :: any()}
+				| {noreply, NewState :: any(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: any()}.
 -callback handle_info(Info, State) -> Result
 	when
 		Info :: timeout | term(),
-		State :: state(),
-		Result :: {noreply, NewState :: state()}
-				| {noreply, NewState :: state(), timeout() | hibernate | {continue, term()}}
-				| {stop, Reason :: term(), NewState :: state()}
-				| {primitive, Primitive, NewState :: state()},
+		State :: any(),
+		Result :: {noreply, NewState :: any()}
+				| {noreply, NewState :: any(), timeout() | hibernate | {continue, term()}}
+				| {stop, Reason :: term(), NewState :: any()}
+				| {primitive, Primitive, NewState :: any()},
 		Primitive :: {'N', 'UNITDATA', indication, #'N-UNITDATA'{}}
 				| {'N', 'NOTICE', indication, #'N-NOTICE'{}}.
 -callback terminate(Reason, State) -> any()
 	when
 		Reason :: normal | shutdown | {shutdown, term()} | term(),
-      State :: state().
+      State :: any().
 -callback code_change(OldVersion, State, Extra) -> Result
 	when
 		OldVersion :: term() | {down, term()},
-		State :: state(),
+		State :: any(),
 		Extra :: term(),
-		Result :: {ok, NewState :: state()} | {error, Reason :: term()}.
+		Result :: {ok, NewState :: any()} | {error, Reason :: term()}.
 -callback format_status(Opt, StatusData) -> Status
 	when
       Opt :: 'normal' | 'terminate',
