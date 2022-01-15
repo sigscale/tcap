@@ -110,7 +110,7 @@
 %%% 			<tt>start_aei(DialoguePortion, State) -&gt; Result</tt>
 %%% 		</p>
 %%% 		<ul class="definitions">
-%%% 			<li><tt>DialoguePortion = binary()</tt></li>
+%%% 			<li><tt>DialoguePortion = #'EXTERNAL'{}</tt></li>
 %%% 			<li><tt>State = term()</tt></li>
 %%% 			<li><tt>Result = {ok, DHA, CCO, TCU, State}
 %%% 					| {error, Reason}</tt></li>
@@ -125,7 +125,7 @@
 %%% 	Element (ASE) is represented by a newly created TC component
 %%% 	sublayer (CSL) instance.
 %%%
-%%% 	`DialoguePortion' is the undecoded dialogue portion.
+%%% 	`DialoguePortion' is the dialogue portion.
 %%%
 %%% 	`DHA' is the pid of the dialogue handler in the newly created CSL.
 %%%
@@ -185,7 +185,7 @@
 				| {stop, Reason :: term(), NewState :: any()}.
 -callback start_aei(DialoguePortion, State) -> Result
 	when
-		DialoguePortion:: binary(),
+		DialoguePortion :: #'EXTERNAL'{},
 		State :: any(),
 		Result :: {ok, DHA, CCO, TCU, State} | {error, Reason},
 		DHA :: pid(),
