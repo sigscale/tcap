@@ -1,0 +1,5 @@
+{release, {"SigScale TCAP", "@PACKAGE@-@VERSION@"}, {erts, "@ERLANG_ERTS_VER@"},
+	[{kernel, "@ERLANG_LIB_VER_kernel@"},
+	{stdlib, "@ERLANG_LIB_VER_stdlib@"},
+	{sasl, "@ERLANG_LIB_VER_sasl@"},
+	{@PACKAGE@, "@VERSION@"}]}.

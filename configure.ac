@@ -42,17 +42,21 @@ AC_PROG_MKDIR_P
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_ERLANG_SUBST_INSTALL_LIB_DIR
+otpdir=$ERLANG_INSTALL_LIB_DIR/..
 appdir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION
 erldir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/src
 asndir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/asn_src
 beamdir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/ebin
 eincludedir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/include
 docdir=$ERLANG_INSTALL_LIB_DIR/$PACKAGE_NAME-$PACKAGE_VERSION/doc
+reldir=$ERLANG_INSTALL_LIB_DIR/../releases
+AC_SUBST(otpdir)
 AC_SUBST(appdir)
 AC_SUBST(erldir)
 AC_SUBST(asndir)
 AC_SUBST(beamdir)
 AC_SUBST(eincludedir)
+AC_SUBST(reldir)
 
 
 ##
@@ -62,6 +66,7 @@ AC_ERLANG_SUBST_ERTS_VER
 AC_ERLANG_CHECK_LIB([kernel], [], [AC_MSG_ERROR([kernel was not found!])])
 AC_ERLANG_CHECK_LIB([stdlib], [], [AC_MSG_ERROR([stdlib was not found!])])
 AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
+AC_ERLANG_CHECK_LIB([sasl], [], [AC_MSG_ERROR([sasl was not found!])])
 AC_ERLANG_CHECK_LIB([sccp], [], [AC_MSG_WARN([sccp was not found!])])
 
 
@@ -89,5 +94,5 @@ AC_OUTPUT([Makefile include/Makefile doc/Makefile
 		src/Makefile src/ITU/Makefile src/ANSI/Makefile
 		asn_src/Makefile asn_src/ITU/Makefile
 		ebin/Makefile ebin/itu/Makefile ebin/ansi/Makefile
-		test/Makefile])
+		test/Makefile $PACKAGE_NAME.rel sys.config])
 
