@@ -11,8 +11,6 @@ You'll need the following GNU tools:
 	- autoconf
 	- automake
 	- make
-	- m4
-	- perl
 
 ## Porting
 The only files which should (theoretically) be edited for portability are:
@@ -29,6 +27,7 @@ Note:
 
 ## Building
 	1. mkdir ../tcap.build       (create build directory)
+	2. cp README.build ../tcap.build/README
 	2. cd ../tcap.build          (change working directory for build)
 	3. ../tcap/configure         (creates Makefiles)
 	4. make                      (builds entire package)
