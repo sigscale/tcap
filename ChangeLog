@@ -1,3 +1,12 @@
+2024-02-12  Vance Shipley <vances@sigscale.org>
+
+	* application upgrade specification
+	* build an erlang release package
+	* add build instructions
+	* correct dialogue portion type spec in callback
+	* correct state type specification in callbacks
+	* include debug information in beam
+
 2021-03-27  Vance Shipley <vances@sigscale.org>
 
 	* close csl by terminating csl_sup child
