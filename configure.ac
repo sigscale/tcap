@@ -5,8 +5,8 @@
 ##
 ## Boilerplate:  standard boilerplate code
 ##
-AC_INIT([tcap], [1.2.6], [issues@sigscale.org])
-AC_COPYRIGHT([Copyright (c) 2021 SigScale Global Inc.,
+AC_INIT([tcap], [1.2.7], [issues@sigscale.org])
+AC_COPYRIGHT([Copyright (c) 2021-2024 SigScale Global Inc.,
 		Copyright (c) 2004-2005 Motivity Telecom Inc.])
 AC_PREREQ(2.63)
 AC_CONFIG_SRCDIR([src/tcap_app.erl])
@@ -94,5 +94,5 @@ AC_OUTPUT([Makefile include/Makefile doc/Makefile
 		src/Makefile src/ITU/Makefile src/ANSI/Makefile
 		asn_src/Makefile asn_src/ITU/Makefile
 		ebin/Makefile ebin/itu/Makefile ebin/ansi/Makefile
-		test/Makefile $PACKAGE_NAME.rel sys.config])
+		test/Makefile $PACKAGE_NAME.rel ebin/tcap.appup sys.config])
 
