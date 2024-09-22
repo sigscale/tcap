@@ -5,8 +5,8 @@
 SUBDIRS = itu # ansi
 
 appdir = $(beamdir)
-app_DATA = tcap.app
-EXTRA_DIST = tcap.app
+app_DATA = tcap.app tcap.appup
+EXTRA_DIST = tcap.app tcap.appup
 
 beam_DATA = tcap.beam \
 		tcap_app.beam \
