@@ -32,6 +32,5 @@
 				'TCAP-Tools']},
 		{registered, []},
 		{applications, [kernel, stdlib]},
-		{runtime_dependencies, ["sccp-2.0.0"]},
 		{env, []},
 		{mod, {tcap_app, []}}]}.

@@ -67,7 +67,9 @@ AC_ERLANG_CHECK_LIB([kernel], [], [AC_MSG_ERROR([kernel was not found!])])
 AC_ERLANG_CHECK_LIB([stdlib], [], [AC_MSG_ERROR([stdlib was not found!])])
 AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
 AC_ERLANG_CHECK_LIB([sasl], [], [AC_MSG_ERROR([sasl was not found!])])
-AC_ERLANG_CHECK_LIB([sccp], [], [AC_MSG_WARN([sccp was not found!])])
+AM_CONDITIONAL([MAKE_TAR_EXTRA_FILES],
+		[AS_VERSION_COMPARE([$ERLANG_LIB_VER_sasl], ["4.0"], [false], [true], [true])])
+AC_ERLANG_CHECK_LIB([sccp], [], [AC_MSG_ERROR([sccp was not found!])])
 
 
 ##
@@ -90,9 +92,9 @@ AC_ERLANG_CHECK_LIB([sccp], [], [AC_MSG_WARN([sccp was not found!])])
 ## Output:  create output files
 ##
 
-AC_OUTPUT([Makefile include/Makefile doc/Makefile
-		src/Makefile src/ITU/Makefile src/ANSI/Makefile
-		asn_src/Makefile asn_src/ITU/Makefile
-		ebin/Makefile ebin/itu/Makefile ebin/ansi/Makefile
-		test/Makefile $PACKAGE_NAME.rel ebin/tcap.appup sys.config])
+AC_OUTPUT([Makefile include/Makefile doc/Makefile src/Makefile
+		src/ITU/Makefile src/ANSI/Makefile asn_src/Makefile
+		asn_src/ITU/Makefile ebin/Makefile ebin/itu/Makefile
+		ebin/ansi/Makefile test/Makefile
+		$PACKAGE_NAME.rel ebin/$PACKAGE_NAME.appup sys.config])
 
