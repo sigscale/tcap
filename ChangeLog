@@ -1,3 +1,8 @@
+2024-09-22  Vance Shipley <vances@sigscale.org>
+
+	* include all application upgrade files in release package
+	* add sccp dependency
+
 2024-02-12  Vance Shipley <vances@sigscale.org>
 
 	* application upgrade specification
