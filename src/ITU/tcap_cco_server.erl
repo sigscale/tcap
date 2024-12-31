@@ -1,6 +1,6 @@
 %%% tcap_cco_server.erl
 %%%---------------------------------------------------------------------
-%%% @copyright 2010-2011 Harald Welte
+%%% @copyright 2010-2011 Harald Welte,
 %%% 		2021 SigScale Global Inc.
 %%% @author Harald Welte <laforge@gnumonks.org>
 %%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]

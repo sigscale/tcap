@@ -1,7 +1,7 @@
 %%% tcap_tco_server.erl
 %%%---------------------------------------------------------------------
 %%% @copyright 2004-2005 Motivity Telecom,
-%%% 		2010-2011 Harald Welte
+%%% 		2010-2011 Harald Welte,
 %%% 		2021 SigScale Global Inc.
 %%% @author Vance Shipley <vances@sigscale.org> [http://www.sigscale.org]
 %%% @author Harald Welte <laforge@gnumonks.org>
