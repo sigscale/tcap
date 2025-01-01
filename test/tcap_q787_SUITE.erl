@@ -39,11 +39,11 @@
 
 -include("DialoguePDUs.hrl").
 -include("tcap.hrl").
--include("sccp_primitive.hrl").
 -include("TC.hrl").
 -include("TR.hrl").
 -include("TCAP-Examples.hrl").
 -include_lib("sccp/include/sccp.hrl").
+-include_lib("sccp/include/sccp_primitive.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 %%---------------------------------------------------------------------

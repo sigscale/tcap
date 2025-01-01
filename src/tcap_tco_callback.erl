@@ -40,7 +40,7 @@
 
 -include("DialoguePDUs.hrl").
 -include("tcap.hrl").
--include("sccp_primitive.hrl").
+-include_lib("sccp/include/sccp_primitive.hrl").
 
 -type state() :: [].
 

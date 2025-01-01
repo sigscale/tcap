@@ -67,7 +67,7 @@
 
 -include("DialoguePDUs.hrl").
 -include("tcap.hrl").
--include("sccp_primitive.hrl").
+-include_lib("sccp/include/sccp_primitive.hrl").
 -include("TCAPMessages.hrl").
 
 %% the transaction_fsm state data

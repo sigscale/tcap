@@ -163,7 +163,7 @@
 -include("TCAPMessages.hrl").
 -include("DialoguePDUs.hrl").
 -include("tcap.hrl").
--include("sccp_primitive.hrl").
+-include_lib("sccp/include/sccp_primitive.hrl").
 
 -record(state,
 		{tsl_sup:: pid(),

@@ -69,7 +69,7 @@
       | initiation_received | wait_cont_components_ir
       | wait_cont_components_active | wait_for_end_components.
 
--include("sccp_primitive.hrl").
+-include_lib("sccp/include/sccp_primitive.hrl").
 -include("UnidialoguePDUs.hrl").
 -include("DialoguePDUs.hrl").
 -include("tcap.hrl").

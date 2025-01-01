@@ -57,7 +57,7 @@
 
 -include("TCAPMessages.hrl").
 -include("tcap.hrl").
--include("sccp_primitive.hrl").
+-include_lib("sccp/include/sccp_primitive.hrl").
 
 -record(state,
 		{sup :: pid(),
