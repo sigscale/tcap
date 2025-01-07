@@ -1,3 +1,7 @@
+2025-01-07   Vance Shipley <vances@sigscale.org>
+
+	* get sccp primitive record definitions from sccp application
+
 2024-09-22  Vance Shipley <vances@sigscale.org>
 
 	* include all application upgrade files in release package

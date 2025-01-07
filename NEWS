@@ -1,3 +1,7 @@
+January 7, 2025
+---------------
+	- Moved SCCP primitives definitions to sccp application
+
 September 22, 2024
 ------------------
 	- Support release upgrade by including application upgrade files
