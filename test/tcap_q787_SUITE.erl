@@ -556,8 +556,8 @@ get_group(_, []) ->
 		SPBAddress :: binary().
 %% @doc Encode SPA and SPB SCCP addresses.
 addresses() ->
-	SPAParty = #party_address{pc = 6202, ssn = 146, ri = true},
-	SPBParty = #party_address{pc = 6210, ssn = 146, ri = true},
+	SPAParty = #party_address{pc = 6202, ssn = 146, ri = route_on_ssn},
+	SPBParty = #party_address{pc = 6210, ssn = 146, ri = route_on_ssn},
 	SPAAddress = sccp_codec:party_address(SPAParty),
 	SPBAddress = sccp_codec:party_address(SPBParty),
 	{SPAAddress, SPBAddress}.
