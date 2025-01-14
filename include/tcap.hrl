@@ -65,9 +65,9 @@
 %% reference: Table 3/Q.771 - TC-UNI primitives
 -record('TC-UNI',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
-		destAddress :: sccp:party_address(),
+		destAddress :: sccp_codec:party_address(),
 		appContextName :: tuple() | undefined,
-		origAddress :: sccp:party_address(),
+		origAddress :: sccp_codec:party_address(),
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		componentsPresent :: boolean() | undefined}).
@@ -75,9 +75,9 @@
 %% reference: Table 4/Q.771 - TC-BEGIN primitives
 -record('TC-BEGIN',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
-		destAddress :: sccp:party_address(),
+		destAddress :: sccp_codec:party_address(),
 		appContextName :: tuple() | undefined,
-		origAddress :: sccp:party_address(),
+		origAddress :: sccp_codec:party_address(),
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
 		componentsPresent :: boolean() | undefined}).
@@ -85,7 +85,7 @@
 %% reference: Table 5/Q.771 - TC-CONTINUE primitives
 -record('TC-CONTINUE',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
-		origAddress :: sccp:party_address(),
+		origAddress :: sccp_codec:party_address(),
 		appContextName :: tuple() | undefined,
 		dialogueID :: 0..4294967295,
 		userInfo = asn1_NOVALUE :: [#'EXTERNAL'{}] | asn1_NOVALUE,
@@ -111,8 +111,8 @@
 %% reference: Table 9/Q.771 - TC-NOTICE primitives
 -record('TC-NOTICE',
 		{dialogueID :: 0..4294967295,
-		origAddress :: sccp:party_address(),
-		destAddress :: sccp:party_address(),
+		origAddress :: sccp_codec:party_address(),
+		destAddress :: sccp_codec:party_address(),
 		reportCause}).
 
 %% reference: Table 10/Q.771 - Operation invocation primitives
@@ -207,22 +207,22 @@
 %% reference: Table 18/Q.771 - TR-UNI primitives
 -record('TR-UNI',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
-		destAddress :: sccp:party_address(),
-		origAddress :: sccp:party_address(),
+		destAddress :: sccp_codec:party_address(),
+		origAddress :: sccp_codec:party_address(),
 		userData :: #'TR-user-data'{}}).
 
 %% reference: Table 19/Q.771 - Primitives for transaction begin
 -record('TR-BEGIN',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
-		destAddress :: sccp:party_address(),
-		origAddress :: sccp:party_address(),
+		destAddress :: sccp_codec:party_address(),
+		origAddress :: sccp_codec:party_address(),
 		transactionID :: 0..4294967295,
 		userData :: #'TR-user-data'{}}).
 
 %% reference: Table 20/Q.771 - Transaction continuation primitives
 -record('TR-CONTINUE',
 		{qos :: {SequenceControl :: boolean(), ReturnOption :: boolean()},
-		origAddress :: sccp:party_address(),
+		origAddress :: sccp_codec:party_address(),
 		transactionID :: 0..4294967295,
 		userData :: #'TR-user-data'{}}).
 
@@ -250,8 +250,8 @@
 %% reference: Table 25/Q.771 - TR-NOTICE primitive
 -record('TR-NOTICE',
 		{transactionID :: 0..4294967295,
-		origAddress :: sccp:party_address(),
-		destAddress :: sccp:party_address(),
+		origAddress :: sccp_codec:party_address(),
+		destAddress :: sccp_codec:party_address(),
 		reportCause}).
 
 -record(tcap_tco_cb,
