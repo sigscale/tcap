@@ -1,5 +1,10 @@
 2025-01-14   Vance Shipley <vances@sigscale.org>
 
+	* dha type is gen_statem:server_ref()
+
+2025-01-14   Vance Shipley <vances@sigscale.org>
+
+	* update test suite for new sccp party address
 	* correct type specification for sccp party address
 
 2025-01-07   Vance Shipley <vances@sigscale.org>
