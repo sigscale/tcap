@@ -73,7 +73,7 @@
 %% the transaction_fsm state data
 -record(statedata,
 		{tco :: pid(),
-		dha :: pid(),
+		dha :: gen_statem:server_ref(),
 		localTID :: tcap_tco_server:tid(),
 		remoteTID :: tcap_tco_server:tid(),
 		local_address,

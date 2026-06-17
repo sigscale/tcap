@@ -71,7 +71,7 @@ send_primitive(_Primitive, State) ->
 		DialoguePortion:: binary(),
 		State :: term(),
 		Result :: {ok, DHA, CCO, TCU, State} | {error, Reason},
-		DHA :: pid(),
+		DHA :: gen_statem:server_ref(),
 		CCO :: pid(),
 		TCU :: pid(),
 		Reason :: term().

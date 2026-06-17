@@ -114,7 +114,7 @@
 %%% 			<li><tt>State = term()</tt></li>
 %%% 			<li><tt>Result = {ok, DHA, CCO, TCU, State}
 %%% 					| {error, Reason}</tt></li>
-%%% 			<li><tt>DHA = pid()</tt></li>
+%%% 			<li><tt>DHA = gen_statem:server_ref()</tt></li>
 %%% 			<li><tt>CCO = pid()</tt></li>
 %%% 			<li><tt>TCU = pid()</tt></li>
 %%% 		</ul>
@@ -127,7 +127,7 @@
 %%%
 %%% 	`DialoguePortion' is the dialogue portion.
 %%%
-%%% 	`DHA' is the pid of the dialogue handler in the newly created CSL.
+%%% 	`DHA' addresses the dialogue handler in the newly created CSL.
 %%%
 %%% 	`CCO' is the pid of the component coordinator in the newly created CSL.
 %%%
@@ -188,7 +188,7 @@
 		DialoguePortion :: #'EXTERNAL'{},
 		State :: any(),
 		Result :: {ok, DHA, CCO, TCU, State} | {error, Reason},
-		DHA :: pid(),
+		DHA :: gen_statem:server_ref(),
 		CCO :: pid(),
 		TCU :: pid(),
 		Reason :: term().
