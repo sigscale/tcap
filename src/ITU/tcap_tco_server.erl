@@ -171,7 +171,6 @@
 		{tsl_sup:: pid(),
 		tsm_sup :: pid(),
 		tid_range :: {Start :: tid(), End :: tid()},
-		tsm  = #{} :: map(),
 		callback :: atom() | #tcap_tco_cb{},
 		ext_state :: any()}).
 -type state() :: #state{}.
@@ -305,11 +304,16 @@ init([Callback, [Sup | Args]])
 %% @private
 handle_call({'TR', 'BEGIN', request,
 		#'TR-BEGIN'{transactionID = TransactionID} = BeginParams},
-		{DHA, _} = _From, #state{tsm_sup = Sup, tsm = Map} = State) ->
-	case supervisor:start_child(Sup, [[self(), DHA, TransactionID], []]) of
+		{DHA, _} = _From, #state{tsm_sup = Sup} = State) ->
+	Name = {global, {tcap_tid, TransactionID}},
+	Module = tcap_tsm_fsm,
+	Args = [self(), DHA, TransactionID],
+	Opts = [],
+	ChildSpec = [Name, Module, Args, Opts],
+	case supervisor:start_child(Sup, ChildSpec) of
 		{ok, TSM} ->
 			gen_statem:cast(TSM, {'BEGIN', transaction, BeginParams}),
-			{reply, ok, State#state{tsm = Map#{TransactionID => TSM}}};
+			{reply, ok, State};
 		{error, Reason} ->
 			{stop, {error, Reason}, Reason, State}
 	end;
@@ -359,8 +363,7 @@ handle_cast({'N', 'UNITDATA', indication,
 		callingAddress = CallingAddress, sequenceControl = SequenceControl,
 		returnOption = ReturnOption} = UdataParams},
 		#state{callback = Callback, ext_state = ExtState1,
-				tsm_sup = TsmSup, tid_range = {TidStart, TidEnd},
-				tsm = Map} = State) ->
+				tsm_sup = TsmSup, tid_range = {TidStart, TidEnd}} = State) ->
 	case 'TR':decode('TCMessage', UserData1) of
 		{ok, {unidirectional, #'Unidirectional'{dialoguePortion = DialoguePortion,
 				components = ComponentPortion}}} ->
@@ -391,16 +394,20 @@ handle_cast({'N', 'UNITDATA', indication,
 					NewState = State#state{ext_state = ExtState2},
 					% Assign local transaction ID
 					TransactionID = new_tid(TidStart, TidEnd),
-					ChildSpec = [[self(), DHA, TransactionID], []],
-					% Is TID = no TID?
+					Name = {global, {tcap_tid, TransactionID}},
+					Module = tcap_tsm_fsm,
+					Args = [self(), DHA, TransactionID],
+					Opts = [],
+					ChildSpec = [Name, Module, Args, Opts],
 					case supervisor:start_child(TsmSup, ChildSpec) of
 						{ok, TSM} ->
+							% Is TID = no TID? (no)
 							Begin2 = Begin1#'Begin'{otid = OTID},
 							TsmParams = UdataParams#'N-UNITDATA'{userData = Begin2},
 							gen_statem:cast(TSM, {'BEGIN', received, TsmParams}),
-							{noreply, NewState#state{tsm = Map#{TransactionID => TSM}}};
+							{noreply, NewState};
 						{error, Reason} ->
-							% TID = no TID
+							% Is TID = no TID? (yes)
 							Abort = {abort, #'Abort'{dtid = OTID,
 									reason = {'p-abortCause', resourceLimitation}}},
 							{ok, EncAbort} = 'TR':encode('TCMessage', Abort),
@@ -448,21 +455,16 @@ handle_cast({'N', 'UNITDATA', indication,
 			% DTID assigned?
 			OTID = decode_tid(Otid),
 			DTID = decode_tid(Dtid),
-			case maps:find(DTID, Map) of
-				{ok, TSM} ->
-					Continue2 = Continue1#'Continue'{otid = OTID,
-							dtid = DTID},
-					TsmParams = UdataParams#'N-UNITDATA'{userData = Continue2},
-					gen_statem:cast(TSM, {'CONTINUE', received, TsmParams}),
-					{noreply, State};
-				error ->
+			TSM = {global, {tcap_tid, DTID}},
+			Continue2 = Continue1#'Continue'{otid = OTID, dtid = DTID},
+			TsmParams = UdataParams#'N-UNITDATA'{userData = Continue2},
+			gen_statem:cast(TSM, {'CONTINUE', received, TsmParams}),
 % TODO Handle Continue with unknown transaction ID.
-					% Build ABORT message with appropriate P-Abort Cause values
-					% N-UNITDATA request TSL -> SCCP
-					% Discard received message
-					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (4)
-					{noreply, State}
-			end;
+			% Build ABORT message with appropriate P-Abort Cause values
+			% N-UNITDATA request TSL -> SCCP
+			% Discard received message
+			% reference: Figure A.3/Q/774 (sheet 4 of 4) label (4)
+			{noreply, State};
 		{ok, {continue, _TPDU}} ->
 			% OTID derivable?
 			% DTID assigned?
@@ -475,18 +477,12 @@ handle_cast({'N', 'UNITDATA', indication,
 		{ok, {'end', #'End'{dtid = Dtid} = End1}} ->
 			% DTID assigned?
 			DTID = decode_tid(Dtid),
-			case maps:find(DTID, Map) of
-				{ok, TSM} ->
-					End2 = End1#'End'{dtid = DTID},
-					TsmParams = UdataParams#'N-UNITDATA'{userData = End2},
-					% END received TSM <- TCO
-					gen_statem:cast(TSM, {'END', received, TsmParams}),
-					{noreply, State};
-				error ->
-					% Discard received message
-					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
-					{noreply, State}
-			end;
+			TSM = {global, {tcap_tid, DTID}},
+			End2 = End1#'End'{dtid = DTID},
+			TsmParams = UdataParams#'N-UNITDATA'{userData = End2},
+			% END received TSM <- TCO
+			gen_statem:cast(TSM, {'END', received, TsmParams}),
+			{noreply, State};
 		{ok, {'end', _TPDU}} ->
 			% DTID assigned?
 			%    Local Abort TSM <- TCO
@@ -496,17 +492,11 @@ handle_cast({'N', 'UNITDATA', indication,
 		{ok, {abort, #'Abort'{dtid = Dtid} = TPDU}} ->
 			% DTID assigned?
 			DTID = decode_tid(Dtid),
-			case maps:find(DTID, Map) of
-				{ok, TSM} ->
-					TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
-					% Abort received TSM <- TCO
-					gen_statem:cast(TSM, {'ABORT', received, TsmParams}),
-					{noreply, State};
-				error ->
-					% Discard received message
-					% reference: Figure A.3/Q/774 (sheet 4 of 4) label (3)
-					{noreply, State}
-			end;
+			TSM = {global, {tcap_tid, DTID}},
+			TsmParams = UdataParams#'N-UNITDATA'{userData = TPDU},
+			% Abort received TSM <- TCO
+			gen_statem:cast(TSM, {'ABORT', received, TsmParams}),
+			{noreply, State};
 		{ok, {abort, _TPDU}} ->
 			% DTID assigned?
 			%    Local Abort TSM <- TCO
@@ -531,36 +521,39 @@ handle_cast({'N', 'UNITDATA', indication,
 handle_cast({'N', 'NOTICE', indication,
 		#'N-NOTICE'{userData = UserData, callingAddress = CallingAddress,
 		calledAddress = CalledAddress, reason = Reason} = _NoticeParams},
-		#state{tsm = Map} = State) ->
-	TransactionID  = case 'TR':decode('TCMessage', UserData) of
+		State) ->
+	% TR-NOTICE indication CSL <- TSL
+	% reference: Figure A.3/Q.774 (sheet 2 of 4)
+	case 'TR':decode('TCMessage', UserData) of
 		{ok, {'begin', TPDU}} ->
 			case 'TR':decode('Begin', TPDU) of
 				{ok, #'Begin'{otid = OTID} = _Begin} ->
-					decode_tid(OTID);
+					TransactionID = decode_tid(OTID),
+					TrParams = #'TR-NOTICE'{transactionID = TransactionID,
+							origAddress = CallingAddress,
+							destAddress = CalledAddress,
+							reportCause = Reason},
+					TSM = {global, {tcap_tid, TransactionID}},
+					gen_statem:cast(TSM, {'NOTICE', received, TrParams}),
+					{noreply, State};
 				_ ->
-					undefined
+					{noreply, State}
 			end;
 		{ok, {continue, TPDU}} ->
 			case 'TR':decode('Continue', TPDU) of
 				{ok, #'Continue'{otid = OTID} = _Continue} ->
-					decode_tid(OTID);
+					TransactionID = decode_tid(OTID),
+					TrParams = #'TR-NOTICE'{transactionID = TransactionID,
+							origAddress = CallingAddress,
+							destAddress = CalledAddress,
+							reportCause = Reason},
+					TSM = {global, {tcap_tid, TransactionID}},
+					gen_statem:cast(TSM, {'NOTICE', received, TrParams}),
+					{noreply, State};
 				_ ->
-					undefined
+					{noreply, State}
 			end;
 		_ ->
-			undefined
-	end,
-	case maps:find(TransactionID, Map) of
-		{ok, TSM} ->
-			% TR-NOTICE indication CSL <- TSL
-			% reference: Figure A.3/Q.774 (sheet 2 of 4)
-			TrParams = #'TR-NOTICE'{transactionID = TransactionID,
-					origAddress = CallingAddress, destAddress = CalledAddress,
-					reportCause = Reason},
-			gen_statem:cast(TSM, {'NOTICE', received, TrParams}),
-			{noreply, State};
-		error ->
-			% @todo: Handle unknown TID
 			{noreply, State}
 	end;
 %%
@@ -599,37 +592,22 @@ handle_cast({'TR', 'UNI', request,
 	end;
 handle_cast({'TR', 'CONTINUE', request,
 		#'TR-CONTINUE'{transactionID = TransactionID} = ContParams},
-		#state{tsm = Map} = State) ->
-	case maps:find(TransactionID, Map) of
-		{ok, TSM} ->
-			gen_statem:cast(TSM, {'CONTINUE', transaction, ContParams}),
-			{noreply, State};
-		error ->
-			% @todo: Handle unknown TID
-			{noreply, State}
-	end;
+		State) ->
+	TSM = {global, {tcap_tid, TransactionID}},
+	gen_statem:cast(TSM, {'CONTINUE', transaction, ContParams}),
+	{noreply, State};
 handle_cast({'TR', 'END', request,
 		#'TR-END'{transactionID = TransactionID} = EndParams},
-		#state{tsm = Map} = State) ->
-	case maps:find(TransactionID, Map) of
-		{ok, TSM} ->
-			gen_statem:cast(TSM, {'END', transaction, EndParams}),
-			{noreply, State};
-		error ->
-			% @todo: Handle unknown TID
-			{noreply, State}
-	end;
+		State) ->
+	TSM = {global, {tcap_tid, TransactionID}},
+	gen_statem:cast(TSM, {'END', transaction, EndParams}),
+	{noreply, State};
 handle_cast({'TR', 'U-ABORT', request,
 		#'TR-U-ABORT'{transactionID = TransactionID} = AbortParams},
-		#state{tsm = Map} = State) ->
-	case maps:find(TransactionID, Map) of
-		{ok, TSM} ->
-			gen_statem:cast(TSM, {'ABORT', transaction, AbortParams}),
-			{noreply, State};
-		error ->
-			% @todo: Handle unknown TID
-			{noreply, State}
-	end;
+		State) ->
+	TSM = {global, {tcap_tid, TransactionID}},
+	gen_statem:cast(TSM, {'ABORT', transaction, AbortParams}),
+	{noreply, State};
 handle_cast({'N', 'UNITDATA', request, _} = Primitive,
 		#state{callback = Callback, ext_state = ExtState} = State) ->
 	CbArgs = [Primitive, ExtState],
@@ -710,36 +688,19 @@ handle_continue1(Info,
 %%
 %% @@see //stdlib/gen_server:handle_info/2
 %% @private
-handle_info({'EXIT', _Pid, {shutdown, {tcap_tsm_fsm, TID}}},
-		#state{tsm = Map} = State) ->
-	{noreply, State#state{tsm = maps:remove(TID, Map)}};
-handle_info({'EXIT', _Pid, {shutdown, _}} = Info, State) ->
-	handle_info1(Info, State);
-handle_info({'EXIT', Pid, _Reason} = Info, #state{tsm = Map} = State) ->
-	F = fun F({TID, Value, _Iterator}) when Value == Pid ->
-				{noreply, State#state{tsm = maps:remove(TID, Map)}};
-			F({_, _, Iterator}) ->
-				F(maps:next(Iterator));
-			F(none) ->
-				handle_info1(Info, State)
-	end,
-	F(maps:next(maps:iterator(Map)));
-handle_info(Info, State) ->
-	handle_info1(Info, State).
-%% @hidden
-handle_info1(Info, #state{callback = Callback} = State)
+handle_info(Info, #state{callback = Callback} = State)
 		when is_atom(Callback) ->
 	case erlang:function_exported(Callback, handle_info, 2) of
 		true ->
-			handle_info2(Info, State);
+			handle_info1(Info, State);
 		false ->
 			{noreply, State}
 	end;
-handle_info1(Info, #state{callback = Callback} = State)
+handle_info(Info, #state{callback = Callback} = State)
 		when is_record(Callback, tcap_tco_cb) ->
-	handle_info2(Info, State).
+	handle_info1(Info, State).
 %% @hidden
-handle_info2(Info,
+handle_info1(Info,
 		#state{callback = Callback, ext_state = ExtState} = State) ->
 	CbArgs = [Info, ExtState],
 	case tcap_tco_callback:cb(handle_info, Callback, CbArgs) of
@@ -950,12 +911,4 @@ decode_tid(Bin) when is_binary(Bin) ->
 	binary:decode_unsigned(Bin);
 decode_tid(List) when is_list(List) ->
 	decode_tid(list_to_binary(List)).
-
-%% @hidden
-encode_tid(In) when is_integer(In) ->
-	<<In:32/big>>;
-encode_tid(In) when is_list(In) ->
-	list_to_binary(In);
-encode_tid(In) when is_binary(In) ->
-	In.
 

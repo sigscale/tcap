@@ -60,7 +60,7 @@ init([] = _Args) ->
 %% @private
 %%
 fsm(StartMod) ->
-	StartArgs = [StartMod],
+	StartArgs = [],
 	StartFunc = {gen_statem, start_link, StartArgs},
 	#{id => StartMod, start => StartFunc,
 			restart => temporary, modules => [StartMod]}.
