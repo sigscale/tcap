@@ -62,7 +62,6 @@
 start(normal, StartArgs) ->
 	ets:new(tcap_transaction, [named_table, public]),
 	ets:insert(tcap_transaction, {transactionID, 0}),
-	ets:new(tcap_dha, [named_table, public]),
 	supervisor:start_link({local, tcap_sup}, tcap_sup, StartArgs).
 
 %% @spec(Phase::atom(), StartType, PhaseArgs::term()) -> ok | {error, Reason}
