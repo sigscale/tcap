@@ -5,8 +5,21 @@
 @title TCAP User's Guide
 @doc This application implements a protocol stack for SS7 TCAP.
 
-==Introduction==
+==Table of Contents==
+<ul>
+	<li><a href="#Intoduction">Introduction</a><br /></li>
+	<li><a href="#Requirements">Requirements</a><br /></li>
+	<li><a href="#Transaction_Capabilities">Transaction Capabilities</a><br /></li>
+	<li><a href="#Open_Systems_Interconnection_(OSI)">Open Systems Interconnection (OSI)</a><br /></li>
+	<li><a href="#Addressing">Addressing</a><br /></li>
+	<li><a href="#Process_Communication">Process Communication</a><br /></li>
+	<li><a href="#Supervision_Hierarchy">Supervision Hierarchy</a><br /></li>
+	<li><a href="#Primitives_(ITU)">Primitives</a><br /></li>
+	<li><a href="#Distribution">Distribution</a><br /></li>
+	<li><a href="#Configuration">Configuration</a><br /></li>
+</ul>
 
+==Introduction==
 The {@link //tcap. tcap} application is a protocol stack implementation
 of the Transaction Capabilities Application Part (TCAP) of the Signaling
 System No. 7 (SS7) specifications <cite>ITU-T Q.771-Q.774</cite> and
@@ -352,4 +365,16 @@ represented using primitive specific records.
 ===SCCP &#8594; Transaction Sublayer===
 <tt>{'N', 'UNITDATA', indication, Parameters}</tt><br />
 <tt>{'N', 'NOTICE', indication, Parameters}</tt><br />
+
+==Configuration==
+Application environment variables configuring instances of the
+{@link //tcap. tcap} application:
+<dl>
+	<dt>`tid_range'</dt>
+		<dd>Defines the range of Transaction ID values which may
+				be assigned. Used when distributing the TC service
+				sublayer (TSL) across multiple nodes, where each
+				node shall handle a unique range of local `tid()'.
+				(default: `{0, 4294967295}')</dd>
+</dl>
 

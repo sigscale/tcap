@@ -62,7 +62,7 @@ suite() ->
 %% Initiation before the whole suite.
 %%
 init_per_suite(Config) ->
-	application:start(tcap),
+	ok = application:start(tcap),
 	{SPA, SPB} = addresses(),
    [{spa, SPA}, {spb, SPB} | Config].
 
@@ -70,7 +70,7 @@ init_per_suite(Config) ->
 %% Cleanup after the whole suite.
 %%
 end_per_suite(_Config) ->
-	application:stop(tcap).
+	ok = application:stop(tcap).
 
 -spec init_per_group(Group :: atom(), Config :: [tuple()]) -> Config :: [tuple()].
 %% Initiation before each test group.

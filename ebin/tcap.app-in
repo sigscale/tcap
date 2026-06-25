@@ -32,5 +32,6 @@
 				'TCAP-Tools']},
 		{registered, []},
 		{applications, [kernel, stdlib]},
-		{env, []},
+		{env,
+				[{tid_range, {16#00000000, 16#ffffffff}}]},
 		{mod, {tcap_app, []}}]}.

@@ -60,8 +60,9 @@
 %%
 %%
 start(normal, StartArgs) ->
+	{ok, {RangeStart, _}} = application:get_env(tid_range),
 	ets:new(tcap_transaction, [named_table, public]),
-	ets:insert(tcap_transaction, {transactionID, 0}),
+	ets:insert(tcap_transaction, {transactionID, RangeStart}),
 	supervisor:start_link({local, tcap_sup}, tcap_sup, StartArgs).
 
 %% @spec(Phase::atom(), StartType, PhaseArgs::term()) -> ok | {error, Reason}

@@ -165,15 +165,16 @@
 -include("tcap.hrl").
 -include_lib("sccp/include/sccp_primitive.hrl").
 
+-type tid() :: 0..4294967295.
+
 -record(state,
 		{tsl_sup:: pid(),
 		tsm_sup :: pid(),
+		tid_range :: {Start :: tid(), End :: tid()},
 		tsm  = #{} :: map(),
 		callback :: atom() | #tcap_tco_cb{},
 		ext_state :: any()}).
 -type state() :: #state{}.
-
--type tid() :: 0..4294967295.
 
 -callback send_primitive(Primitive, State) -> Result
 	when
@@ -271,14 +272,17 @@
 init([Callback, [Sup | Args]])
 		when (is_atom(Callback) or is_record(Callback, tcap_tco_cb)),
 		is_pid(Sup) ->
+	{ok, {RangeStart, RangeEnd}} = application:get_env(tid_range),
+	State = #state{tsl_sup = Sup, callback = Callback,
+			tid_range = {RangeStart, RangeEnd}},
 	process_flag(trap_exit, true),
 	CbArgs = [Args],
    case tcap_tco_callback:cb(init, Callback, CbArgs) of
 		{ok, ExtState} ->
-			NewState = #state{tsl_sup = Sup, callback = Callback, ext_state = ExtState},
+			NewState = State#state{ext_state = ExtState},
 			{ok, NewState, {continue, {?MODULE, infinity}}};
 		{ok, ExtState, Timeout} ->
-			NewState = #state{tsl_sup = Sup, callback = Callback, ext_state = ExtState},
+			NewState = State#state{ext_state = ExtState},
 			{ok, NewState, {continue, {?MODULE, Timeout}}};
 		{stop, Reason} ->
 			{stop, Reason};
@@ -355,7 +359,8 @@ handle_cast({'N', 'UNITDATA', indication,
 		callingAddress = CallingAddress, sequenceControl = SequenceControl,
 		returnOption = ReturnOption} = UdataParams},
 		#state{callback = Callback, ext_state = ExtState1,
-		tsm_sup = TsmSup, tsm = Map} = State) ->
+				tsm_sup = TsmSup, tid_range = {TidStart, TidEnd},
+				tsm = Map} = State) ->
 	case 'TR':decode('TCMessage', UserData1) of
 		{ok, {unidirectional, #'Unidirectional'{dialoguePortion = DialoguePortion,
 				components = ComponentPortion}}} ->
@@ -385,7 +390,7 @@ handle_cast({'N', 'UNITDATA', indication,
 				{ok, DHA, _CCO, _TCU, ExtState2}  ->
 					NewState = State#state{ext_state = ExtState2},
 					% Assign local transaction ID
-					TransactionID = new_tid(),
+					TransactionID = new_tid(TidStart, TidEnd),
 					ChildSpec = [[self(), DHA, TransactionID], []],
 					% Is TID = no TID?
 					case supervisor:start_child(TsmSup, ChildSpec) of
@@ -905,19 +910,39 @@ enter_loop(Module, Options, State, Timeout) ->
 %	gen_server:enter_loop(Module, Options, State, ServerName).
 
 %%----------------------------------------------------------------------
-%% internal functions
+%% private functions
 %%----------------------------------------------------------------------
 
--spec new_tid() -> tid().
-%% @doc Get the next originating transaction id from the global counter
+-spec new_tid() -> TID
+	when
+		TID :: tid().
+%% @doc Get the next originating transaction id from the global counter.
+%%
+%% The range of `TID' for a `node()' may be configured with the `tid_range'
+%% application environment variable.
 %%
 %% NOTE:  we are simply assuming that when the counter rolls over the last 
 %%        transaction to have this ID is long gone (4.2 billion IDs)
 %% @private
 %% @end
-%% reference: Figure A.3 bis/Q.774
 new_tid() ->
-	ets:update_counter(tcap_transaction, transactionID, {2, 1, 16#ffffffff, 0}).
+	{ok, {Start, End}} = application:get_env(tcap, tid_range),
+	new_tid(Start, End).
+
+%%----------------------------------------------------------------------
+%% internal functions
+%%----------------------------------------------------------------------
+
+-spec new_tid(Start, End) -> TID
+	when
+		Start :: tid(),
+		End :: tid(),
+		TID :: tid().
+%% @doc Get the next originating transaction id from the global counter.
+%% @hidden
+new_tid(Start, End) ->
+	% reference: Figure A.3 bis/Q.774
+	ets:update_counter(tcap_transaction, transactionID, {2, 1, End, Start}).
 
 % convert a TID from the four-octet binary/list form (OCTET STRING) to unsigned int
 %% @hidden
