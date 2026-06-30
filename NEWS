@@ -1,3 +1,9 @@
+June 30, 2026
+-------------
+	- Document TSL process distribution
+	- Global registry for TSM by Transaction ID
+	- Configurable local Transaction ID range
+
 June 17, 2026
 -------------
 	- Update type spec/doc to clarify DHA may be distributed

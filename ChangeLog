@@ -1,3 +1,10 @@
+2026-06-30   Vance Shipley <vances@sigscale.org>
+
+	* document process distribution
+	* tco uses global process registry for tsm
+	* app env var for local tid range
+	* remove unused ets table: tcap_dha
+
 2025-01-14   Vance Shipley <vances@sigscale.org>
 
 	* dha type is gen_statem:server_ref()
