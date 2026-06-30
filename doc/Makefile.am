@@ -31,6 +31,8 @@ doc_DATA = overview.edoc $(modhtml) \
 		tcap_application_process.png \
 		tcap_distribution.png \
 		tcap_messaging.png \
+		tsl-csl-msc.svg \
+		tsl-distribution-msc.svg \
 		tcap_supervision.png \
 		transaction_capabilities.png
 
@@ -58,6 +60,8 @@ overview.edoc: overview.edoc-in
 	-cp -n $(top_srcdir)/doc/tcap_application_process.png .
 	-cp -n $(top_srcdir)/doc/tcap_distribution.png .
 	-cp -n $(top_srcdir)/doc/tcap_messaging.png .
+	-cp -n $(top_srcdir)/doc/tsl-csl-msc.svg .
+	-cp -n $(top_srcdir)/doc/tsl-distribution-msc.svg .
 	-cp -n $(top_srcdir)/doc/tcap_supervision.png .
 	-cp -n $(top_srcdir)/doc/transaction_capabilities.png .
 

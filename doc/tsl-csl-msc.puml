@@ -1,0 +1,61 @@
+@startuml
+
+<style>
+	shadowing false
+	sequenceDiagram {
+		LineColor midnightblue
+		FontColor midnightblue
+		box {
+			LineColor none
+		}
+		participant, entity {
+			LineColor none
+			BackgroundColor white
+		}
+		entity {
+			BackgroundColor lightgrey
+		}
+		lifeLine {
+			destroy {
+				LineColor red
+			}
+		}
+	}
+</style>
+hide footbox
+!pragma teoz true
+
+box SCCP #ffffcc
+	entity NSAP as nsap
+end box
+box TSL #99cc99
+	participant TCO as tco
+	participant TSM as tsm
+end box
+box AEI #ff9999
+	box CSL #99cc99
+		participant DHA as dha
+		participant CCO as cco
+	end box
+	entity USAP as usap
+end box
+
+nsap -> tco : N-UNITDATA
+create tsm
+tco -> tsm : TR-BEGIN
+create dha
+tsm -> dha : TR-BEGIN
+create cco
+dha -> cco : TC-BEGIN
+create usap
+dha -> usap : TC-BEGIN
+cco -> usap : TC-INVOKE
+cco <- usap : TC-INVOKE
+dha <- usap : TC-CONTINUE
+dha <-> cco
+tco <- dha : TR-CONTINUE
+tco -> tsm : TR-CONTINUE
+tco <- tsm : N-UNITDATA
+nsap <- tco : N-UNITDATA
+
+@enduml

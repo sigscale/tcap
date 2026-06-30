@@ -1,0 +1,71 @@
+@startuml
+
+skinparam style strictuml
+<style>
+	shadowing false
+	sequenceDiagram {
+		LineColor midnightblue
+		FontColor midnightblue
+		box {
+			LineColor none
+		}
+		participant {
+			LineColor none
+			BackgroundColor white
+			sccp {
+				BackgroundColor #ffffcc
+			}
+			tsl {
+				BackgroundColor #99cc99
+			}
+			aei {
+				BackgroundColor #ff9999
+			}
+		}
+		lifeLine {
+			destroy {
+				LineColor red
+			}
+		}
+	}
+</style>
+hide stereotype
+hide footbox
+!pragma teoz true
+
+box Node A
+	participant NSAP as nsap1 <<sccp>>
+	participant TCO as tco1 <<tsl>>
+	participant TSM as tsm1 <<tsl>>
+	participant AEI as aei1 <<aei>>
+end box
+box Node B
+	participant NSAP as nsap2 <<sccp>>
+	participant TCO as tco2 <<tsl>>
+end box
+
+nsap1 -> tco1 : N-UNITDATA
+create tsm1
+tco1 -> tsm1 : TR-BEGIN
+create aei1
+tsm1 -> aei1 : TR-BEGIN
+tco1 <- aei1 : TR-CONTINUE
+tsm1 <- tco1 : TR-CONTINUE
+tco1 <- tsm1 : N-UNITDATA
+nsap1 <- tco1 : N-UNITDATA
+...
+nsap2 -> tco2 : N-UNITDATA
+tco2 -> tsm1 : TR-CONTINUE
+tsm1 -> aei1 : TR-CONTINUE
+tco1 <- aei1 : TR-END
+destroy aei1
+tsm1 <- tco1 : TR-END
+tco1 <- tsm1 : N-UNITDATA
+destroy tsm1
+nsap2 <- tco1 : N-UNITDATA
+note over tco1, nsap2
+	The ""tcap_tco_server:send_primitive/2"" callback
+	gets original MTP SAP from SCCP party address.
+end note
+
+@enduml

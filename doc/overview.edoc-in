@@ -238,6 +238,13 @@ transaction.
 		name="figure5-1" src="tcap_messaging.png" /><br />
 Figure 5-1: Process Communication</p>
 
+A typical message sequence flow is depicted in
+<a href="tsl-csl-msc.svg">Figure 5-2</a>.
+
+<p><img alt="message sequence chart"
+		name="figure5-2" src="tsl-csl-msc.svg" /><br />
+Figure 5-2: Message Sequence Chart</p>
+
 ==Supervision Hierarchy==
 The processes which make up an instance of the TCAP service layer
 are all instantiated within a supervision tree.  When the
@@ -249,7 +256,7 @@ access point (SAP). A {@link tcap_tsl_sup. tcap_tsl_sup} supervisor
 is started with one worker TCO and a supervisor for dynamically
 added TSM workers.
 
-<a href="tcap_supervision.png">Figure 5-2</a> shows the structure
+<a href="tcap_supervision.png">Figure 5-3</a> shows the structure
 of the supervision hierarchy.
 
 For every new transaction ID assigned (`Begin' indication or request)
@@ -276,8 +283,8 @@ added to the {@link tcap_invocation_sup. tcap_invocation_sup}
 supervisor for each locally invoked operation.
 
 <p><img alt="diagram of supervision tree"
-		name="figure5-2" src="tcap_supervision.png" /><br />
-Figure 5-2: Process Supervision</p>
+		name="figure5-3" src="tcap_supervision.png" /><br />
+Figure 5-3: Process Supervision</p>
 
 
 ==Distribution==
@@ -287,7 +294,7 @@ across nodes.  <a href="tcap_distribution.png">Figure 6-1</a>
 shows an example of an AP having AEIs distributed across several
 remote Erlang nodes to accomplish load distribution. The AE
 includes an ASE for CAMEL Application Part (CAP) and an ASE
-for TCAP implemented with the CSL. 
+for TCAP implemented with the CSL.
 
 <p><img alt="diagram of process distribution"
 		name="figure6-1" src="tcap_distribution.png" /><br />
@@ -302,12 +309,26 @@ a remote node by dynamically adding a child of a
 {@link tcap_csl_sup. tcap_csl_sup} supervisor in the
 {@link //tcap. tcap} application running on that node.
 
+The TSL sublayer may be distributed across multiple nodes.
+A TSM is registered with the {@link //kernel/global. global}
+process registry as `{tcap_tid, TransactionID}', allowing a
+`TSL' on any node to continue, or end, an existing dialogue.
+The `TCO' callback module shall implement a
+{@link //tcap/tcap_tco_server:send_primitive/2. send_primitive/2}
+callback function which gets the original MTP ({@link //m3ua. m3ua})
+SAP from the SCCP
+{@link //sccp/sccp_codec:party_address(). party_address()}.
+
+<p><img alt="diagram of tsl distribution"
+		name="figure6-2" src="tsl-distribution-msc.svg" /><br />
+Figure 6-2: TSL Distribution</p>
+
 ==Primitives (ITU)==
 The communication between layers is defined in ITU-T recommendations
 using "primitives". The information content is specified but not a
 specific encoding.  ITU-T Q.771 provides the primitives for TCAP.
 In the {@link //tcap. tcap} application tuples of the form provided
-below are sent as messages between processes. The `Parameters' are 
+below are sent as messages between processes. The `Parameters' are
 represented using primitive specific records.
 ===TC-User &#8594; Component Sublayer===
 ====Dialogue Handling====
